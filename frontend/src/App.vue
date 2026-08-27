@@ -1,85 +1,52 @@
 <script setup>
-import { RouterLink, RouterView } from 'vue-router'
-import HelloWorld from './components/HelloWorld.vue'
+import { ref, onMounted, onUnmounted } from 'vue'
+import TopNav from '@/components/TopNav.vue'
+
+const toasts = ref([])
+let seq = 0
+function onToast(e) {
+  const { type = 'info', msg } = e.detail || {}
+  const id = ++seq
+  toasts.value.push({ id, type, msg })
+  setTimeout(() => {
+    toasts.value = toasts.value.filter(t => t.id !== id)
+  }, 2600)
+}
+onMounted(() => window.addEventListener('app-toast', onToast))
+onUnmounted(() => window.removeEventListener('app-toast', onToast))
 </script>
 
 <template>
-  <header>
-    <img alt="Vue logo" class="logo" src="@/assets/logo.svg" width="125" height="125" />
+  <div class="min-h-screen flex flex-col">
+    <TopNav />
+    <main class="flex-1 w-full max-w-[1100px] mx-auto px-4 pb-16">
+      <RouterView />
+    </main>
 
-    <div class="wrapper">
-      <HelloWorld msg="You did it!" />
-
-      <nav>
-        <RouterLink to="/">Home</RouterLink>
-        <RouterLink to="/about">About</RouterLink>
-      </nav>
+    <!-- 轻量全局提示栈 -->
+    <div class="fixed left-1/2 -translate-x-1/2 bottom-8 z-50 space-y-2 pointer-events-none">
+      <TransitionGroup name="toast">
+        <div
+          v-for="t in toasts"
+          :key="t.id"
+          class="px-4 py-2 rounded-full shadow-lg text-sm text-white"
+          :class="t.type === 'error' ? 'bg-red-500/95' : 'bg-neutral-800/95'"
+        >
+          {{ t.msg }}
+        </div>
+      </TransitionGroup>
     </div>
-  </header>
-
-  <RouterView />
+  </div>
 </template>
 
 <style scoped>
-header {
-  line-height: 1.5;
-  max-height: 100vh;
+.toast-enter-active,
+.toast-leave-active {
+  transition: all 0.25s ease;
 }
-
-.logo {
-  display: block;
-  margin: 0 auto 2rem;
-}
-
-nav {
-  width: 100%;
-  font-size: 12px;
-  text-align: center;
-  margin-top: 2rem;
-}
-
-nav a.router-link-exact-active {
-  color: var(--color-text);
-}
-
-nav a.router-link-exact-active:hover {
-  background-color: transparent;
-}
-
-nav a {
-  display: inline-block;
-  padding: 0 1rem;
-  border-left: 1px solid var(--color-border);
-}
-
-nav a:first-of-type {
-  border: 0;
-}
-
-@media (min-width: 1024px) {
-  header {
-    display: flex;
-    place-items: center;
-    padding-right: calc(var(--section-gap) / 2);
-  }
-
-  .logo {
-    margin: 0 2rem 0 0;
-  }
-
-  header .wrapper {
-    display: flex;
-    place-items: flex-start;
-    flex-wrap: wrap;
-  }
-
-  nav {
-    text-align: left;
-    margin-left: -1rem;
-    font-size: 1rem;
-
-    padding: 1rem 0;
-    margin-top: 1rem;
-  }
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
 }
 </style>

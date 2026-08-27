@@ -2,6 +2,13 @@
 
 > 维护规约见 [AGENTS.md §4.1](AGENTS.md)：满足触发条件必须追加条目；历史条目不改写，错误用勘误行修正。
 
+## [v2.4] · 2026-08-27 · Phase 4 前端六步实现落盘（验收剧本待执行）
+
+- **落盘范围（4.1~4.6）**：视觉基底（陶土橙 @theme 变量/system-ui/清空模板 demo）；基础设施（utils/request.js 含 401 单飞刷新+重放+40100 回登录、stores/user.js localStorage 持久化、全路由守卫 guestOnly/requiresAuth、api 五模块对齐 02 契约）；LoginView 双 Tab 客户端校验；TopNav 发布笔形按钮+头像下拉菜单；HomeView 双列瀑布流(骨架屏 8 卡+IntersectionObserver 哨兵)；PublishView ≤9 张即传即预览(处理中转圈/失败红标可重传/左右移排序/公开私密 radio/标题计数器)；ProfileView 信息卡+编辑弹层+九宫格(本人视角含私密徽章)；NoteDetailView 纵向大图流+作者卡+作者删除钮；NotFound 404 态。
+- **门禁与冒烟**：`npm run build` 通过（路由分包 486ms）；dev server HTTP 200 且经 `/api` 代理取到后端 ping 包络——前后端联通链路就绪。过程中修复 main.css 残留 base.css import 的构建失败。
+- **待办（守则 3 记录不跳过）**：P4 手动验收剧本未执行（注册 A 发 3 篇含 webp→登出→B 浏览/强刷保持登录态/B 无删入口/A 删文消失、控制台无红错）。留待下轮以浏览器自动化或人工执行后补勾 Checklist。
+- 模板遗留文件已删除（HelloWorld/TheWelcome/icons/counter/AboutView/logo.svg/base.css）。
+
 ## [v2.3] · 2026-08-27 · Phase 3-3.8 完成暨 Phase 3 后端整体收官
 
 - **验收状态**：Checklist 3.8/3.9 勾选。`docs/dev/test-e2e38.mjs` **29 用例全 PASS**，18 个契约端点全部实装：资料读写/头像(200x200 居中裁切)/个人主页与网格(可选令牌视角差异)/发布事务(bind 回填 order_no, cover=首图 thumb)/详情聚合(mine 判定/有序 images)/软删幂等/feed 游标+两级缓存(L1 整页 JSON TTL300 写穿透失效; L2 卡片 TTL1h 命中免回表)。
