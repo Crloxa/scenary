@@ -62,4 +62,12 @@ public class JwtUtil {
             throw new BizException(ErrorCode.TOKEN_INVALID);
         }
     }
+
+    /** Authorization 头剥壳：缺失或非 Bearer 方案按未登录(40100)处理 */
+    public static String stripBearer(String header) {
+        if (header == null || !header.startsWith("Bearer ")) {
+            throw new BizException(ErrorCode.UNAUTHORIZED);
+        }
+        return header.substring(7);
+    }
 }

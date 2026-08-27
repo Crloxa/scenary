@@ -118,13 +118,7 @@ public class AuthService {
     }
 
     public void logout(String authorizationHeader) {
-        String token = stripBearer(authorizationHeader);
-        Claims claims;
-        try {
-            claims = jwtUtil.parse(token);
-        } catch (BizException e) {
-            throw e;
-        }
+        Claims claims = jwtUtil.parse(JwtUtil.stripBearer(authorizationHeader));
         if (!JwtUtil.TYPE_ACCESS.equals(claims.get("type", String.class))) {
             throw new BizException(ErrorCode.UNAUTHORIZED);
         }
@@ -188,10 +182,4 @@ public class AuthService {
                 refresh, jwtProps.getRefreshTtl());
     }
 
-    static String stripBearer(String header) {
-        if (header == null || !header.startsWith("Bearer ")) {
-            throw new BizException(ErrorCode.UNAUTHORIZED);
-        }
-        return header.substring(7);
-    }
 }
