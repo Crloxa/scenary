@@ -2,6 +2,13 @@
 
 > 维护规约见 [AGENTS.md §4.1](AGENTS.md)：满足触发条件必须追加条目；历史条目不改写，错误用勘误行修正。
 
+## [v2.0] · 2026-08-27 · Phase 3-3.5 认证拦截链完成
+
+- **验收状态**：Checklist 3.5 勾选——脚本 `docs/dev/test-interceptor35.mjs` 8 用例全 PASS：无 token 与非 Bearer 方案 401/40100；垃圾 JWT 40101；有效 access 经 UserController(/me 占位)回显正确 userId；refresh 当 access 用 40101；**已登出 access 命中黑名单 40101"令牌已登出"**（双保险在真实请求链路生效）；同会话连发两请求无串号。
+- **语义决策**：携带了 type=refresh 的令牌访问受保护端点属于"令牌无效(40101)"而非"未登录(40100)"——前者是凭证本体失效，后者指根本未携带，与 docs/02 §1.2 行语义对齐。
+- **设计注记**：Spring 拦截器注册模式无法表达方法条件，契约中笔记详情的公开读由 AuthInterceptor 内部豁免（仅限 GET 且路径为 /notes 或 /notes/{id}）；`JwtUtil.stripBearer` 从 AuthService 上移至 JwtUtil 统一持有。UserController 当前为 /me 占位实现（回显 stage 字段），完整契约在 3.8 落地。
+- **落盘**：`auth/UserContext`、`auth/AuthInterceptor`、`config/WebConfig`、`user/UserController`(占位)。
+
 ## [v1.9] · 2026-08-27 · Phase 3-3.4 认证全套完成
 
 - **验收状态**：Checklist 3.4 勾选——验收脚本 `docs/dev/test-auth34.mjs`（Node fetch 直驱，绕开 Git Bash GBK 控制台对命令行中文的转码坑，见 L17 待写条目）18 用例全 PASS：注册(中文昵称回显/TTL=7200/2592000)、重名 41001、非法用户名 40000、统一文案错密提示、刷新旋转后旧令牌重放 40101、登出吊销白名单后再刷 40101、连错 5 次 42001 锁定且锁内正确密码同拒。

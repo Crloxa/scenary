@@ -523,7 +523,7 @@ TOKEN=<上一步accessToken>; curl -s -X POST $BASE/media/images \
 - [x] 3.1 Flyway 三表就绪（2026-08-27：Successfully applied 1 migration；users/notes/media + flyway_schema_history 实查通过）
 - [x] 3.2 ping 包络正常（2026-08-27：`{"code":0,"message":"ok","data":{"pong":"v1"}}` 与契约逐字段一致）
 - [x] 3.4 注册/登录/刷新/登出四接口全绿（2026-08-27：18 用例脚本 docs/dev/test-auth34.mjs 全 PASS，含旋转重放拒绝/登出吊销/登录锁三组安全用例）
-- [ ] 3.5 无 token 拦截生效 / ThreadLocal 清理无泄漏
+- [x] 3.5 无 token 拦截生效 / ThreadLocal 清理无泄漏（2026-08-27：8 用例脚本 docs/dev/test-interceptor35.mjs 全 PASS，含非 Bearer 方案/垃圾 JWT/refresh 当 access/登出黑名单/连续请求无串号）
 - [ ] 3.6 上传入 MinIO + media 行落库 + MQ 消息发出
 - [ ] 3.7 缩略图消费成功 + DLQ 兜底验证
 - [ ] 3.8 笔记发布/详情/删除、feed 游标翻页、个人中心全绿
