@@ -2,6 +2,13 @@
 
 > 维护规约见 [AGENTS.md §4.1](AGENTS.md)：满足触发条件必须追加条目；历史条目不改写，错误用勘误行修正。
 
+## [v1.8] · 2026-08-27 · 缺陷修复与方法不匹配语义纠正 + 3.3 user 基础
+
+- **行为确认**：项目所有者报告访问 `http://localhost:8080/` 返回 `40400 资源不存在`——经全路径回归确认属**契约内设计行为**（后端不出静态页，未映射路径统一业务包络 404+40400，见 docs/02 §1.1/§1.2）。
+- **缺陷修复**：回归中发现 GET-only 端点受 POST/PATCH 访问时被兜底异常捕获，误报为 `500/50000 服务开小差了`。已为 HttpRequestMethodNotSupportedException / HttpMediaTypeNotSupportedException 增设映射：HTTP 405/415 + 包络 `40000`（客户端用法问题≠服务端故障）。复测全绿。
+- **3.3 落盘**：`user/UserEntity`、`user/UserMapper` + `resources/mapper/UserMapper.xml`（insert 主键回填/按用户名与 id 查询/资料动态 set/头像更新）、`config/PasswordConfig`(BCrypt cost=10)。启动验证：此前 "No MyBatis mapper was found" 警告消失（扫描命中），XML 解析无错；功能验收依手册由 3.4 四连 curl 覆盖。
+- 附注：后台任务强杀 java 监听进程导致旧 mvn 任务退出码 1 属预期现象（运维侧已知）。
+
 ## [v1.7] · 2026-08-27 · Phase 3 前两步完成（3.1 Flyway / 3.2 common+ping）
 
 - **验收状态**：3.1 Flyway 首迁 `Successfully applied 1 migration`，users/notes/media 三表实查就绪；3.2 `/api/v1/ping` 返回契约包络。附带完成 Flyway 纪律亲测实验：篡改已应用 V1 → checksum mismatch 拒启 → 还原 → validate 通过。
