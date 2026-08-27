@@ -2,6 +2,13 @@
 
 > 维护规约见 [AGENTS.md §4.1](AGENTS.md)：满足触发条件必须追加条目；历史条目不改写，错误用勘误行修正。
 
+## [v2.2] · 2026-08-27 · Phase 3-3.7 缩略图管线闭环完成
+
+- **验收状态**：Checklist 3.7 勾选——`docs/dev/test-thumbnail37.mjs` 7 用例全 PASS：上传 1000x604 约 800ms 轮询至 status=1；缩略图 800x483 限边等比，300x200 小图不被放大；thumb 直链匿名可读（jpeg 7683B）；毒消息两类（malformed JSON / 幽灵 mediaId）均经本地两次重试后 nack 落 `media.dlq` 深度 0→2；毒消息倾泻后正常流不受阻。
+- **证据存档**：消费者日志含 success/malformed-dead-lettering/attempt1..2/dlq 四类行；`mc ls` 见 thumb/202608/ 与原图同 uuid 成对 `_t.jpg`；DB 回写 status=1 + 宽高 + thumb_object_key。历史遗留：media id=6 永久 status=0，系其消息在队列绑定前发出被无声丢弃（3.6 注记的活案例），人工 DELETE 处理。
+- **拓扑落盘**：RabbitConfig 扩展 media.thumbnail.q(带 x-dead-letter 参数)/media.dead exchange/media.dlq 及两条 binding；消费者 `mq/ThumbnailConsumer`（手动 ack、解析容错、本地重试 2 次、重编码 JPEG q0.8 剥 EXIF）。yml 的 concurrency=2/prefetch=1/manual 三项已被运行时验证（consumers=2）。
+- **学习笔记**：backlog L5 到点成篇 `docs/learning/07-RabbitMQ手动ack与DLX三件套.md`。
+
 ## [v2.1] · 2026-08-27 · Phase 3-3.6 上传管线完成
 
 - **验收状态**：Checklist 3.6 勾选——`docs/dev/test-media36.mjs` 13 用例全 PASS（无 token 拦截/双图上传/契约 TTL 形态/匿名对象回读/魔数欺骗拒绝/超限 400/越权 40300/不存在 40400/轮询形态/游离媒体删除闭环）。三项手册"眼见为实"逐一实证：media 表 4 行 status=0、mc 列出 orig/202608/ 全部对象、临时探测队列收到 `{"mediaId":...}` 字节级匹配。

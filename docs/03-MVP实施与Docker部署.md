@@ -525,7 +525,7 @@ TOKEN=<上一步accessToken>; curl -s -X POST $BASE/media/images \
 - [x] 3.4 注册/登录/刷新/登出四接口全绿（2026-08-27：18 用例脚本 docs/dev/test-auth34.mjs 全 PASS，含旋转重放拒绝/登出吊销/登录锁三组安全用例）
 - [x] 3.5 无 token 拦截生效 / ThreadLocal 清理无泄漏（2026-08-27：8 用例脚本 docs/dev/test-interceptor35.mjs 全 PASS，含非 Bearer 方案/垃圾 JWT/refresh 当 access/登出黑名单/连续请求无串号）
 - [x] 3.6 上传入 MinIO + media 行落库 + MQ 消息发出（2026-08-27：13 用例全 PASS；DB 实查 4 行 status=0；mc 列出 orig/202608/ 全部对象且匿名可读；MQ 以临时队列实证 mediaId 消息入队——管理插件 publish 计数器在该版本恒 0 属统计怪癖，已以队列深度替代证据；附带含契约形状 data.items 修正）
-- [ ] 3.7 缩略图消费成功 + DLQ 兜底验证
+- [x] 3.7 缩略图消费成功 + DLQ 兜底验证（2026-08-27：7 用例全 PASS——800ms 内出片/限边等比 800x483 与不放大 300x200 双证/thumb 匿名可读 7.6KB jpeg/两枚毒消息重试两跳后落 DLQ 深度 0→2/毒消息后正常流不受阻；日志与 thumb 对象清单随 CHANGELOG v2.2 存档）
 - [ ] 3.8 笔记发布/详情/删除、feed 游标翻页、个人中心全绿
 - [ ] 3.9 smoke-backend.http 存档
 - [ ] 4.1-4.6 六个前端任务各自验收通过
