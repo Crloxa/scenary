@@ -2,6 +2,13 @@
 
 > 维护规约见 [AGENTS.md §4.1](AGENTS.md)：满足触发条件必须追加条目；历史条目不改写，错误用勘误行修正。
 
+## [v1.6] · 2026-08-27 · Phase 2 中间件先行完成
+
+- **验收状态**：P2 完成——`docker compose -f docker-compose.middleware.yml up -d` 全部 running：MySQL 8.4.11 healthy 且 scenary 业务账号可连 `scenary` 库；Redis RESP 应答 +PONG；RabbitMQ 3.13.7 管理 API 用 scenary_mq 账号可达；MinIO 健康 200，一次性初始化容器建成 `scenary-media` 桶并设 download 匿名权限（BUCKET_READY）。
+- **落盘**：`.env.example`（模板，含 PUBLIC_HOST）与 `docker-compose.middleware.yml`（按 03 手册原文）；本地 `.env` 填入 Phase 0 生成的 JWT_SECRET(hex48)/MINIO 密码(hex16)，已验证被 .gitignore 忽略、未入库。（影响仓库根）
+- **安全注记**：MySQL healthcheck 按 03 原文内插根密码，实测明文进容器元数据（`docker inspect` 可见）——单机开发接受并记入学习笔记 [03]，公网部署前应改造（详见笔记"可复用结论"2）。
+- **学习笔记**：新增 `docs/learning/03-Compose变量注入的时机与明文泄露面.md` 并登记索引 L15。
+
 ## [v1.5] · 2026-08-27 · Phase 1 工程脚手架完成
 
 - **验收状态**：P1 完成——后端 `mvn -q compile` 通过（Boot 3.5.16/Java 21）；前端 Vite 8 dev server HTTP 200 无报错；git `main` 三笔原子提交（治理文档/后端/前端）。
