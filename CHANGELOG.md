@@ -2,6 +2,14 @@
 
 > 维护规约见 [AGENTS.md §4.1](AGENTS.md)：满足触发条件必须追加条目；历史条目不改写，错误用勘误行修正。
 
+## [v2.1] · 2026-08-27 · Phase 3-3.6 上传管线完成
+
+- **验收状态**：Checklist 3.6 勾选——`docs/dev/test-media36.mjs` 13 用例全 PASS（无 token 拦截/双图上传/契约 TTL 形态/匿名对象回读/魔数欺骗拒绝/超限 400/越权 40300/不存在 40400/轮询形态/游离媒体删除闭环）。三项手册"眼见为实"逐一实证：media 表 4 行 status=0、mc 列出 orig/202608/ 全部对象、临时探测队列收到 `{"mediaId":...}` 字节级匹配。
+- **统计怪癖注记**：RabbitMQ 管理 API 的 exchange publish_count 在本环境恒为 0（连管理 API 自发直投也不计），消息已发的证据改用队列深度/字节数替代；已知不影响功能。
+- **契约修正**：上传响应实现初版误把数组直接作 data——测试断言当场抓获，按 docs/02 §4.1 补 `MediaUploadVO{items}` 包装归位。"响应形状差异能被黑盒断言逮住"验证了 smoke 脚本方法论。
+- **落盘**：`config/{MinioProperties,MinioConfig,RabbitConfig(交换机+JSON模板)}`、`media/{MinioService,MediaImageType,MediaEntity,MediaMapper(+XML),MediaService,MediaItemVO,MediaUploadVO,MediaController}`。涵盖 §4.3 游离媒体删除（早于 3.8 收口，模块自洽）。
+- **学习笔记**：新增 `docs/learning/06-Content-Type不可信与魔数嗅探.md`（L18）。
+
 ## [v2.0] · 2026-08-27 · Phase 3-3.5 认证拦截链完成
 
 - **验收状态**：Checklist 3.5 勾选——脚本 `docs/dev/test-interceptor35.mjs` 8 用例全 PASS：无 token 与非 Bearer 方案 401/40100；垃圾 JWT 40101；有效 access 经 UserController(/me 占位)回显正确 userId；refresh 当 access 用 40101；**已登出 access 命中黑名单 40101"令牌已登出"**（双保险在真实请求链路生效）；同会话连发两请求无串号。
