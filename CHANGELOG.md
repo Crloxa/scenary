@@ -2,6 +2,15 @@
 
 > 维护规约见 [AGENTS.md §4.1](AGENTS.md)：满足触发条件必须追加条目；历史条目不改写，错误用勘误行修正。
 
+## [v2.3] · 2026-08-27 · Phase 3-3.8 完成暨 Phase 3 后端整体收官
+
+- **验收状态**：Checklist 3.8/3.9 勾选。`docs/dev/test-e2e38.mjs` **29 用例全 PASS**，18 个契约端点全部实装：资料读写/头像(200x200 居中裁切)/个人主页与网格(可选令牌视角差异)/发布事务(bind 回填 order_no, cover=首图 thumb)/详情聚合(mine 判定/有序 images)/软删幂等/feed 游标+两级缓存(L1 整页 JSON TTL300 写穿透失效; L2 卡片 TTL1h 命中免回表)。
+- **契约补充**：docs/02 发布接口原文缺少"创建私密笔记"入口而 §3.5 引用私密语义——`POST /notes` 增加可选 `visibility`(缺省 1，仅允许 0/1)。属契约缺口补丁，请知悉。
+- **缺陷修复**：NoteMapper.xml 初版 INSERT 漏 visibility 列导致私密笔记得以公开访问——被 ⑨c/⑨d 用例当场抓获，修复后全套复跑通过。feed L1 首读存在一次极小概率的写侧可见性竞态（断言已按"至多一次竞态后字节稳定"语义固化）。
+- **结构决策**：跨包视图升 common（AuthorVO/GridCardVO）；个人网格数据经 NoteService 门面供数给 user 模块（依赖铁律落地样板）；JwtUtil 增加 peekUserId 供公开端点"登录则增强"。
+- **验收件归档**：`docs/dev/smoke-backend.http`（全端点 IDEA 格式正反例）+ 5 个可编程脚本（共 75 断言）。
+- **学习笔记**：backlog L6 到点成篇 `docs/learning/08-游标分页vsOffset分页.md`。
+
 ## [v2.2] · 2026-08-27 · Phase 3-3.7 缩略图管线闭环完成
 
 - **验收状态**：Checklist 3.7 勾选——`docs/dev/test-thumbnail37.mjs` 7 用例全 PASS：上传 1000x604 约 800ms 轮询至 status=1；缩略图 800x483 限边等比，300x200 小图不被放大；thumb 直链匿名可读（jpeg 7683B）；毒消息两类（malformed JSON / 幽灵 mediaId）均经本地两次重试后 nack 落 `media.dlq` 深度 0→2；毒消息倾泻后正常流不受阻。

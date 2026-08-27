@@ -70,4 +70,20 @@ public class JwtUtil {
         }
         return header.substring(7);
     }
+
+    /**
+     * 公开端点的可选身份：令牌缺失/无效一律按匿名处理返回 null，绝不抛错——
+     * 用于笔记详情 mine 标记、个人网格私密可见性这类"登录则增强"的场景。
+     */
+    public Long peekUserId(String authorizationHeader) {
+        try {
+            Claims claims = parse(stripBearer(authorizationHeader));
+            if (!TYPE_ACCESS.equals(claims.get("type", String.class))) {
+                return null;
+            }
+            return Long.parseLong(claims.getSubject());
+        } catch (Exception e) {
+            return null;
+        }
+    }
 }
