@@ -2,6 +2,15 @@
 
 > 维护规约见 [AGENTS.md §4.1](AGENTS.md)：满足触发条件必须追加条目；历史条目不改写，错误用勘误行修正。
 
+## [v1.5] · 2026-08-27 · Phase 1 工程脚手架完成
+
+- **验收状态**：P1 完成——后端 `mvn -q compile` 通过（Boot 3.5.16/Java 21）；前端 Vite 8 dev server HTTP 200 无报错；git `main` 三笔原子提交（治理文档/后端/前端）。
+- **后端落盘**：手写 `backend/pom.xml`（文档依赖清单全量：web/validation/actuator/data-redis/amqp/mybatis3.0.5/pagehelper2.1.0/flyway(+mysql)/mysql-j/jjwt0.12.6/security-crypto/minio8.5.17/thumbnailator0.4.20/lombok/test）；`ScenaryApplication`；8 个业务包以 package-info.java 固化（common/config/auth/user/media/note/feed/mq）。（影响 `backend/*`）
+- **前端落盘**：create-vue(router+pinia 纯 JS) + axios + TailwindCSS4(@tailwindcss/vite)；vite.config.js 增加 tailwind 插件与 `/api → localhost:8080` 代理；main.css 首行引入 tailwind。（影响 `frontend/*`）
+- **修正**：误入库的安全钩子运行态文件 `frontend/.mimosa/**` 已通过 amend 移出跟踪，根 .gitignore 新增 `.mimosa/`。
+- **遗留提示**：本仓库配置的 Mimosa 提交钩子报告"完整安全扫描结论缺失"（按兼容策略放行）；按其技能调用约束需项目所有者显式发起深度扫描，暂记录不阻塞施工。
+- **学习笔记**：新增 `docs/learning/02-npm脚手架CLI在非交互环境下的两个坑.md` 并登记索引 L14。
+
 ## [v1.4] · 2026-08-27 · 勘误并修订 v1.3 决策：回退 Boot 3.5.x + 脚手架去平台化
 
 - **勘误**：v1.3 的升级决策撤回。理由：项目所有者补充了两条约束——①出现部署/版本选择问题时优先回退保守线；②脚手架不使用 start.spring.io。经核实 MyBatis 4.0.x/PageHelper 4.x 属刚换轨的新生态（踩坑面大），判定违背"优先稳妥"取向。

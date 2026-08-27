@@ -518,7 +518,7 @@ TOKEN=<上一步accessToken>; curl -s -X POST $BASE/media/images \
 <summary>展开勾选</summary>
 
 - [x] P0 四件套工具版本验证通过（2026-08-27：docker 29.6.1/compose v5.2.0/JDK 21.0.11/mvn 3.9.11/node 22.23.2/git 2.46；本机默认 JDK 已由 17 切换为已有 ms-21.0.11，过程见 learning/01）
-- [ ] P1 后端编译通过 / 前端 dev 页面可用 / git 首提交
+- [x] P1 后端编译通过 / 前端 dev 页面可用 / git 首提交（2026-08-27：`mvn -q compile` EXIT=0；Vite 8 dev HTTP 200 无报错；main 分支三笔原子提交。脚手架为手写 pom，未用 start.spring.io，见 CHANGELOG v1.4）
 - [ ] P2 四中间件 healthy + MinIO 桶自动建立
 - [ ] 3.1 Flyway 三表就绪
 - [ ] 3.2 ping 包络正常
