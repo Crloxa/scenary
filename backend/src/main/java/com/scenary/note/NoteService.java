@@ -1,0 +1,156 @@
+package com.scenary.note;
+
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.scenary.common.AuthorVO;
+import com.scenary.common.BizException;
+import com.scenary.common.ErrorCode;
+import com.scenary.common.GridCardVO;
+import com.scenary.common.PageResult;
+import com.scenary.media.MediaMapper;
+import com.scenary.user.UserEntity;
+import com.scenary.user.UserMapper;
+
+/**
+ * 笔记域服务：发布事务 / 软删 / 详情聚合 / 个人网格门面（user 模块经此取数，依赖铁律 docs/01 §4.1）。
+ * 缓存失效契约（docs/02 §5.1/§5.3）：发布与删除都 DEL feed:first:v1；删除另清 note:card:{id}。
+ */
+@Service
+public class NoteService {
+
+    public static final String KEY_FEED_FIRST = "feed:first:v1";
+    public static final String KEY_NOTE_CARD = "note:card:";
+
+    private final NoteMapper noteMapper;
+    private final MediaMapper mediaMapper;
+    private final UserMapper userMapper;
+    private final StringRedisTemplate redis;
+
+    public NoteService(NoteMapper noteMapper, MediaMapper mediaMapper,
+                       UserMapper userMapper, StringRedisTemplate redis) {
+        this.noteMapper = noteMapper;
+        this.mediaMapper = mediaMapper;
+        this.userMapper = userMapper;
+        this.redis = redis;
+    }
+
+    @Transactional
+    public NoteCreatedVO create(long userId, NoteCreateRequest req) {
+        List<MediaItemSnapshot> snapshots = req.mediaIds().stream()
+                .map(id -> {
+                    var m = mediaMapper.findById(id);
+                    if (m == null) {
+                        throw new BizException(ErrorCode.NOT_FOUND, "媒体不存在: " + id);
+                    }
+                    if (m.getUserId() != userId) {
+                        throw new BizException(ErrorCode.FORBIDDEN, "包含不属于你的媒体");
+                    }
+                    if (m.getNoteId() != null) {
+                        throw new BizException(ErrorCode.VALIDATION, "媒体已被其他笔记使用: " + id);
+                    }
+                    if (m.getStatus() == null || m.getStatus() != 1) {
+                        throw new BizException(ErrorCode.MEDIA_NOT_READY,
+                                "媒体仍在处理中，请稍后重试");
+                    }
+                    return new MediaItemSnapshot(m.getId(), m.getThumbUrl());
+                })
+                .toList();
+
+        NoteEntity note = new NoteEntity();
+        note.setUserId(userId);
+        note.setTitle(req.title());
+        note.setContent(req.content() == null ? "" : req.content());
+        note.setPlaceName(req.placeName());
+        // 契约 v2.3：可见性入参缺省公开；越界值已被 Bean Validation 拦截
+        note.setVisibility(req.visibility() == null ? 1 : req.visibility());
+        note.setCoverUrl(snapshots.get(0).thumbUrl());
+        note.setMediaCount(snapshots.size());
+        noteMapper.insert(note);
+
+        for (int i = 0; i < snapshots.size(); i++) {
+            mediaMapper.bindToNote(note.getId(), i + 1, snapshots.get(i).id());
+        }
+        redis.delete(KEY_FEED_FIRST);
+        return new NoteCreatedVO(note.getId(), note.getCoverUrl());
+    }
+
+    public void delete(long userId, long noteId) {
+        NoteEntity note = noteMapper.findById(noteId);
+        if (note == null) {
+            throw new BizException(ErrorCode.NOT_FOUND);
+        }
+        if (note.getUserId() != userId) {
+            throw new BizException(ErrorCode.FORBIDDEN);
+        }
+        // 幂等：重复删除仍走同一条 UPDATE，code=0
+        noteMapper.softDelete(noteId);
+        redis.delete(KEY_FEED_FIRST);
+        redis.delete(KEY_NOTE_CARD + noteId);
+    }
+
+    /** 记录快照的轻量内部结构，避免把 media 实体散出模块 */
+    private record MediaItemSnapshot(long id, String thumbUrl) {
+    }
+
+    // ---------- 聚合查询（详情/网格门面） ----------
+
+    public NoteDetailVO detail(Long viewerId, long noteId) {
+        NoteEntity n = requireVisible(viewerId, noteId);
+        var briefs = briefsMap(List.of(n.getUserId()));
+        var author = toAuthor(n.getUserId(), briefs);
+        var images = mediaMapper.selectByNoteIds(List.of(noteId)).stream()
+                .map(m -> new NoteDetailVO.ImageItem(m.getId(), m.getUrl(),
+                        m.getThumbUrl(), m.getWidth(), m.getHeight()))
+                .toList();
+        boolean mine = viewerId != null && viewerId == n.getUserId();
+        return new NoteDetailVO(n.getId(), n.getTitle(), n.getContent(), n.getPlaceName(),
+                n.getVisibility(), n.getCreatedAt().getTime(), author, images, mine);
+    }
+
+    public PageResult<GridCardVO> gridNotes(long targetUserId, Long viewerId,
+                                            Long cursorParam, Integer limitParam) {
+        boolean showPrivate = viewerId != null && viewerId == targetUserId;
+        int limit = clampLimit(limitParam);
+        long cursor = cursorParam == null ? Long.MAX_VALUE : cursorParam;
+        var rows = noteMapper.selectGridRows(targetUserId, cursor, limit, showPrivate);
+        List<GridCardVO> vos = rows.stream()
+                .map(n -> new GridCardVO(n.getId(), n.getTitle(), n.getCoverUrl(),
+                        n.getMediaCount(), n.getVisibility(), n.getCreatedAt().getTime()))
+                .toList();
+        return PageResult.build(vos, limit, GridCardVO::id);
+    }
+
+    NoteEntity requireVisible(Long viewerId, long noteId) {
+        NoteEntity n = noteMapper.findById(noteId);
+        // 不存在 / 已软删 / 他人私密 —— 一律 404 隐藏存在性
+        if (n == null || n.getVisibility() == null || n.getVisibility() == 2
+                || (n.getVisibility() == 0 && (viewerId == null || viewerId != n.getUserId()))) {
+            throw new BizException(ErrorCode.NOT_FOUND);
+        }
+        return n;
+    }
+
+    public Map<Long, UserEntity> briefsMap(List<Long> userIds) {
+        var distinct = userIds.stream().distinct().toList();
+        return userMapper.selectBriefs(distinct).stream()
+                .collect(java.util.stream.Collectors.toMap(UserEntity::getId, u -> u));
+    }
+
+    public AuthorVO toAuthor(long userId, Map<Long, UserEntity> briefs) {
+        UserEntity u = briefs.get(userId);
+        return u == null ? new AuthorVO(userId, "已注销", null)
+                : new AuthorVO(u.getId(), u.getNickname(), u.getAvatarUrl());
+    }
+
+    static int clampLimit(Integer limitParam) {
+        if (limitParam == null) {
+            return 10;
+        }
+        return Math.max(1, Math.min(20, limitParam));
+    }
+}

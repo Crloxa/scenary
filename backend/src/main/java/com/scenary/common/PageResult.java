@@ -19,6 +19,11 @@ public class PageResult<T> {
         this.hasMore = hasMore;
     }
 
+    /** 已装配完整列表的直构入口（如缓存命中重建、聚合后回填） */
+    public static <T> PageResult<T> of(List<T> page, Long nextCursor, boolean hasMore) {
+        return new PageResult<>(page, nextCursor, hasMore);
+    }
+
     public static <T> PageResult<T> build(List<T> fetched, int limit, Function<T, Long> cursorOf) {
         boolean hasMore = fetched.size() > limit;
         List<T> page = hasMore ? fetched.subList(0, limit) : fetched;

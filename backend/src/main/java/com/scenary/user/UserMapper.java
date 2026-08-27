@@ -3,6 +3,8 @@ package com.scenary.user;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.util.List;
+
 /**
  * users 表数据访问。SQL 一律写在同.resources/mapper/UserMapper.xml，接口只声明意图。
  */
@@ -21,4 +23,10 @@ public interface UserMapper {
                       @Param("bio") String bio);
 
     int updateAvatar(@Param("id") Long id, @Param("avatarUrl") String avatarUrl);
+
+    /** 笔记计数：本人视角含私密(0,1)，他人视角仅公开=1；均已删(2)恒不计 */
+    long countNotes(@Param("userId") Long userId, @Param("includePrivate") boolean includePrivate);
+
+    /** 批量取 id/昵称/头像 摘要（feed 卡片与笔记详情共用） */
+    List<UserEntity> selectBriefs(@Param("ids") List<Long> ids);
 }

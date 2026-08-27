@@ -1,0 +1,158 @@
+### Scenary 后端冒烟脚本（IDEA HTTP Client / docs 03-P3 验收件）
+### 用法：在 IDEA 中按序执行；{{accessToken}} 等变量由前序响应脚本捕获。
+### 配套可编程版本见同目录 test-*.mjs（Node fetch 直驱，可重复执行）。
+
+@host = http://localhost:8080/api/v1
+
+### 0. ping —— 期望 {"code":0,...}
+GET {{host}}/ping
+
+### 0b. actuator health（compose healthcheck 同款路径）
+GET http://localhost:8080/actuator/health
+
+### 1. 注册（改用户名避免重名）→ 捕获双令牌
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{
+  "username": "smoke_a",
+  "password": "Passw0rd123",
+  "nickname": "冒烟甲"
+}
+
+> {%
+    client.global.set("accessToken", response.body.data.accessToken);
+    client.global.set("refreshToken", response.body.data.refreshToken);
+%}
+
+### 1b. 重名注册 → 41001
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{ "username": "smoke_a", "password": "Passw0rd123" }
+
+### 2. 登录
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{ "username": "smoke_a", "password": "Passw0rd123" }
+
+### 3. 刷新旋转 → 旧 refreshToken 复放应得 40101
+POST {{host}}/auth/refresh
+Content-Type: application/json
+
+{ "refreshToken": "{{refreshToken}}" }
+
+### 4. 登出（吊销白名单+黑名单当前 access）
+POST {{host}}/auth/logout
+Authorization: Bearer {{accessToken}}
+
+### 5. 上传两张图（手动替换本地真实 png/jpg 文件路径）
+POST {{host}}/media/images
+Authorization: Bearer {{accessToken}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="files"; filename="a.png"
+Content-Type: image/png
+
+< ./fixtures/a.png
+--boundary
+Content-Disposition: form-data; name="files"; filename="b.png"
+Content-Type: image/png
+
+< ./fixtures/b.png
+--boundary--
+
+> {%
+    client.global.set("mediaId1", String(response.body.data.items[0].mediaId));
+%}
+
+### 5b. 魔数欺骗（文本伪装 jpg）→ 40000
+# 手工构造或经 test-media36.mjs 覆盖
+
+### 6. 轮询媒体状态 → status 从 0 到 1（缩略图消费者完成后）
+GET {{host}}/media/{{mediaId1}}
+Authorization: Bearer {{accessToken}}
+
+### 7. 发布笔记 → {"id":..., "coverUrl":"...thumb..."}
+POST {{host}}/notes
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "title": "雨后的四姑娘山",
+  "content": "十月初的雪线，云开了一小时。",
+  "placeName": "四川·四姑娘山",
+  "mediaIds": [{{mediaId1}}]
+}
+
+> {%
+    client.global.set("noteId", String(response.body.id));
+%}
+
+### 7b. 私密笔记创建（visibility=0，02 v2.3 补充字段）
+POST {{host}}/notes
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{ "title": "私密底稿", "content": "", "mediaIds": [{{mediaId1}}], "visibility": 0 }
+
+### 8. feed 第一页 / 游标翻页
+GET {{host}}/feed
+
+###
+GET {{host}}/feed?limit=10&cursor=999999
+
+### 9. 笔记详情（匿名 mine=false；带 token mine=true）
+GET {{host}}/notes/{{noteId}}
+
+###
+GET {{host}}/notes/{{noteId}}
+Authorization: Bearer {{accessToken}}
+
+### 9b. 未处理完的媒体发布 → 40901；用他人媒体 → 40300；空标题 → 40000
+
+### 10. 用户公开主页 / 网格（含可选 token 私密增强）
+GET {{host}}/users/1
+###
+GET {{host}}/users/1/notes?limit=12
+###
+GET {{host}}/users/1/notes
+Authorization: Bearer {{accessToken}}
+
+### 11. 我的资料编辑 → 回读完整 me
+PATCH {{host}}/users/me
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{ "nickname": "新昵称", "bio": "新签名" }
+
+### 11b. 空 PATCH → 40000 至少一项
+PATCH {{host}}/users/me
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{}
+
+### 12. 头像上传（200x200 居中裁切）
+POST {{host}}/users/me/avatar
+Authorization: Bearer {{accessToken}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="me.png"
+Content-Type: image/png
+
+< ./fixtures/a.png
+--boundary--
+
+### 13. 删除笔记（幂等）
+DELETE {{host}}/notes/{{noteId}}
+Authorization: Bearer {{accessToken}}
+
+### 14. 受保护路径无令牌 → 401/40100
+GET {{host}}/users/me
+
+### 15. 方法不匹配 → 405/包络40000
+POST {{host}}/ping

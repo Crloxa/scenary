@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.scenary.note.NoteMapper">
+
+    <sql id="all_columns">
+        id, user_id, title, content, cover_url, media_count,
+        place_name, visibility, created_at, updated_at
+    </sql>
+
+    <insert id="insert" parameterType="com.scenary.note.NoteEntity"
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO notes (user_id, title, content, place_name, cover_url, media_count, visibility)
+        VALUES (#{userId}, #{title}, #{content}, #{placeName}, #{coverUrl}, #{mediaCount}, #{visibility})
+    </insert>
+
+    <select id="findById" resultType="com.scenary.note.NoteEntity">
+        SELECT <include refid="all_columns"/>
+        FROM notes WHERE id = #{id} LIMIT 1
+    </select>
+
+    <select id="selectFeedRows" resultType="com.scenary.note.NoteEntity">
+        SELECT <include refid="all_columns"/>
+        FROM notes
+        WHERE visibility = 1 AND id &lt; #{cursor}
+        ORDER BY id DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectGridRows" resultType="com.scenary.note.NoteEntity">
+        SELECT <include refid="all_columns"/>
+        FROM notes
+        WHERE user_id = #{userId} AND id &lt; #{cursor}
+        <choose>
+            <when test="showPrivate">AND visibility IN (0, 1)</when>
+            <otherwise>AND visibility = 1</otherwise>
+        </choose>
+        ORDER BY id DESC
+        LIMIT #{limit}
+    </select>
+
+    <update id="softDelete">
+        UPDATE notes SET visibility = 2, deleted_at = CURRENT_TIMESTAMP(3) WHERE id = #{id}
+    </update>
+
+</mapper>

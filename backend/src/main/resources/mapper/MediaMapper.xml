@@ -39,4 +39,17 @@
         DELETE FROM media WHERE id = #{id} AND user_id = #{userId} AND note_id IS NULL
     </delete>
 
+    <update id="bindToNote">
+        UPDATE media SET note_id = #{noteId}, order_no = #{orderNo}
+        WHERE id = #{mediaId}
+    </update>
+
+    <select id="selectByNoteIds" resultType="com.scenary.media.MediaEntity">
+        SELECT <include refid="all_columns"/>
+        FROM media
+        WHERE note_id IN
+        <foreach collection="noteIds" item="nid" open="(" separator="," close=")">#{nid}</foreach>
+        ORDER BY note_id ASC, order_no ASC, id ASC
+    </select>
+
 </mapper>

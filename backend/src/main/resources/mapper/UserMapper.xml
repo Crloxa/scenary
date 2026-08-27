@@ -44,4 +44,19 @@
         UPDATE users SET avatar_url = #{avatarUrl} WHERE id = #{id}
     </update>
 
+    <select id="countNotes" resultType="long">
+        SELECT COUNT(*) FROM notes
+        WHERE user_id = #{userId}
+        <choose>
+            <when test="includePrivate">AND visibility IN (0, 1)</when>
+            <otherwise>AND visibility = 1</otherwise>
+        </choose>
+    </select>
+
+    <select id="selectBriefs" resultType="com.scenary.user.UserEntity">
+        SELECT id, nickname, avatar_url FROM users
+        WHERE id IN
+        <foreach collection="ids" item="uid" open="(" separator="," close=")">#{uid}</foreach>
+    </select>
+
 </mapper>
