@@ -110,7 +110,7 @@ public class MediaService {
             media.setOrderNo(order);
             media.setBucket(minioProps.getBucket());
             media.setObjectKey(key);
-            media.setUrl(publicUrl(key));
+            media.setUrl(minio.publicUrl(key));
             media.setMime(type.mime());
             media.setSizeBytes(file.getSize());
             media.setStatus(0);
@@ -132,9 +132,5 @@ public class MediaService {
             // 消息黑洞兜底：media 停留 status=0 可观测（轮询接口），不会假装成功
             log.error("publish media.uploaded failed, mediaId={}", mediaId, e);
         }
-    }
-
-    private String publicUrl(String objectKey) {
-        return minioProps.getPublicHost() + "/" + minioProps.getBucket() + "/" + objectKey;
     }
 }

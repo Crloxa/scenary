@@ -51,6 +51,11 @@ public class MinioService {
         }
     }
 
+    /** 浏览器可达的直链前缀：{publicHost}/{bucket}/{key}（生产指向 nginx 反代路径） */
+    public String publicUrl(String objectKey) {
+        return props.getPublicHost() + "/" + props.getBucket() + "/" + objectKey;
+    }
+
     public void remove(String objectKey) {
         try {
             minioClient.removeObject(RemoveObjectArgs.builder()
