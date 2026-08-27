@@ -1,0 +1,6 @@
+# 公共配置。环境相关项在 Phase 3 落 application-dev.yml；容器部署经 Spring relaxed binding 环境变量覆盖。
+spring:
+  application:
+    name: scenary-backend
+  profiles:
+    active: dev
