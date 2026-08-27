@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.scenary.media.MediaMapper">
+
+    <sql id="all_columns">
+        id, user_id, note_id, order_no, bucket, object_key, url,
+        thumb_object_key, thumb_url, mime, size_bytes, width, height, status,
+        created_at, updated_at
+    </sql>
+
+    <insert id="insert" parameterType="com.scenary.media.MediaEntity"
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO media
+            (user_id, note_id, order_no, bucket, object_key, url, mime, size_bytes, status)
+        VALUES
+            (#{userId}, #{noteId}, #{orderNo}, #{bucket}, #{objectKey},
+             #{url}, #{mime}, #{sizeBytes}, #{status})
+    </insert>
+
+    <select id="findById" resultType="com.scenary.media.MediaEntity">
+        SELECT <include refid="all_columns"/>
+        FROM media
+        WHERE id = #{id}
+        LIMIT 1
+    </select>
+
+    <update id="updateProcessResult">
+        UPDATE media
+        SET status          = #{status},
+            thumb_object_key = #{thumbObjectKey},
+            thumb_url       = #{thumbUrl},
+            width           = #{width},
+            height          = #{height}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteUnbound">
+        DELETE FROM media WHERE id = #{id} AND user_id = #{userId} AND note_id IS NULL
+    </delete>
+
+</mapper>
