@@ -129,7 +129,7 @@ async function submitNote() {
 
     <!-- 图片选区：拖拽/点选，即时本地预览、可删可排序 -->
     <div
-      class="rounded-2xl border-2 border-dashed border-neutral-200 hover:border-brand-300 transition p-3 bg-white"
+      class="rounded-2xl border-2 border-dashed border-line hover:border-brand-300 transition p-3 bg-surface"
       @dragover="dragOver"
       @drop="onDrop"
     >
@@ -171,7 +171,7 @@ async function submitNote() {
         <button
           v-if="items.length < MAX_FILES"
           data-testid="pick-image"
-          class="w-[104px] h-[104px] rounded-xl border border-neutral-200 grid place-items-center text-neutral-300 hover:text-brand-400 hover:border-brand-200 transition text-3xl"
+          class="w-[104px] h-[104px] rounded-xl border border-line grid place-items-center text-ink-soft hover:text-brand-400 hover:border-brand-200 transition text-3xl"
           @click="pick"
         >
           +
@@ -182,14 +182,14 @@ async function submitNote() {
     </div>
 
     <!-- 表单 -->
-    <form class="mt-4 space-y-3 bg-white rounded-2xl border border-neutral-100 p-4" @submit.prevent="submitNote">
+    <form class="mt-4 space-y-3 bg-surface rounded-2xl border border-line p-4" @submit.prevent="submitNote">
       <div>
         <input
           v-model="title"
           data-testid="input-title"
           maxlength="64"
           placeholder="填写标题（必填）"
-          class="w-full h-11 px-3 rounded-xl bg-paper border border-neutral-100 outline-none focus:border-brand-300 text-sm"
+          class="w-full h-11 px-3 rounded-xl bg-mute border border-transparent outline-none focus:border-brand-300 text-sm"
         />
         <p class="text-right text-[11px] text-ink-soft mt-0.5">{{ titleCount }}/64</p>
       </div>
@@ -198,13 +198,13 @@ async function submitNote() {
         rows="4"
         maxlength="2000"
         placeholder="这一刻的风景与心情（选填）"
-        class="w-full p-3 rounded-xl bg-paper border border-neutral-100 outline-none focus:border-brand-300 text-sm resize-none"
+        class="w-full p-3 rounded-xl bg-mute border border-transparent outline-none focus:border-brand-300 text-sm resize-none"
       ></textarea>
       <input
         v-model="placeName"
         maxlength="128"
         placeholder="📍 添加地点（选填）"
-        class="w-full h-10 px-3 rounded-xl bg-paper border border-neutral-100 outline-none focus:border-brand-300 text-sm"
+        class="w-full h-10 px-3 rounded-xl bg-mute border border-transparent outline-none focus:border-brand-300 text-sm"
       />
       <div class="flex items-center gap-4 text-sm text-ink-soft select-none">
         <label class="inline-flex items-center gap-1.5 cursor-pointer">

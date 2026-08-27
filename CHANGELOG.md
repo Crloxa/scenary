@@ -2,6 +2,15 @@
 
 > 维护规约见 [AGENTS.md §4.1](AGENTS.md)：满足触发条件必须追加条目；历史条目不改写，错误用勘误行修正。
 
+## [v2.5] · 2026-08-27 · 双主题重构 + 功能测试回归全绿 + 交接文档建立
+
+- **主题**：前端配色切换为 浅薄荷绿(品牌阶)/青冥(夜间底与点缀)/茶白(日间纸底)；支持手动黑夜模式——`@custom-variant dark` 重绑 html.dark、语义 token（paper/surface/mute/line/ink）双层映射、index.html head 内联防闪烁预判、TopNav 新增 ☀️/🌙 切换钮并记忆 localStorage。`npm run build` 门禁复跑通过。
+- **功能测试（API 级）**：五套脚本共 **75 断言全部 PASS**。修复两处可重入性缺陷——脚本写死用户名导致二次执行撞重名/登录锁残留（改为随机后缀）；test-interceptor35 断言从 3.5 占位桩升级为 3.8 真实 UserVO 契约形态。
+- **验收夹具**：新增 `docs/dev/fixtures/`（真实 webp 82KB + 两张程序生成 PNG），smoke-backend.http 与 P4 剧本引用就位。
+- **交接文档**：新建 [docs/HANDOVER.md](docs/HANDOVER.md)（现状/跑法/测试矩阵/待办/坑位速查），README 文档索引与 AGENTS 阅读顺序同步登记。
+- **学习笔记**：成篇 `09-TailwindV4手动暗黑模式三件套.md`（L19）；L20 记录测试可重入修复实录（未成篇）。
+- **遗留待办**：P4 浏览器人工/自动化剧本仍未执行（Checklist 对应行保持未勾）。
+
 ## [v2.4] · 2026-08-27 · Phase 4 前端六步实现落盘（验收剧本待执行）
 
 - **落盘范围（4.1~4.6）**：视觉基底（陶土橙 @theme 变量/system-ui/清空模板 demo）；基础设施（utils/request.js 含 401 单飞刷新+重放+40100 回登录、stores/user.js localStorage 持久化、全路由守卫 guestOnly/requiresAuth、api 五模块对齐 02 契约）；LoginView 双 Tab 客户端校验；TopNav 发布笔形按钮+头像下拉菜单；HomeView 双列瀑布流(骨架屏 8 卡+IntersectionObserver 哨兵)；PublishView ≤9 张即传即预览(处理中转圈/失败红标可重传/左右移排序/公开私密 radio/标题计数器)；ProfileView 信息卡+编辑弹层+九宫格(本人视角含私密徽章)；NoteDetailView 纵向大图流+作者卡+作者删除钮；NotFound 404 态。

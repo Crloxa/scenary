@@ -1,29 +1,67 @@
 @import "tailwindcss";
 
-@theme {
-  /* 陶土橙 · 低饱和"高雅"色板（docs/03 4.1） */
-  --color-brand-50: #fdf5f0;
-  --color-brand-100: #fae7db;
-  --color-brand-200: #f4cbae;
-  --color-brand-300: #eda87d;
-  --color-brand-400: #e57f47;
-  --color-brand-500: #c2410c;
-  --color-brand-600: #a03608;
-  --color-brand-700: #7c2c09;
-  --color-brand-800: #55230b;
-  --color-brand-900: #38190a;
+/* 手动暗黑模式：html.dark 生效（配合 index.html 内联预判脚本与导航栏切换钮） */
+@custom-variant dark (&:where(.dark, .dark *));
 
-  --color-paper: #faf7f4;
-  --color-ink: #2f2926;
-  --color-ink-soft: #857d77;
+@theme {
+  /*
+   * 主色 · 浅薄荷绿（Mint）品牌阶
+   * 辅色 · 青冥（深青，作暗色底与点缀）  固定令牌 --color-qm
+   * 底色 · 茶白（暖调米白）              见下方语义层 --c-paper(light)
+   */
+  --color-brand-50: #ecfaf1;
+  --color-brand-100: #d2f4e0;
+  --color-brand-200: #a8e8c6;
+  --color-brand-300: #74d6a6;
+  --color-brand-400: #45bf85;
+  --color-brand-500: #1ba473;
+  --color-brand-600: #12805b;
+  --color-brand-700: #14684c;
+  --color-brand-800: #13533e;
+  --color-brand-900: #104333;
+
+  /* 青冥：夜间主底 / 白日强调点缀 */
+  --color-qm-400: #3f7a72;
+  --color-qm-600: #23544e;
+  --color-qm-800: #17332f;
+  --color-qm-950: #101d1a;
+
+  /* 语义色映射到运行时变量（跟随暗黑切换）。用 inline 使类名引用保持变量活性 */
+  --color-paper: var(--c-paper);
+  --color-surface: var(--c-surface);
+  --color-mute: var(--c-mute);
+  --color-line: var(--c-line);
+  --color-ink: var(--c-ink);
+  --color-ink-soft: var(--c-inksoft);
 
   --font-sans: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
+/* ---- 茶白日间 ---- */
+:root {
+  --c-paper: #f7f4ec;        /* 茶白 */
+  --c-surface: #fffdf8;
+  --c-mute: #edeade;
+  --c-line: #e3dfd0;
+  --c-ink: #22201a;
+  --c-inksoft: #7c7f72;
+}
+
+/* ---- 青冥夜间 ---- */
+html.dark {
+  --c-paper: #101d1a;        /* 青冥-950 级 */
+  --c-surface: #182623;
+  --c-mute: #213430;
+  --c-line: #2b423c;
+  --c-ink: #e6ede8;
+  --c-inksoft: #93a69e;
+}
+
 html {
   font-family: var(--font-sans);
-  color: var(--color-ink);
-  background-color: var(--color-paper);
+  color: var(--c-ink);
+  background-color: var(--c-paper);
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 ::selection {

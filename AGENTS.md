@@ -16,6 +16,7 @@ Scenary —— 小红书式极简风景图文社区 MVP（注册登录 / 双列�
 | 2 | [docs/03-MVP实施与Docker部署.md](docs/03-MVP实施与Docker部署.md) 中**当前 Phase 对应章节** | 施工时当作操作手册逐步执行 |
 | 3 | [docs/02-API接口规范.md](docs/02-API接口规范.md) | 写/调任何接口前后对照 |
 | 4 | [docs/01-技术栈与总体架构.md](docs/01-技术栈与总体架构.md) | 问"为什么这么设计"或要加第三方依赖时 |
+| 5 | [docs/HANDOVER.md](docs/HANDOVER.md) | 接手施工时：跑法/测试矩阵/待办速查 |
 
 ## 3. 施工守则（违反即返工）
 
@@ -45,5 +46,6 @@ Scenary —— 小红书式极简风景图文社区 MVP（注册登录 / 双列�
 | 阶段 | **Phase 4 六步代码落盘完成（v2.4），待浏览器验收剧本** |
 | 下一步 | 执行 P4 验收剧本（docs/dev/test-*.mjs 之外的真实 UI 走查）→ Phase 5 |
 | 最近一次修订 | 见 CHANGELOG 顶部条目 |
+| 运维交接 | [docs/HANDOVER.md](docs/HANDOVER.md)：跑法/测试矩阵/待办/坑位速查 |
 
 > 改完本文档其余部分后，务必同步更新本表"阶段/下一步/最近修订"三行。

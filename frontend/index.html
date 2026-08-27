@@ -5,6 +5,15 @@
     <link rel="icon" href="/favicon.ico">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Scenary · 风景图文社区</title>
+    <!-- 主题防闪烁：应用加载前按记忆/系统偏好挂 dark 类 -->
+    <script>
+      try {
+        var t = localStorage.getItem('scenary-theme')
+        if (t === 'dark' || (!t && matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark')
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="app"></div>

@@ -29,8 +29,8 @@ onUnmounted(() => window.removeEventListener('app-toast', onToast))
         <div
           v-for="t in toasts"
           :key="t.id"
-          class="px-4 py-2 rounded-full shadow-lg text-sm text-white"
-          :class="t.type === 'error' ? 'bg-red-500/95' : 'bg-neutral-800/95'"
+          class="px-4 py-2 rounded-full shadow-lg text-sm transition-colors"
+          :class="t.type === 'error' ? 'bg-red-500/95 text-white' : 'bg-ink text-paper'"
         >
           {{ t.msg }}
         </div>

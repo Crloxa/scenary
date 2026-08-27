@@ -52,16 +52,16 @@ async function submit() {
 
 <template>
   <section class="max-w-sm mx-auto pt-12">
-    <div class="bg-white rounded-2xl shadow-sm border border-neutral-100 p-6">
+    <div class="bg-surface rounded-2xl shadow-sm border border-line p-6">
       <h1 class="text-lg font-semibold text-center mb-1">欢迎来到 Scenary</h1>
       <p class="text-center text-xs text-ink-soft mb-5">分享此刻的山与海</p>
 
       <!-- 双 Tab -->
-      <div class="grid grid-cols-2 mb-5 rounded-full bg-neutral-100 p-1 text-sm select-none">
+      <div class="grid grid-cols-2 mb-5 rounded-full bg-mute p-1 text-sm select-none">
         <button
           data-testid="tab-login"
           class="h-8 rounded-full transition"
-          :class="tab === 'login' ? 'bg-white shadow font-medium text-brand-600' : 'text-ink-soft'"
+          :class="tab === 'login' ? 'bg-surface shadow font-medium text-brand-600' : 'text-ink-soft'"
           @click="switchTab('login')"
         >
           登录
@@ -69,7 +69,7 @@ async function submit() {
         <button
           data-testid="tab-register"
           class="h-8 rounded-full transition"
-          :class="tab === 'register' ? 'bg-white shadow font-medium text-brand-600' : 'text-ink-soft'"
+          :class="tab === 'register' ? 'bg-surface shadow font-medium text-brand-600' : 'text-ink-soft'"
           @click="switchTab('register')"
         >
           注册
@@ -82,7 +82,7 @@ async function submit() {
             v-model.trim="form.username"
             data-testid="input-username"
             placeholder="用户名（4~20 位字母/数字/下划线）"
-            class="w-full h-11 px-3.5 rounded-xl border border-neutral-200 focus:border-brand-300 focus:ring-2 focus:ring-brand-100 outline-none text-sm placeholder:text-neutral-300"
+            class="w-full h-11 px-3.5 rounded-xl border border-line focus:border-brand-300 focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900 outline-none text-sm placeholder:text-neutral-400 dark:placeholder:text-neutral-500 bg-transparent"
             autocomplete="username"
           />
           <p v-if="errors.username" class="mt-1 text-xs text-red-500">{{ errors.username }}</p>
@@ -94,7 +94,7 @@ async function submit() {
             data-testid="input-password"
             type="password"
             :placeholder="tab === 'register' ? '密码（8 位以上，含字母和数字）' : '密码'"
-            class="w-full h-11 px-3.5 rounded-xl border border-neutral-200 focus:border-brand-300 focus:ring-2 focus:ring-brand-100 outline-none text-sm placeholder:text-neutral-300"
+            class="w-full h-11 px-3.5 rounded-xl border border-line focus:border-brand-300 focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900 outline-none text-sm placeholder:text-neutral-400 dark:placeholder:text-neutral-500 bg-transparent"
             autocomplete="current-password"
           />
           <p v-if="errors.password" class="mt-1 text-xs text-red-500">{{ errors.password }}</p>
@@ -105,7 +105,7 @@ async function submit() {
           v-model.trim="form.nickname"
           data-testid="input-nickname"
           placeholder="昵称（可选，默认同用户名）"
-          class="w-full h-11 px-3.5 rounded-xl border border-neutral-200 focus:border-brand-300 focus:ring-2 focus:ring-brand-100 outline-none text-sm placeholder:text-neutral-300"
+          class="w-full h-11 px-3.5 rounded-xl border border-line focus:border-brand-300 focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900 outline-none text-sm placeholder:text-neutral-400 dark:placeholder:text-neutral-500 bg-transparent"
         />
 
         <p v-if="serverError" data-testid="server-error" class="text-xs text-red-500">{{ serverError }}</p>

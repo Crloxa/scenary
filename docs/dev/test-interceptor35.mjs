@@ -15,12 +15,12 @@ const send=(m,p,h={})=>fetch(B+p,{method:m,headers:h}).then(async r=>[r.status, 
   [s,r] = await send('GET','/users/me',{Authorization:'Bearer not.a.real.jwt'});
   ok('③ 垃圾JWT -> 40101', s===401 && r.code===40101);
 
-  const reg = await post('/auth/register',{username:'itc_user',password:'Str0ngPass!'});
+  const reg = await post('/auth/register',{username:`itc_${Date.now().toString(36).slice(-5)}`,password:'Str0ngPass!'});
   ok('④ 注册准备用户', reg.code===0);
   const at1=reg.data.accessToken;
 
   [s,r] = await send('GET','/users/me',{Authorization:'Bearer '+at1});
-  ok('⑤ 有效access -> 200 回显userId', s===200 && r.data.userId===reg.data.userId, JSON.stringify(r.data));
+  ok('⑤ 有效access -> 200 回显正确身份', s===200 && r.data.id===reg.data.userId && String(r.data.username).startsWith('itc_'), JSON.stringify(r.data));
 
   // refresh 当 access 用 -> 40101（类型错误）
   const rt1=reg.data.refreshToken;
@@ -36,7 +36,7 @@ const send=(m,p,h={})=>fetch(B+p,{method:m,headers:h}).then(async r=>[r.status, 
   const lg = await post('/auth/login',{username:'hill_walker',password:'Str0ngPass!'});
   [s,r] = await send('GET','/users/me',{Authorization:'Bearer '+lg.data.accessToken});
   const [s2,r2] = await send('GET','/users/me',{Authorization:'Bearer '+lg.data.accessToken});
-  ok('⑧ 连续请求无串号(ThreadLocal清理生效)', s===200&&r.data.userId===1&&s2===200&&r2.data.userId===1);
+  ok('⑧ 连续请求无串号(ThreadLocal清理生效)', s===200&&r.data.id===lg.data.userId&&s2===200&&r2.data.id===lg.data.userId);
 
   console.log(`\n==== PASS=${pass} FAIL=${fail} ====`);
   process.exit(fail?1:0);

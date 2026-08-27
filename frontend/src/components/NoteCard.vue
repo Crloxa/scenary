@@ -13,7 +13,7 @@ defineEmits(['open'])
   >
     <!-- 封面：预占位防抖动（宽高未知时按 3:4） -->
     <div
-      class="rounded-xl overflow-hidden bg-neutral-100"
+      class="rounded-xl overflow-hidden bg-mute"
       :style="{ aspectRatio: card.coverWidth && card.coverHeight ? `${card.coverWidth}/${card.coverHeight}` : '3/4' }"
     >
       <img

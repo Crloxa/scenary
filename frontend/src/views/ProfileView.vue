@@ -117,7 +117,7 @@ function fmt(ts) {
 
   <section v-else-if="profile" class="pt-6">
     <!-- 信息卡 -->
-    <header class="flex items-center gap-5 bg-white rounded-2xl border border-neutral-100 p-6">
+    <header class="flex items-center gap-5 bg-surface rounded-2xl border border-line p-6">
       <button
         v-if="isSelf"
         class="relative shrink-0 group"
@@ -149,10 +149,10 @@ function fmt(ts) {
       </div>
 
       <div v-if="isSelf" class="self-start flex flex-col gap-2">
-        <button data-testid="btn-edit-profile" class="h-9 px-4 rounded-full border border-brand-200 text-brand-600 hover:bg-brand-50 text-sm" @click="openEditor">
+        <button data-testid="btn-edit-profile" class="h-9 px-4 rounded-full border border-brand-200 text-brand-600 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-900/30 text-sm" @click="openEditor">
           编辑资料
         </button>
-        <button data-testid="btn-logout" class="h-9 px-4 rounded-full border border-neutral-200 text-ink-soft hover:bg-neutral-50 text-sm" @click="store.forceLogout(); router.push('/')">
+        <button data-testid="btn-logout" class="h-9 px-4 rounded-full border border-line text-ink-soft hover:bg-mute text-sm" @click="store.forceLogout(); router.push('/')">
           退出登录
         </button>
       </div>
@@ -160,12 +160,12 @@ function fmt(ts) {
 
     <!-- 编辑弹层 -->
     <div v-if="editing" class="fixed inset-0 z-50 bg-black/40 grid place-items-center px-4" @click.self="editing=false">
-      <div class="w-full max-w-sm bg-white rounded-2xl p-5 space-y-3">
+      <div class="w-full max-w-sm bg-surface rounded-2xl p-5 space-y-3">
         <h2 class="font-medium">编辑资料</h2>
         <input v-model.trim="editForm.nickname" maxlength="32" placeholder="昵称"
-               class="w-full h-11 px-3 rounded-xl bg-paper border border-neutral-100 outline-none focus:border-brand-300 text-sm" />
+               class="w-full h-11 px-3 rounded-xl bg-mute border border-transparent outline-none focus:border-brand-300 text-sm" />
         <textarea v-model="editForm.bio" rows="3" maxlength="200" placeholder="个性签名"
-                  class="w-full p-3 rounded-xl bg-paper border border-neutral-100 outline-none focus:border-brand-300 text-sm resize-none"></textarea>
+                  class="w-full p-3 rounded-xl bg-mute border border-transparent outline-none focus:border-brand-300 text-sm resize-none"></textarea>
         <div class="flex justify-end gap-2 pt-1">
           <button class="h-9 px-4 rounded-full text-sm text-ink-soft hover:bg-neutral-50" @click="editing=false">取消</button>
           <button data-testid="btn-save-profile" class="h-9 px-5 rounded-full bg-brand-500 text-white text-sm hover:bg-brand-600" @click="saveProfile">保存</button>

@@ -79,7 +79,7 @@ const AUTH = {Authorization:'Bearer '+login.data.accessToken};
 
 // ⑥ 越权与不存在
 {
-  const reg = await (await fetch(B+'/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:'other_guy',password:'Str0ngPass!'})})).json();
+  const reg = await (await fetch(B+'/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:`other_${Date.now().toString(36).slice(-5)}`,password:'Str0ngPass!'})})).json();
   const AUTH2 = {Authorization:'Bearer '+reg.data.accessToken};
   let r = await fetch(B+'/media/'+globalThis.ids[0],{headers:AUTH2}); let j = await r.json();
   ok('⑥a 他人查询媒体 -> 40300', r.status===403 && j.code===40300);

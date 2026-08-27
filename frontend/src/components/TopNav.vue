@@ -2,12 +2,19 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import { isDark, toggleTheme } from '@/utils/theme'
 import { toast } from '@/utils/toast'
 
 const router = useRouter()
 const store = useUserStore()
 const menuOpen = ref(false)
 const rootEl = ref(null)
+const darkMode = ref(isDark())
+
+function onToggleTheme() {
+  const next = toggleTheme()
+  darkMode.value = next === 'dark'
+}
 
 function closeOnOutside(e) {
   if (rootEl.value && !rootEl.value.contains(e.target)) menuOpen.value = false
@@ -30,7 +37,7 @@ function logout() {
 </script>
 
 <template>
-  <header class="sticky top-0 z-40 backdrop-blur bg-paper/85 border-b border-neutral-200/70">
+  <header class="sticky top-0 z-40 backdrop-blur bg-paper/85 border-b border-line">
     <div class="max-w-[1100px] mx-auto px-4 h-14 flex items-center justify-between">
       <RouterLink to="/" class="flex items-center gap-2 select-none">
         <span class="text-xl leading-none">🏔</span>
@@ -38,6 +45,15 @@ function logout() {
       </RouterLink>
 
       <div class="flex items-center gap-3">
+        <button
+          data-testid="nav-theme"
+          :aria-label="darkMode ? '切换到日间模式' : '切换到夜间模式'"
+          class="w-9 h-9 rounded-full grid place-items-center text-base hover:bg-mute transition"
+          @click="onToggleTheme"
+        >
+          {{ darkMode ? '☀️' : '🌙' }}
+        </button>
+
         <button
           data-testid="nav-publish"
           class="inline-flex items-center gap-1.5 h-9 px-4 rounded-full bg-brand-500 hover:bg-brand-600 active:scale-95 transition text-white text-sm font-medium"
@@ -59,7 +75,7 @@ function logout() {
             </button>
             <div
               v-if="menuOpen"
-              class="absolute right-0 mt-2 w-40 bg-white rounded-xl shadow-lg border border-neutral-100 py-1.5 text-sm"
+              class="absolute right-0 mt-2 w-40 bg-surface rounded-xl shadow-lg border border-line py-1.5 text-sm"
             >
               <div class="px-3 py-1.5 text-xs text-ink-soft truncate">{{ store.nickname }}</div>
               <button

@@ -22,6 +22,7 @@
 | [docs/02-API接口规范.md](docs/02-API接口规范.md) | 全部 MVP 接口定义：路径、鉴权、请求/响应示例、错误码表、状态机与时序图。前后端并行开发的契约文件 | 前后端各一份对照实现 |
 | [docs/03-MVP实施与Docker部署.md](docs/03-MVP实施与Docker部署.md) | 从零到 `docker compose up` 的逐步施工手册：环境准备 → 脚手架 → 中间件 → 后端 8 步 → 前端 6 步 → 联调 → 容器化部署 → 冒烟验收 checklist | 施工时照着做 |
 | [CHANGELOG.md](CHANGELOG.md) | 变更日志：一切产出物落盘/契约变更/决策变更的唯一记录处（追加制） | 每次变更后更新 |
+| [docs/HANDOVER.md](docs/HANDOVER.md) | **交接文档**：怎么跑、测试矩阵、待办与坑位速查 | 新会话接管 / 想快速上手时 |
 | [docs/learning/00-学习笔记索引.md](docs/learning/00-学习笔记索引.md) | 学习笔记索引 + 12 个预定主题 backlog（踩坑与新概念强制沉淀） | 完成一个 Phase 或解掉一个坑后写一篇 |
 
 ## 技术栈一句话
