@@ -522,7 +522,7 @@ TOKEN=<上一步accessToken>; curl -s -X POST $BASE/media/images \
 - [x] P2 四中间件 healthy + MinIO 桶自动建立（2026-08-27：mysql 8.4.11 healthy+业务账号连通 / redis +PONG / rabbitmq 3.13.7 管理 API / minio 健康 200 + scenary-media 桶 download 权限就绪）
 - [x] 3.1 Flyway 三表就绪（2026-08-27：Successfully applied 1 migration；users/notes/media + flyway_schema_history 实查通过）
 - [x] 3.2 ping 包络正常（2026-08-27：`{"code":0,"message":"ok","data":{"pong":"v1"}}` 与契约逐字段一致）
-- [ ] 3.4 注册/登录/刷新/登出四接口全绿
+- [x] 3.4 注册/登录/刷新/登出四接口全绿（2026-08-27：18 用例脚本 docs/dev/test-auth34.mjs 全 PASS，含旋转重放拒绝/登出吊销/登录锁三组安全用例）
 - [ ] 3.5 无 token 拦截生效 / ThreadLocal 清理无泄漏
 - [ ] 3.6 上传入 MinIO + media 行落库 + MQ 消息发出
 - [ ] 3.7 缩略图消费成功 + DLQ 兜底验证

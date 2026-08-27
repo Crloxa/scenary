@@ -2,6 +2,13 @@
 
 > 维护规约见 [AGENTS.md §4.1](AGENTS.md)：满足触发条件必须追加条目；历史条目不改写，错误用勘误行修正。
 
+## [v1.9] · 2026-08-27 · Phase 3-3.4 认证全套完成
+
+- **验收状态**：Checklist 3.4 勾选——验收脚本 `docs/dev/test-auth34.mjs`（Node fetch 直驱，绕开 Git Bash GBK 控制台对命令行中文的转码坑，见 L17 待写条目）18 用例全 PASS：注册(中文昵称回显/TTL=7200/2592000)、重名 41001、非法用户名 40000、统一文案错密提示、刷新旋转后旧令牌重放 40101、登出吊销白名单后再刷 40101、连错 5 次 42001 锁定且锁内正确密码同拒。
+- **契约留白决策**：docs/02 错误码表未定义"用户名或密码错误"语义——落位 `40000` + 固定文案"用户名或密码错误"（防账号枚举），不新造错误码；后续如需独立码须先修契约。
+- **落盘**：`config/JwtProperties`、`auth/{JwtUtil,AuthService,AuthController,RegisterRequest,LoginRequest,RefreshRequest,AuthVO}`。Redis 键清单即 docs/01 §6 预定：`auth:refresh:*` 白名单 / `auth:access:bl:*` 登出黑名单 / `rl:register:*`、`rl:loginfail|lock:*` 限流。登出按文档"双保险"实现：SCAN 前缀删该用户全部白名单键 + access jti 黑名单 TTL=剩余寿命。
+- **学习笔记**：新增 `docs/learning/05-JWT双令牌与Redis白名单吊销.md`（backlog L1 到点成篇）、索引补 L17。
+
 ## [v1.8] · 2026-08-27 · 缺陷修复与方法不匹配语义纠正 + 3.3 user 基础
 
 - **行为确认**：项目所有者报告访问 `http://localhost:8080/` 返回 `40400 资源不存在`——经全路径回归确认属**契约内设计行为**（后端不出静态页，未映射路径统一业务包络 404+40400，见 docs/02 §1.1/§1.2）。
