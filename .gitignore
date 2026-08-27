@@ -20,6 +20,9 @@ frontend/*.local
 .DS_Store
 Thumbs.db
 
+# ---- 安全扫描工具运行态 ----
+.mimosa/
+
 # ---- 日志与临时 ----
 logs/
 *.log
