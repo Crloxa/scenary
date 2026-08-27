@@ -2,6 +2,14 @@
 
 > 维护规约见 [AGENTS.md §4.1](AGENTS.md)：满足触发条件必须追加条目；历史条目不改写，错误用勘误行修正。
 
+## [v1.7] · 2026-08-27 · Phase 3 前两步完成（3.1 Flyway / 3.2 common+ping）
+
+- **验收状态**：3.1 Flyway 首迁 `Successfully applied 1 migration`，users/notes/media 三表实查就绪；3.2 `/api/v1/ping` 返回契约包络。附带完成 Flyway 纪律亲测实验：篡改已应用 V1 → checksum mismatch 拒启 → 还原 → validate 通过。
+- **配置决策**：`application-dev.yml` 的 JWT/MinIO 密钥改为 `${ENV:无害默认}` 占位符——真实值由新增的 `backend/run-dev.sh` 从根 `.env` 逐行导入后注入（不能直接 source：compose 风格值含空格会被 bash 拆词）；run-dev.sh 另含 JDK≥21 版本守卫（长生命周期终端可能仍持旧 JAVA_HOME）。（影响 `backend/src/main/resources/application-dev.yml`、`backend/run-dev.sh`）
+- **踩坑记录**：停止 `mvn spring-boot:run` 后台任务时其派生 java 进程会成孤儿继续占用 8080，需按监听端口找 PID 强杀后再重启；该现象记入学习索引 L16 待写。
+- **落盘**：V1__init.sql（01 §6 全量 DDL）、common 包五类（Result/ErrorCode/BizException/GlobalExceptionHandler/PageResult）与 PingController；错误码表逐条对齐 02 §1.2。
+- **学习笔记**：新增 `docs/learning/04-Flyway版本化迁移纪律.md` 并登记索引。
+
 ## [v1.6] · 2026-08-27 · Phase 2 中间件先行完成
 
 - **验收状态**：P2 完成——`docker compose -f docker-compose.middleware.yml up -d` 全部 running：MySQL 8.4.11 healthy 且 scenary 业务账号可连 `scenary` 库；Redis RESP 应答 +PONG；RabbitMQ 3.13.7 管理 API 用 scenary_mq 账号可达；MinIO 健康 200，一次性初始化容器建成 `scenary-media` 桶并设 download 匿名权限（BUCKET_READY）。

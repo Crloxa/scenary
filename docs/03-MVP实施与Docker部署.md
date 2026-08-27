@@ -520,8 +520,8 @@ TOKEN=<上一步accessToken>; curl -s -X POST $BASE/media/images \
 - [x] P0 四件套工具版本验证通过（2026-08-27：docker 29.6.1/compose v5.2.0/JDK 21.0.11/mvn 3.9.11/node 22.23.2/git 2.46；本机默认 JDK 已由 17 切换为已有 ms-21.0.11，过程见 learning/01）
 - [x] P1 后端编译通过 / 前端 dev 页面可用 / git 首提交（2026-08-27：`mvn -q compile` EXIT=0；Vite 8 dev HTTP 200 无报错；main 分支三笔原子提交。脚手架为手写 pom，未用 start.spring.io，见 CHANGELOG v1.4）
 - [x] P2 四中间件 healthy + MinIO 桶自动建立（2026-08-27：mysql 8.4.11 healthy+业务账号连通 / redis +PONG / rabbitmq 3.13.7 管理 API / minio 健康 200 + scenary-media 桶 download 权限就绪）
-- [ ] 3.1 Flyway 三表就绪
-- [ ] 3.2 ping 包络正常
+- [x] 3.1 Flyway 三表就绪（2026-08-27：Successfully applied 1 migration；users/notes/media + flyway_schema_history 实查通过）
+- [x] 3.2 ping 包络正常（2026-08-27：`{"code":0,"message":"ok","data":{"pong":"v1"}}` 与契约逐字段一致）
 - [ ] 3.4 注册/登录/刷新/登出四接口全绿
 - [ ] 3.5 无 token 拦截生效 / ThreadLocal 清理无泄漏
 - [ ] 3.6 上传入 MinIO + media 行落库 + MQ 消息发出
