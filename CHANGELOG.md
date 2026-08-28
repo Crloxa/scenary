@@ -2,6 +2,12 @@
 
 > 维护规约见 [AGENTS.md §4.1](AGENTS.md)：满足触发条件必须追加条目；历史条目不改写，错误用勘误行修正。
 
+## [v2.6] · 2026-08-29 · P4 浏览器验收完成与发布页缺陷修复
+
+- **P4 验收**：真实浏览器剧本通过——A 注册并发布 3 篇（含 WebP），登出后 B 注册浏览/强刷详情、B 无删除入口，A 删除首页可见笔记后刷新列表消失。
+- **缺陷修复**：`frontend/src/views/PublishView.vue` 补充 `reactive` 导入，修复选择图片后上传流程抛出 `ReferenceError` 导致无法发布。
+- **状态同步**：更新 `docs/03-MVP实施与Docker部署.md` Checklist、`AGENTS.md` 快照、`README.md` 状态和 `docs/HANDOVER.md` 待办。
+
 ## [v2.5] · 2026-08-27 · 双主题重构 + 功能测试回归全绿 + 交接文档建立
 
 - **主题**：前端配色切换为 浅薄荷绿(品牌阶)/青冥(夜间底与点缀)/茶白(日间纸底)；支持手动黑夜模式——`@custom-variant dark` 重绑 html.dark、语义 token（paper/surface/mute/line/ink）双层映射、index.html head 内联防闪烁预判、TopNav 新增 ☀️/🌙 切换钮并记忆 localStorage。`npm run build` 门禁复跑通过。

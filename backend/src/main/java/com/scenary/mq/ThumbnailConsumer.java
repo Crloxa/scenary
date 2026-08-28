@@ -101,8 +101,14 @@ public class ThumbnailConsumer {
             throw new IllegalStateException("media row missing: " + mediaId);
         }
         BufferedImage src = ImageIO.read(minio.get(media.getObjectKey()));
+        String thumbKey = thumbKeyOf(media.getObjectKey());
         if (src == null) {
-            throw new IOException("undecodable image: " + media.getObjectKey());
+            // JDK 解不了的格式（如 webp）：契约允许上传，走降级——原图直充当封面/缩略位，
+            // 不产出独立 _t.jpg。宽高留空由前端默认 3:4 占位。
+            log.warn("undecodable format, degrade copy-through: {}", media.getObjectKey());
+            mediaMapper.updateProcessResult(mediaId, 1, media.getObjectKey(),
+                    minio.publicUrl(media.getObjectKey()), null, null);
+            return;
         }
         int w = src.getWidth();
         int h = src.getHeight();
@@ -115,7 +121,6 @@ public class ThumbnailConsumer {
         Thumbnails.of(src).size(tw, th).outputQuality(0.8).outputFormat("jpg")
                 .toOutputStream(buffer);
 
-        String thumbKey = thumbKeyOf(media.getObjectKey());
         minio.put(thumbKey, new ByteArrayInputStream(buffer.toByteArray()),
                 buffer.size(), "image/jpeg");
         mediaMapper.updateProcessResult(mediaId, 1, thumbKey,

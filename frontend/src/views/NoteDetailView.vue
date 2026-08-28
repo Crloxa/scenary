@@ -11,6 +11,8 @@ const router = useRouter()
 const detail = ref(null)
 const notFound = ref(false)
 const deleting = ref(false)
+const armDelete = ref(false)
+let disarmTimer = null
 
 onMounted(async () => {
   try {
@@ -22,7 +24,14 @@ onMounted(async () => {
 })
 
 async function removeNote() {
-  if (!confirm('确定删除这篇笔记吗？')) return
+  // 两段式确认：第一击武装，2.5 秒内第二击执行
+  if (!armDelete.value) {
+    armDelete.value = true
+    clearTimeout(disarmTimer)
+    disarmTimer = setTimeout(() => (armDelete.value = false), 2500)
+    return
+  }
+  clearTimeout(disarmTimer)
   deleting.value = true
   try {
     await noteApi.remove(detail.value.id)
@@ -32,6 +41,7 @@ async function removeNote() {
     toast(getErrorText(e), 'error')
   } finally {
     deleting.value = false
+    armDelete.value = false
   }
 }
 function fmt(ts) {
@@ -60,10 +70,11 @@ function fmt(ts) {
         v-if="detail.mine"
         data-testid="btn-del-note"
         :disabled="deleting"
-        class="ml-auto text-xs h-8 px-3 rounded-full border border-red-200 text-red-500 hover:bg-red-50 transition"
+        class="ml-auto text-xs h-8 px-3 rounded-full border transition"
+        :class="armDelete ? 'bg-red-500 text-white border-red-500' : 'border-red-200 text-red-500 hover:bg-red-50'"
         @click="removeNote"
       >
-        删除
+        {{ armDelete ? '再点一次确认删除' : '删除' }}
       </button>
     </div>
 

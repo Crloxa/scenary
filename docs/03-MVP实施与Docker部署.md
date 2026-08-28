@@ -528,7 +528,7 @@ TOKEN=<上一步accessToken>; curl -s -X POST $BASE/media/images \
 - [x] 3.7 缩略图消费成功 + DLQ 兜底验证（2026-08-27：7 用例全 PASS——800ms 内出片/限边等比 800x483 与不放大 300x200 双证/thumb 匿名可读 7.6KB jpeg/两枚毒消息重试两跳后落 DLQ 深度 0→2/毒消息后正常流不受阻；日志与 thumb 对象清单随 CHANGELOG v2.2 存档）
 - [x] 3.8 笔记发布/详情/删除、feed 游标翻页、个人中心全绿（2026-08-27：test-e2e38.mjs 29 用例全 PASS，覆盖资料/头像/发布/feed 两级缓存与翻页/mine 判定/私密可见性(契约 v2.3 补 visibility 字段)/软删幂等/越权矩阵；过程揪出 INSERT 漏列 visibility 缺陷并修复）
 - [x] 3.9 smoke-backend.http 存档（IDEA HTTP Client 格式全端点正反例 + 可编程 mjs 四件套：auth34/interceptor35/media36/thumbnail37/e2e38）
-- [ ] 4.1-4.6 六个前端任务各自验收通过
+- [x] 4.1-4.6 六个前端任务各自验收通过（2026-08-29：P4 浏览器剧本完成；注册 A 发 3 篇含 WebP、登出、B 浏览/强刷、越权删除无入口、A 删除后首页刷新消失；修复 PublishView reactive 导入缺失）
 - [ ] P5 联调无阻塞、已知坑记录回填本表
 - [ ] 6.5 compose 全栈一次拉起成功
 - [ ] 6.6 冒烟剧本 7 步全过

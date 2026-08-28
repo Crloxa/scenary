@@ -43,8 +43,8 @@ Scenary —— 小红书式极简风景图文社区 MVP（注册登录 / 双列�
 
 | 项 | 值 |
 |---|---|
-| 阶段 | **Phase 4 六步代码落盘完成（v2.4），待浏览器验收剧本** |
-| 下一步 | 执行 P4 验收剧本（docs/dev/test-*.mjs 之外的真实 UI 走查）→ Phase 5 |
+| 阶段 | **Phase 4 浏览器验收完成（v2.6），待 Phase 5 联调** |
+| 下一步 | 执行 Phase 5 联调排障 → Phase 6 容器化 |
 | 最近一次修订 | 见 CHANGELOG 顶部条目 |
 | 运维交接 | [docs/HANDOVER.md](docs/HANDOVER.md)：跑法/测试矩阵/待办/坑位速查 |
 
