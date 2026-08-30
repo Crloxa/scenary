@@ -1,0 +1,11 @@
+.git
+.mimosa
+.env
+backend/target
+backend/*.log
+frontend/node_modules
+frontend/dist
+docs
+README.md
+AGENTS.md
+CHANGELOG.md

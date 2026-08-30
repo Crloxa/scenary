@@ -2,6 +2,38 @@
 
 > 维护规约见 [AGENTS.md §4.1](AGENTS.md)：满足触发条件必须追加条目；历史条目不改写，错误用勘误行修正。
 
+## [v2.14] · 2026-08-31 · Phase 6 全栈容器化验收完成
+
+- **验收**：`docker compose config --quiet`、镜像构建和全栈启动通过；backend health、Redis、MySQL health、RabbitMQ、MinIO 与 frontend 运行正常，唯一对外端口为 `:8081`。
+- **冒烟**：经 Nginx `/api` 完成 ping、注册、JWT TTL、上传、缩略图 status=1、发布和匿名 feed；`/minio` 缩略图反代及 SPA history 路由均返回 200，浏览器首页新图片可见且无控制台 error。
+- **文档与学习**：勾选 03 的 6.5/6.6/README Checklist，更新 README、AGENTS、HANDOVER，新增 learning/11；Phase 7 保持未开始。开发期旧媒体直连 URL 的迁移注意事项记入 HANDOVER。
+
+## [v2.13] · 2026-08-31 · 修复 Phase 6 MinIO 图片反代优先级
+
+- **缺陷修复**：全栈冒烟确认普通 `/minio/` 前缀 location 会被静态图片正则抢占，缩略图 URL 返回 404；Nginx 改用 `^~ /minio/` 固定走对象存储反代。
+- **文档同步**：`docs/03-MVP实施与Docker部署.md` 的 6.3 示例标注优先级原因；重新构建 frontend 后继续完成 6.6 验收。
+
+## [v2.12] · 2026-08-31 · 补齐 Phase 6 生产 profile 基础配置
+
+- **缺陷修复**：全栈冒烟将 `prod` profile 下缺失的 MyBatis XML 路径暴露为 `Invalid bound statement`；Compose 显式传入 `MYBATIS_MAPPER_LOCATIONS` 与下划线映射配置。
+- **部署完整性**：同时传入 RabbitMQ 手动确认/并发/prefetch、multipart 限额，保证容器运行语义与已验收的本地开发配置一致；重新构建后继续 6.6 冒烟。
+
+## [v2.11] · 2026-08-31 · 修复 Phase 6 生产配置绑定与 Redis 启动
+
+- **缺陷修复**：全栈首次启动日志确认 Redis 参数被错误交由 shell 执行、后端生产 profile 未绑定 `scenary.jwt.*`；`docker-compose.yml` 改由 `redis-server` 接收参数，并显式传入 `SCENARY_JWT_SECRET/ACCESS_TTL/REFRESH_TTL/ISSUER`。
+- **文档同步**：`docs/03-MVP实施与Docker部署.md` 修正 6.4 Compose 样例与 relaxed binding 说明；6.5/6.6 验收仍待本次重新构建后确认。
+
+## [v2.9] · 2026-08-31 · Phase 6 容器化文件落盘
+
+- **实现**：新增 `backend/Dockerfile`、`frontend/Dockerfile`、`frontend/nginx.conf`、根 `docker-compose.yml` 及构建上下文 `.dockerignore` 文件，按 03 §6 编排中间件、后端、前端和 `/api`、`/minio` 反代。
+- **验证边界**：Compose 静态配置检查通过；实际 `docker compose build/up` 因当前环境 Docker 构建审批被拒绝，6.5/6.6 保持未勾选，未宣称 Phase 6 完成。
+- **状态同步**：更新 `AGENTS.md` 快照和 `docs/HANDOVER.md` 待办；Phase 7 暂不开始。
+
+## [v2.10] · 2026-08-31 · 修复后端容器健康检查依赖
+
+- **缺陷修复**：`eclipse-temurin:21-jre-alpine` 运行镜像显式安装 `wget`，使 Compose backend healthcheck 的 HTTP 探测可执行；同步更新 03 §6.1 示例。
+- **交接更新**：`docs/HANDOVER.md` 修正 Phase 5 已完成的工作边界，并记录健康检查依赖。
+
 ## [v2.8] · 2026-08-31 · Phase 5 联调完成
 
 - **联调验收**：`mvn compile` 通过；后端 ping、Vite 首页及 `/api` 代理返回 200；auth/interceptor/media/thumbnail/e2e 五套脚本共 75 条断言全通过。

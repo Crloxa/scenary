@@ -305,7 +305,9 @@ RUN mvn -B clean package -DskipTests
 # ---- runtime ----
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-RUN addgroup -S app && adduser -S app -G app
+RUN apk add --no-cache wget \
+    && addgroup -S app \
+    && adduser -S app -G app
 USER app
 COPY --from=build /app/target/scenary-backend-*.jar app.jar
 ENV TZ=Asia/Shanghai JAVA_OPTS="-XX:MaxRAMPercentage=75 -Duser.timezone=Asia/Shanghai"
@@ -347,7 +349,7 @@ server {
     proxy_read_timeout 120s;
   }
 
-  location /minio/ {                  # 对象存储同源反代(方案B, 见6.4说明)
+  location ^~ /minio/ {               # 先于下方静态资源正则匹配，确保图片走对象存储反代
     proxy_pass http://minio:9000/;
     proxy_set_header Host $host;
   }
@@ -390,7 +392,7 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: sh -c "${REDIS_ARGS}"
+    command: ["sh", "-c", "exec redis-server ${REDIS_ARGS}"]
     volumes: ["scenary-redis-data:/data"]
 
   rabbitmq:
@@ -436,12 +438,23 @@ services:
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_USERNAME: ${RABBITMQ_DEFAULT_USER}
       SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS}
+      SPRING_RABBITMQ_LISTENER_SIMPLE_ACKNOWLEDGE_MODE: manual
+      SPRING_RABBITMQ_LISTENER_SIMPLE_CONCURRENCY: 2
+      SPRING_RABBITMQ_LISTENER_SIMPLE_PREFETCH: 1
+      SPRING_RABBITMQ_LISTENER_SIMPLE_DEFAULT_REQUEUE_REJECTED: "false"
+      SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE: 10MB
+      SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE: 100MB
+      MYBATIS_MAPPER_LOCATIONS: classpath:mapper/*.xml
+      MYBATIS_CONFIGURATION_MAP_UNDERSCORE_TO_CAMEL_CASE: "true"
       SCENARY_MINIO_ENDPOINT: http://minio:9000
       SCENARY_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
       SCENARY_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       SCENARY_MINIO_BUCKET: ${MINIO_BUCKET}
       SCENARY_MINIO_PUBLIC_HOST: http://${PUBLIC_HOST}:8081/minio   # 见下方“反代说明”
-      JWT_SECRET: ${JWT_SECRET}
+      SCENARY_JWT_SECRET: ${JWT_SECRET}
+      SCENARY_JWT_ACCESS_TTL: ${JWT_ACCESS_TTL_SECONDS}
+      SCENARY_JWT_REFRESH_TTL: ${JWT_REFRESH_TTL_SECONDS}
+      SCENARY_JWT_ISSUER: scenary
       TZ: Asia/Shanghai
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q UP"]
@@ -469,7 +482,7 @@ volumes:
 >
 > 两方案只需保证该变量与 nginx 配置匹配；前端代码零改动（它只认接口返回的完整 URL）。
 >
-> **为什么没有 application-prod.yml？** 上述 compose 的 `SPRING_DATASOURCE_URL / SPRING_DATA_REDIS_HOST / SPRING_RABBITMQ_* / SCENARY_MINIO_* / JWT_SECRET` 等标准命名环境变量，经 Spring Boot ** relaxed binding** 直接覆盖 yml 同名配置项，优先级高于任何 profile 文件，因此无需为容器单独维护一份 prod 配置；本地开发仍用 application-dev.yml。
+> **为什么没有 application-prod.yml？** 上述 compose 的 `SPRING_DATASOURCE_URL / SPRING_DATA_REDIS_HOST / SPRING_RABBITMQ_* / SPRING_SERVLET_MULTIPART_* / MYBATIS_* / SCENARY_MINIO_* / SCENARY_JWT_*` 等环境变量，经 Spring Boot **relaxed binding** 直接映射到配置前缀（例如 `SCENARY_JWT_SECRET` → `scenary.jwt.secret`），优先级高于任何 profile 文件，因此无需为容器单独维护一份 prod 配置；本地开发仍用 application-dev.yml。Redis 参数不能直接交给 `sh`，必须由 `redis-server` 接收。
 
 ### 6.5 构建与启动命令序列
 
@@ -530,8 +543,8 @@ TOKEN=<上一步accessToken>; curl -s -X POST $BASE/media/images \
 - [x] 3.9 smoke-backend.http 存档（IDEA HTTP Client 格式全端点正反例 + 可编程 mjs 四件套：auth34/interceptor35/media36/thumbnail37/e2e38）
 - [x] 4.1-4.6 六个前端任务各自验收通过（2026-08-29：P4 浏览器剧本完成；注册 A 发 3 篇含 WebP、登出、B 浏览/强刷、越权删除无入口、A 删除后首页刷新消失；修复 PublishView reactive 导入缺失）
 - [x] P5 联调无阻塞、已知坑记录回填本表（2026-08-31：`mvn compile` 通过；/api/v1/ping 与 Vite `/api` 代理 200；auth/interceptor/media/thumbnail/e2e 共 75 断言全通过；三图 PNG+WebP 上传约 76ms、处理约 266ms；受限环境 Maven 本地仓库写权限问题已记录于 learning/10）
-- [ ] 6.5 compose 全栈一次拉起成功
-- [ ] 6.6 冒烟剧本 7 步全过
-- [ ] README 状态表更新为"MVP 已部署"
+- [x] 6.5 compose 全栈一次拉起成功（2026-08-31：`docker compose config --quiet` 通过；`docker compose up -d --build` 后 MySQL healthy、backend healthy、Redis/RabbitMQ/MinIO/frontend 均 running，唯一对外端口为 :8081）
+- [x] 6.6 冒烟剧本 7 步全过（2026-08-31：经 :8081 完成 ping、注册和 JWT TTL、上传、MQ 缩略图 status=1、发布、匿名 feed、`/minio` 缩略图反代 200、SPA `/note/:id` 200；浏览器首页新图片可见且控制台无 error）
+- [x] README 状态表更新为"MVP 已部署"（2026-08-31）
 
 </details>

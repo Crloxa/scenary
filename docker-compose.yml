@@ -1,0 +1,103 @@
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      TZ: Asia/Shanghai
+    command: ["mysqld", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    volumes: ["scenary-mysql-data:/var/lib/mysql"]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["sh", "-c", "exec redis-server ${REDIS_ARGS}"]
+    volumes: ["scenary-redis-data:/data"]
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    volumes: ["scenary-mq-data:/var/lib/rabbitmq"]
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: ["server", "/data"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes: ["scenary-minio-data:/data"]
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on: [minio]
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD}; do sleep 2; done;
+      mc mb -p local/${MINIO_BUCKET} || true;
+      mc anonymous set download local/${MINIO_BUCKET};
+      echo BUCKET_READY"
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      mysql: {condition: service_healthy}
+      rabbitmq: {condition: service_started}
+      minio: {condition: service_started}
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?useUnicode=true&characterEncoding=utf8&connectionTimeZone=Asia/Shanghai
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_DEFAULT_USER}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS}
+      SPRING_RABBITMQ_LISTENER_SIMPLE_ACKNOWLEDGE_MODE: manual
+      SPRING_RABBITMQ_LISTENER_SIMPLE_CONCURRENCY: 2
+      SPRING_RABBITMQ_LISTENER_SIMPLE_PREFETCH: 1
+      SPRING_RABBITMQ_LISTENER_SIMPLE_DEFAULT_REQUEUE_REJECTED: "false"
+      SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE: 10MB
+      SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE: 100MB
+      MYBATIS_MAPPER_LOCATIONS: classpath:mapper/*.xml
+      MYBATIS_CONFIGURATION_MAP_UNDERSCORE_TO_CAMEL_CASE: "true"
+      SCENARY_MINIO_ENDPOINT: http://minio:9000
+      SCENARY_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      SCENARY_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      SCENARY_MINIO_BUCKET: ${MINIO_BUCKET}
+      SCENARY_MINIO_PUBLIC_HOST: http://${PUBLIC_HOST}:8081/minio
+      SCENARY_JWT_SECRET: ${JWT_SECRET}
+      SCENARY_JWT_ACCESS_TTL: ${JWT_ACCESS_TTL_SECONDS}
+      SCENARY_JWT_REFRESH_TTL: ${JWT_REFRESH_TTL_SECONDS}
+      SCENARY_JWT_ISSUER: scenary
+      TZ: Asia/Shanghai
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q UP"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      backend: {condition: service_healthy}
+    ports: ["8081:80"]
+
+volumes:
+  scenary-mysql-data:
+  scenary-redis-data:
+  scenary-mq-data:
+  scenary-minio-data:
