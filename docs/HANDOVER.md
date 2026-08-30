@@ -1,11 +1,11 @@
 # Scenary · 交接文档（HANDOVER）
 
 > 新会话/新协作者快速接管用。治理规则入口仍是 [../AGENTS.md](../AGENTS.md)，本文只回答"现状怎么跑、测什么、下一步做什么"。
-> 更新时间：2026-08-29 · 对应版本 v2.7 · 进度真相源 [03 手册末尾 Checklist](03-MVP实施与Docker部署.md)
+> 更新时间：2026-08-31 · 对应版本 v2.8 · 进度真相源 [03 手册末尾 Checklist](03-MVP实施与Docker部署.md)
 
 ## 1. 一句话现状
 
-后端 MVP 功能完备（18 端点全绿），前端六视图可用并已切换薄荷绿×青冥×茶白双主题，P4 浏览器验收剧本已完成；当前停在 Phase 4 完成后的 checkpoint，Phase 5~7（联调排障/容器化/运维基线）未开始。
+后端 MVP 功能完备（18 端点全绿），前端六视图可用并已切换薄荷绿×青冥×茶白双主题，P4 浏览器验收剧本已完成；Phase 5 联调已完成，当前停在 Phase 5 checkpoint，Phase 6~7（容器化/运维基线）未开始。
 
 ## 2. 如何跑起来
 
@@ -36,9 +36,8 @@ cd frontend && npm run dev                                # 前端 :5173（/api 
 
 > 当前工作边界：用户已明确暂不开始 Phase 5；本文件只维护现状和待办，不代表 Phase 5 已启动。
 
-1. **Phase 5 联调排障**：按手册速查表走一遍异常路径；真实多图上传性能观察。
-2. **Phase 6 容器化**：两个 Dockerfile/nginx.conf/compose 全栈编排照手册抄录落地；注意 `.env` 的 PUBLIC_HOST。
-3. **Phase 7 运维基线**：备份 cron、日志 grep 约定、DLQ 深度告警（学习笔记 07 的 TODO）。
+1. **Phase 6 容器化**：两个 Dockerfile/nginx.conf/compose 全栈编排照手册抄录落地；注意 `.env` 的 PUBLIC_HOST。
+2. **Phase 7 运维基线**：备份 cron、日志 grep 约定、DLQ 深度告警（学习笔记 07 的 TODO）。
 
 ## 5. 关键决策与坑位速查（细节见对应文档）
 

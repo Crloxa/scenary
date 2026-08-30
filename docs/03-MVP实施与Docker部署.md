@@ -529,7 +529,7 @@ TOKEN=<上一步accessToken>; curl -s -X POST $BASE/media/images \
 - [x] 3.8 笔记发布/详情/删除、feed 游标翻页、个人中心全绿（2026-08-27：test-e2e38.mjs 29 用例全 PASS，覆盖资料/头像/发布/feed 两级缓存与翻页/mine 判定/私密可见性(契约 v2.3 补 visibility 字段)/软删幂等/越权矩阵；过程揪出 INSERT 漏列 visibility 缺陷并修复）
 - [x] 3.9 smoke-backend.http 存档（IDEA HTTP Client 格式全端点正反例 + 可编程 mjs 四件套：auth34/interceptor35/media36/thumbnail37/e2e38）
 - [x] 4.1-4.6 六个前端任务各自验收通过（2026-08-29：P4 浏览器剧本完成；注册 A 发 3 篇含 WebP、登出、B 浏览/强刷、越权删除无入口、A 删除后首页刷新消失；修复 PublishView reactive 导入缺失）
-- [ ] P5 联调无阻塞、已知坑记录回填本表
+- [x] P5 联调无阻塞、已知坑记录回填本表（2026-08-31：`mvn compile` 通过；/api/v1/ping 与 Vite `/api` 代理 200；auth/interceptor/media/thumbnail/e2e 共 75 断言全通过；三图 PNG+WebP 上传约 76ms、处理约 266ms；受限环境 Maven 本地仓库写权限问题已记录于 learning/10）
 - [ ] 6.5 compose 全栈一次拉起成功
 - [ ] 6.6 冒烟剧本 7 步全过
 - [ ] README 状态表更新为"MVP 已部署"

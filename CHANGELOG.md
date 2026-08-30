@@ -2,6 +2,13 @@
 
 > 维护规约见 [AGENTS.md §4.1](AGENTS.md)：满足触发条件必须追加条目；历史条目不改写，错误用勘误行修正。
 
+## [v2.8] · 2026-08-31 · Phase 5 联调完成
+
+- **联调验收**：`mvn compile` 通过；后端 ping、Vite 首页及 `/api` 代理返回 200；auth/interceptor/media/thumbnail/e2e 五套脚本共 75 条断言全通过。
+- **性能观察**：三图 PNG+WebP 上传约 76ms，三张图片处理完成约 266ms。
+- **问题记录**：受限环境 Maven 本地仓库写权限导致的误报已定位并沉淀至 `docs/learning/10-Phase5联调与Maven本地仓库权限.md`。
+- **状态同步**：更新 `docs/03-MVP实施与Docker部署.md` Checklist、`AGENTS.md` 快照、`docs/HANDOVER.md` 和学习笔记索引。
+
 ## [v2.7] · 2026-08-29 · 交接文档维护规则明确
 
 - **治理规则**：`AGENTS.md` 新增 HANDOVER 持续维护约束，明确阶段/验收/运行方式/checkpoint 变化后的同步要求及三大设计文档的职责边界。
