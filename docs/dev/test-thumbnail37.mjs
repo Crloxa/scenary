@@ -1,8 +1,18 @@
 // Phase 3-3.7 缩略图管线验收：成功消费/DLQ 坏消息两类/匿名可读
 import zlib from 'node:zlib';
-const B = 'http://localhost:8080/api/v1';
-const MQ = 'http://localhost:15672/api';
-const MQAUTH = 'Basic ' + Buffer.from('scenary_mq:mq_pwd_2026').toString('base64');
+import { readFileSync } from 'node:fs';
+const B = process.env.SCENARY_API_BASE_URL ?? 'http://localhost:8080/api/v1';
+const MQ = process.env.SCENARY_RABBITMQ_API_BASE_URL ?? 'http://localhost:15672/api';
+const envFile = new URL('../../.env', import.meta.url);
+const localEnv = Object.fromEntries(readFileSync(envFile, 'utf8').split(/\r?\n/).flatMap(line => {
+  const match = line.match(/^\s*([A-Z][A-Z0-9_]*)=(.*)$/);
+  return match ? [[match[1], match[2].trim()]] : [];
+}));
+const mqUser = process.env.RABBITMQ_DEFAULT_USER ?? localEnv.RABBITMQ_DEFAULT_USER;
+const mqPass = process.env.RABBITMQ_DEFAULT_PASS ?? localEnv.RABBITMQ_DEFAULT_PASS;
+if (!mqUser || !mqPass) throw new Error('RabbitMQ credentials must be set in .env or process environment.');
+const MQAUTH = 'Basic ' + Buffer.from(`${mqUser}:${mqPass}`).toString('base64');
+const PASSWORD = `T9${Date.now().toString(36)}a!`;
 let pass = 0, fail = 0;
 const ok = (n, c, x='') => { c ? pass++ : fail++; console.log(`${c?'PASS':'FAIL'} | ${n}${x?' | '+x:''}`); };
 
@@ -24,8 +34,8 @@ const dlqDepth = async () => {
 };
 
 (async()=>{
-  const lg = await(await fetch(B+'/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:'hill_walker',password:'Str0ngPass!'})})).json();
-  const AUTH={Authorization:'Bearer '+lg.data.accessToken};
+  const owner = await(await fetch(B+'/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:`thumb_${Date.now().toString(36).slice(-5)}`,password:PASSWORD})})).json();
+  const AUTH={Authorization:'Bearer '+owner.data.accessToken};
 
   // ① 上传 1000x604 -> 轮询到 status=1
   const fd=new FormData(); fd.append('files',new Blob([makePng(1000,604)],{type:'image/png'}),'big.png');

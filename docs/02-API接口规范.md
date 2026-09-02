@@ -212,7 +212,7 @@ multipart/form-data，字段名 `files`，可重复多个，1≤数量≤9；单
 ```
 
 校验：title 1~64 必填；content ≤2000 可空串；mediaIds 1~9 个、全部属于本人、全部 status=1（否则 40901）；placeName ≤128 可空。
-事务动作：insert notes → 批量 update media SET note_id, order_no(1..n) → 回填 notes.cover_url=首图 thumb_url、media_count → DEL Redis `feed:first:v1`。
+事务动作：insert notes → 批量 update media SET note_id, order_no(1..n) → 回填 notes.cover_url=首图 thumb_url、media_count → 推进 Redis `feed:first:v1:version`（提交后再次推进，隔离并发旧查询回写）。
 
 响应 data：
 

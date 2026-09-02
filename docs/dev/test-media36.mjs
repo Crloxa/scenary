@@ -1,6 +1,7 @@
 // Phase 3-3.6 上传管线验收：真实 PNG 生成(zlib 手工编码) + 魔数欺骗 + 越权/删除闭环
 import zlib from 'node:zlib';
-const B = 'http://localhost:8080/api/v1';
+const B = process.env.SCENARY_API_BASE_URL ?? 'http://localhost:8080/api/v1';
+const PASSWORD = `T9${Date.now().toString(36)}a!`;
 let pass = 0, fail = 0;
 const ok = (n, c, x='') => { c ? pass++ : fail++; console.log(`${c?'PASS':'FAIL'} | ${n}${x?' | '+x:''}`); };
 
@@ -28,9 +29,9 @@ function makePng(rgb = [64, 128, 200]) {
 }
 const png = makePng();
 
-const login = await (await fetch(B+'/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:'hill_walker',password:'Str0ngPass!'})})).json();
-ok('准备: 登录取 token', login.code===0);
-const AUTH = {Authorization:'Bearer '+login.data.accessToken};
+const owner = await (await fetch(B+'/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:`media_${Date.now().toString(36).slice(-5)}`,password:PASSWORD})})).json();
+ok('准备: 注册取 token', owner.code===0);
+const AUTH = {Authorization:'Bearer '+owner.data.accessToken};
 
 // ① 未携带 token 直接上传 -> 40100
 {
@@ -79,7 +80,7 @@ const AUTH = {Authorization:'Bearer '+login.data.accessToken};
 
 // ⑥ 越权与不存在
 {
-  const reg = await (await fetch(B+'/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:`other_${Date.now().toString(36).slice(-5)}`,password:'Str0ngPass!'})})).json();
+  const reg = await (await fetch(B+'/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:`other_${Date.now().toString(36).slice(-5)}`,password:PASSWORD})})).json();
   const AUTH2 = {Authorization:'Bearer '+reg.data.accessToken};
   let r = await fetch(B+'/media/'+globalThis.ids[0],{headers:AUTH2}); let j = await r.json();
   ok('⑥a 他人查询媒体 -> 40300', r.status===403 && j.code===40300);

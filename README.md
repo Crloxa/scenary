@@ -1,7 +1,7 @@
 # Scenary · 极简风景图文社区（MVP 立项）
 
 > 工作代号 **Scenary**，源自 [../思绪.txt](../思绪.txt) 的产品设想第 1 条：以纯风景图片/视频为内容的小红书式分享社区。
-> 本仓库已完成 Phase 6 全栈容器化与冒烟验收；当前 MVP 可通过 Docker Compose 一键部署，Phase 7 运维基线尚未开始。
+> 本仓库已完成 Phase 7 运维基线与前序全栈验收；当前 MVP 可通过 Docker Compose 一键部署。
 
 ## MVP 范围（用户已确认）
 
@@ -40,4 +40,4 @@ Java 21 + Spring Boot 3.5 + MyBatis(+PageHelper/Flyway) + MySQL(InnoDB) + Redis 
 
 ## 状态与变更记录
 
-变更的唯一记录处是 [CHANGELOG.md](CHANGELOG.md)（追加制，当前 v2.14）；进度唯一真相源是 [docs/03](docs/03-MVP实施与Docker部署.md) 末尾的交付 Checklist；agent 会话入口固定为 [AGENTS.md](AGENTS.md)。三者分工不重复维护。
+变更的唯一记录处是 [CHANGELOG.md](CHANGELOG.md)（追加制，当前 v2.16）；进度唯一真相源是 [docs/03](docs/03-MVP实施与Docker部署.md) 末尾的交付 Checklist；agent 会话入口固定为 [AGENTS.md](AGENTS.md)。三者分工不重复维护。

@@ -26,3 +26,5 @@ Thumbs.db
 # ---- 日志与临时 ----
 logs/
 *.log
+backups/
+ops/backups/

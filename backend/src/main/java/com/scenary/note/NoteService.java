@@ -6,6 +6,8 @@ import java.util.Map;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.scenary.common.AuthorVO;
 import com.scenary.common.BizException;
@@ -24,6 +26,7 @@ import com.scenary.user.UserMapper;
 public class NoteService {
 
     public static final String KEY_FEED_FIRST = "feed:first:v1";
+    public static final String KEY_FEED_FIRST_VERSION = KEY_FEED_FIRST + ":version";
     public static final String KEY_NOTE_CARD = "note:card:";
 
     private final NoteMapper noteMapper;
@@ -75,7 +78,9 @@ public class NoteService {
         for (int i = 0; i < snapshots.size(); i++) {
             mediaMapper.bindToNote(note.getId(), i + 1, snapshots.get(i).id());
         }
-        redis.delete(KEY_FEED_FIRST);
+        // 先推进版本；控制器会在事务代理提交后再推进一次，隔离提交窗口内启动的旧查询。
+        invalidateFirstPageCache();
+        invalidateFirstPageAfterCommit();
         return new NoteCreatedVO(note.getId(), note.getCoverUrl());
     }
 
@@ -89,12 +94,34 @@ public class NoteService {
         }
         // 幂等：重复删除仍走同一条 UPDATE，code=0
         noteMapper.softDelete(noteId);
-        redis.delete(KEY_FEED_FIRST);
+        invalidateFirstPageCache();
         redis.delete(KEY_NOTE_CARD + noteId);
     }
 
     /** 记录快照的轻量内部结构，避免把 media 实体散出模块 */
     private record MediaItemSnapshot(long id, String thumbUrl) {
+    }
+
+    /**
+     * 推进首页缓存版本；旧查询即使在失效后完成，也只能写回旧版本键。
+     * 由事务代理外的 HTTP 层在发布提交成功后再调用一次。
+     */
+    public void invalidateFirstPageCache() {
+        redis.delete(KEY_FEED_FIRST);
+        redis.opsForValue().increment(KEY_FEED_FIRST_VERSION);
+    }
+
+    /** 事务真正提交后推进版本，确保提交前快照不会成为当前首页缓存。 */
+    private void invalidateFirstPageAfterCommit() {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                invalidateFirstPageCache();
+            }
+        });
     }
 
     // ---------- 聚合查询（详情/网格门面） ----------

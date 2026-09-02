@@ -1,5 +1,8 @@
 package com.scenary.common;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.util.List;
 import java.util.function.Function;
 
@@ -13,7 +16,10 @@ public class PageResult<T> {
     private final Long nextCursor;
     private final boolean hasMore;
 
-    private PageResult(List<T> list, Long nextCursor, boolean hasMore) {
+    @JsonCreator
+    private PageResult(@JsonProperty("list") List<T> list,
+                       @JsonProperty("nextCursor") Long nextCursor,
+                       @JsonProperty("hasMore") boolean hasMore) {
         this.list = list;
         this.nextCursor = nextCursor;
         this.hasMore = hasMore;

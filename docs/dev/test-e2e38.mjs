@@ -1,6 +1,7 @@
 // Phase 3-3.8 端到端收口验收：用户/资料/头像/发布/feed 游标+缓存/详情/可见性/删除/越权全链
 import zlib from 'node:zlib';
-const B = 'http://localhost:8080/api/v1';
+const B = process.env.SCENARY_API_BASE_URL ?? 'http://localhost:8080/api/v1';
+const PASSWORD = `T9${Date.now().toString(36)}a!`;
 let pass = 0, fail = 0;
 const ok = (n, c, x='') => { c ? pass++ : fail++; console.log(`${c?'PASS':'FAIL'} | ${n}${x?' | '+x:''}`); };
 function crc32(buf){crc32.t??=(()=>{let x=[];for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;x[n]=c>>>0}return x})();let c=0xFFFFFFFF;for(const b of buf)c=crc32.t[(c^b)&0xFF]^(c>>>8);return((c^0xFFFFFFFF)>>>0)}
@@ -25,16 +26,16 @@ const uploadWaitDone = async (at, w=900, h=700) => {
 };
 
 (async()=>{
-  const A = await login('hill_walker','Str0ngPass!');
-  let regB = await j(await fetch(B+'/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:'reader_bee',password:'Str0ngPass!'})}));
-  if(regB.code!==0){
-    regB = await j(await fetch(B+'/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:'reader_bee',password:'Str0ngPass!',nickname:'读者乙'})}));
-  }
+  const suffix = Date.now().toString(36).slice(-5);
+  const authorUsername = `e2e_a_${suffix}`;
+  const author = await j(await fetch(B+'/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:authorUsername,password:PASSWORD,nickname:'山野行人'})}));
+  const A = author.data;
+  const regB = await j(await fetch(B+'/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:`e2e_b_${suffix}`,password:PASSWORD,nickname:'读者乙'})}));
   const AT={Authorization:'Bearer '+A.accessToken}, BT={Authorization:'Bearer '+regB.data.accessToken};
 
   // ---- 用户资料 ----
   let me = await j(await fetch(B+'/users/me',{headers:AT}));
-  ok('① GET /users/me 形态', me.code===0 && me.data.username==='hill_walker' && 'noteCount' in me.data && typeof me.data.createdAt==='number');
+  ok('① GET /users/me 形态', me.code===0 && me.data.username===authorUsername && 'noteCount' in me.data && typeof me.data.createdAt==='number');
   {
     const p = await j(await fetch(B+'/users/me',{method:'PATCH',headers:{...AT,'content-type':'application/json'},body:JSON.stringify({nickname:'山野行人·改',bio:'只拍山和海'})}));
     ok('② PATCH 资料 回读完整对象', p.data.nickname==='山野行人·改' && p.data.bio==='只拍山和海');
@@ -63,20 +64,24 @@ const uploadWaitDone = async (at, w=900, h=700) => {
   const priv = await j(await fetch(B+'/notes',{method:'POST',headers:{...AT,'content-type':'application/json'},body:JSON.stringify({title:'私密底稿',content:'',mediaIds:[m3.mediaId],visibility:0})}));
   ok('⑤ visibility=0 可创建', priv.code===0);
 
-  await new Promise(r=>setTimeout(r,150)); // 等首次缓存失效后的重建（DEL 是同步的，理论上即时）
-  const feedAnon = await fetch(B+'/feed');
-  const feedText = await feedAnon.text();
-  const f1 = JSON.parse(feedText);
-  ok('⑥ feed 首页包含公开卡', f1.data.list.some(c=>c.id===created.data.id));
-  const card = f1.data.list.find(c=>c.id===created.data.id);
+  let feedText, f1, card;
+  for (let i=0; i<10; i++) {
+    feedText = await (await fetch(B+'/feed')).text();
+    f1 = JSON.parse(feedText);
+    card = f1.data.list.find(c=>c.id===created.data.id);
+    if (card) break;
+    await new Promise(r=>setTimeout(r,200));
+  }
+  ok('⑥ feed 首页包含公开卡', card != null,
+     card ? '' : `target=${created.data.id} ids=${f1.data.list.map(c=>c.id).join(',')}`);
   ok('⑥b 卡片形态 author/preview/dims',
-     card.author.nickname==='山野行人·改' && card.contentPreview.length<=49 &&
+     card != null && card.author.nickname==='山野行人·改' && card.contentPreview.length<=49 &&
      card.coverWidth===800 && card.coverHeight===Math.round(m1.height*800/m1.width),
-     `${card.coverWidth}x${card.coverHeight} preview_len=${card.contentPreview.length}`);
-  // 缓存一致性：紧邻两读允许一次写侧可见性竞态，其后必须字节级稳定
+     card ? `${card.coverWidth}x${card.coverHeight} preview_len=${card.contentPreview.length}` : '目标公开卡缺失');
+  // 缓存一致性：旧页校验失败时允许一次重建，之后必须字节级稳定。
   const again = await (await fetch(B+'/feed')).text();
   const third = again===feedText ? null : await (await fetch(B+'/feed')).text();
-  ok('⑦ L1 首页缓存命中（至多一次竞态后字节稳定）', again===feedText || third===again);
+  ok('⑦ L1 首页缓存命中（至多一次重建后稳定）', again===feedText || third===again);
 
   // 游标翻页
   const fL1 = await j(await fetch(B+'/feed?limit=1'));

@@ -1,5 +1,6 @@
 // Phase 3-3.5 拦截链验收
-const B = 'http://localhost:8080/api/v1';
+const B = process.env.SCENARY_API_BASE_URL ?? 'http://localhost:8080/api/v1';
+const PASSWORD = `T9${Date.now().toString(36)}a!`;
 let pass=0, fail=0;
 const ok=(n,c,x='')=>{c?pass++:fail++;console.log(`${c?'PASS':'FAIL'} | ${n}${x?' | '+x:''}`)};
 const post=(p,b,h={})=>fetch(B+p,{method:'POST',headers:{'content-type':'application/json',...h},body:typeof b==='string'?b:JSON.stringify(b)}).then(r=>r.json());
@@ -15,7 +16,7 @@ const send=(m,p,h={})=>fetch(B+p,{method:m,headers:h}).then(async r=>[r.status, 
   [s,r] = await send('GET','/users/me',{Authorization:'Bearer not.a.real.jwt'});
   ok('③ 垃圾JWT -> 40101', s===401 && r.code===40101);
 
-  const reg = await post('/auth/register',{username:`itc_${Date.now().toString(36).slice(-5)}`,password:'Str0ngPass!'});
+  const reg = await post('/auth/register',{username:`itc_${Date.now().toString(36).slice(-5)}`,password:PASSWORD});
   ok('④ 注册准备用户', reg.code===0);
   const at1=reg.data.accessToken;
 
@@ -33,10 +34,10 @@ const send=(m,p,h={})=>fetch(B+p,{method:m,headers:h}).then(async r=>[r.status, 
   ok('⑦ 已登出access(黑名单) -> 40101', s===401 && r.code===40101, r.message);
 
   // 连发两次确认 ThreadLocal 无残留影响（第二个请求独立解析）
-  const lg = await post('/auth/login',{username:'hill_walker',password:'Str0ngPass!'});
-  [s,r] = await send('GET','/users/me',{Authorization:'Bearer '+lg.data.accessToken});
-  const [s2,r2] = await send('GET','/users/me',{Authorization:'Bearer '+lg.data.accessToken});
-  ok('⑧ 连续请求无串号(ThreadLocal清理生效)', s===200&&r.data.id===lg.data.userId&&s2===200&&r2.data.id===lg.data.userId);
+  const second = await post('/auth/register',{username:`itc2_${Date.now().toString(36).slice(-5)}`,password:PASSWORD});
+  [s,r] = await send('GET','/users/me',{Authorization:'Bearer '+second.data.accessToken});
+  const [s2,r2] = await send('GET','/users/me',{Authorization:'Bearer '+second.data.accessToken});
+  ok('⑧ 连续请求无串号(ThreadLocal清理生效)', s===200&&r.data.id===second.data.userId&&s2===200&&r2.data.id===second.data.userId);
 
   console.log(`\n==== PASS=${pass} FAIL=${fail} ====`);
   process.exit(fail?1:0);

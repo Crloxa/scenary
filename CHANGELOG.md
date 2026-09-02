@@ -2,7 +2,21 @@
 
 > 维护规约见 [AGENTS.md §4.1](AGENTS.md)：满足触发条件必须追加条目；历史条目不改写，错误用勘误行修正。
 
+## [v2.16] · 2026-09-02 · 补齐 Phase 7 可执行验收
+
+- **缺陷修复**：`backup-mysql.ps1 -Preview` 不再向同名 Switch 参数赋值，且预览模式不创建目录；实际备份改为将数据库名安全地作为容器内 shell 参数传递，并通过容器环境变量提供 MySQL 密码，避免落入进程参数。
+- **部署适配**：`check-dlq.ps1` 改由 `docker compose exec rabbitmq rabbitmqctl` 查询队列深度，不再依赖未对外映射的 RabbitMQ 管理端口或本机环境变量。
+- **缓存修复**：端到端复验暴露 `PageResult` 缺少 Jackson 反序列化入口，导致首页 L1 缓存持续降级为数据库查询；为其不可变构造方法补充 JSON 构造标记，恢复读缓存路径。
+- **缓存一致性**：首页 L1 改为版本化键；发布在事务前、提交后推进版本，抢在提交窗口读到旧数据的请求即使晚写入也不会被后续读取命中。L1 仅用于默认 10 条首页，带 `limit` 的查询不再错误复用该缓存。
+- **缓存校验**：L1 命中会以首页覆盖索引的笔记 ID 序列校验当前性；发现交错写入的历史页即丢弃重建，保留卡片聚合缓存收益而不向用户返回旧首页。
+- **测试安全性**：四组 API 验收脚本支持 `SCENARY_API_BASE_URL`，改为动态生成临时账号密码；缩略图脚本的 MQ 凭据仅从未跟踪的 `.env` 或进程环境读取。
+- **验收与文档**：全栈 Compose 重建后 backend/MySQL 健康、frontend `:8081`、`/api/v1/ping`、备份预览及 DLQ 深度巡检均通过；03 Checklist 补记 P7 验收项，并同步 README 与 HANDOVER。
+
 ## [v2.14] · 2026-08-31 · Phase 6 全栈容器化验收完成
+## [v2.15] · 2026-09-01 · Phase 7 运维基线三件套落盘
+- **实现**：新增 `ops/backup-mysql.ps1`、`ops/watch-backend-errors.ps1`、`ops/check-dlq.ps1`，分别覆盖 MySQL 备份、后端错误日志过滤与 `media.dlq` 深度巡检；备份输出默认落到 `backups/` 并已加入 `.gitignore`。
+- **文档同步**：更新 `docs/03-MVP实施与Docker部署.md` 的 Phase 7 说明、`docs/HANDOVER.md` 状态与待办、`README.md` 状态摘要、`AGENTS.md` 快照。
+- **学习沉淀**：新增 `docs/learning/12-Phase7运维基线三件套.md` 并登记索引；Phase 7 进入完成态，下一步转入二期A 预研。
 
 - **验收**：`docker compose config --quiet`、镜像构建和全栈启动通过；backend health、Redis、MySQL health、RabbitMQ、MinIO 与 frontend 运行正常，唯一对外端口为 `:8081`。
 - **冒烟**：经 Nginx `/api` 完成 ping、注册、JWT TTL、上传、缩略图 status=1、发布和匿名 feed；`/minio` 缩略图反代及 SPA history 路由均返回 200，浏览器首页新图片可见且无控制台 error。

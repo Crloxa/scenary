@@ -22,7 +22,7 @@ import java.util.Map;
 
 /**
  * feed 服务：Newest-first 游标分页 + 两级缓存（docs/01 §5.3）。
- * L1 首页整页 JSON（feed:first:v1, TTL 300s，写穿透由发布/删除侧 DEL）；
+ * L1 默认首页整页 JSON（feed:first:v1:{version}, TTL 300s，写穿透由发布/删除侧推进版本）；
  * L2 卡片单条 note:card:{id} TTL 1h——翻页时命中即免回表拼装作者与封面宽高。
  */
 @Service
@@ -30,6 +30,7 @@ public class FeedService {
 
     private static final Logger log = LoggerFactory.getLogger(FeedService.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final int DEFAULT_PAGE_LIMIT = 10;
     private static final Duration FIRST_PAGE_TTL = Duration.ofSeconds(300);
     private static final Duration CARD_TTL = Duration.ofHours(1);
 
@@ -53,11 +54,17 @@ public class FeedService {
         boolean firstPage = cursorParam == null;
         int limit = clampLimit(limitParam);
         long cursor = cursorParam == null ? Long.MAX_VALUE : cursorParam;
+        // 单个 L1 key 只缓存首页默认 10 条，避免把自定义 limit 的结果错误复用给其他请求。
+        boolean cacheableFirstPage = firstPage && limit == 10;
+        String cacheVersion = cacheableFirstPage ? firstPageCacheVersion() : null;
 
-        if (firstPage) {
-            PageResult<NoteCardVO> cached = readFirstPageCache();
-            if (cached != null) {
+        if (cacheVersion != null) {
+            PageResult<NoteCardVO> cached = readFirstPageCache(cacheVersion);
+            if (cached != null && matchesCurrentFirstPage(cached)) {
                 return cached;
+            }
+            if (cached != null) {
+                redis.delete(firstPageCacheKey(cacheVersion));
             }
         }
 
@@ -68,8 +75,8 @@ public class FeedService {
                 cards.size() > limit ? rows.get(limit - 1).getId() : null,
                 rows.size() > limit);
 
-        if (firstPage) {
-            writeFirstPageCache(result);
+        if (cacheVersion != null) {
+            writeFirstPageCache(result, cacheVersion);
         }
         return result;
     }
@@ -132,9 +139,19 @@ public class FeedService {
         return noteService.toAuthor(userId, briefs);
     }
 
-    private PageResult<NoteCardVO> readFirstPageCache() {
+    private String firstPageCacheVersion() {
         try {
-            String raw = redis.opsForValue().get(NoteService.KEY_FEED_FIRST);
+            String version = redis.opsForValue().get(NoteService.KEY_FEED_FIRST_VERSION);
+            return version == null ? "0" : version;
+        } catch (Exception e) {
+            log.warn("feed first-page cache version read failed, degrade to db", e);
+            return null;
+        }
+    }
+
+    private PageResult<NoteCardVO> readFirstPageCache(String version) {
+        try {
+            String raw = redis.opsForValue().get(firstPageCacheKey(version));
             if (raw == null) {
                 return null;
             }
@@ -146,13 +163,32 @@ public class FeedService {
         }
     }
 
-    private void writeFirstPageCache(PageResult<NoteCardVO> page) {
+    private void writeFirstPageCache(PageResult<NoteCardVO> page, String version) {
         try {
-            redis.opsForValue().set(NoteService.KEY_FEED_FIRST,
+            redis.opsForValue().set(firstPageCacheKey(version),
                     MAPPER.writeValueAsString(page), FIRST_PAGE_TTL);
         } catch (Exception e) {
             log.warn("feed first-page cache write failed", e);
         }
+    }
+
+    private String firstPageCacheKey(String version) {
+        return NoteService.KEY_FEED_FIRST + ":" + version;
+    }
+
+    /** 仅核对覆盖索引返回的笔记 ID，防止交错写入的旧 L1 页对外可见。 */
+    private boolean matchesCurrentFirstPage(PageResult<NoteCardVO> cached) {
+        List<NoteEntity> current = noteMapper.selectFeedRows(Long.MAX_VALUE, DEFAULT_PAGE_LIMIT + 1);
+        int expectedSize = Math.min(DEFAULT_PAGE_LIMIT, current.size());
+        if (cached.getList().size() != expectedSize || cached.isHasMore() != (current.size() > DEFAULT_PAGE_LIMIT)) {
+            return false;
+        }
+        for (int i = 0; i < expectedSize; i++) {
+            if (cached.getList().get(i).id() != current.get(i).getId()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private String cacheGet(String key) {
@@ -173,7 +209,7 @@ public class FeedService {
 
     static int clampLimit(Integer limitParam) {
         if (limitParam == null) {
-            return 10;
+            return DEFAULT_PAGE_LIMIT;
         }
         return Math.max(1, Math.min(20, limitParam));
     }

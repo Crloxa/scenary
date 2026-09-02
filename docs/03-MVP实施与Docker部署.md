@@ -518,9 +518,10 @@ TOKEN=<上一步accessToken>; curl -s -X POST $BASE/media/images \
 
 ## Phase 7 · 运维基线
 
-- **备份**：`docker compose exec mysql sh -c 'mysqldump -uroot -p$MYSQL_ROOT_PASSWORD scenary' > backup_$(date +%F).sql`，每周 cron；MinIO 卷同盘冷备可选 `mc mirror`。
+- **备份**：`ops/backup-mysql.ps1` 通过 Compose 内的 MySQL 容器生成 `backups/backup_YYYY-MM-DD_HHMMSS.sql`；先用 `-Preview` 确认命令，Linux cron/Windows 任务计划程序都可直接调用。MinIO 卷同盘冷备可选 `mc mirror`。
 - **升级**：改代码 → `docker compose build backend frontend` → `docker compose up -d backend frontend`（中间件与数据卷不动；DDL 一律走新的 Flyway `Vn__xxx.sql`）。
-- **日志**：`docker compose logs -f backend | grep ERROR`；消费者问题看 RabbitMQ 管理台队列深度与 DLQ。
+- **日志**：`ops/watch-backend-errors.ps1 -Follow` 统一看 backend ERROR；不需要跟随时去掉 `-Follow`。消费者问题继续看 RabbitMQ 管理台队列深度与 DLQ。
+- **DLQ 告警**：`ops/check-dlq.ps1` 通过 Compose 内的 `rabbitmqctl` 检查 `media.dlq` 深度，不依赖对外暴露管理端口或环境变量；超阈值返回 `exit 2`，适合 cron/任务计划程序接入。
 - **安全底线**：`.env` 不进 git；公网部署时给 nginx 加 HTTPS(certbot)并把 15672/9001 等管理端口撤下对外映射。
 
 ---
@@ -539,12 +540,13 @@ TOKEN=<上一步accessToken>; curl -s -X POST $BASE/media/images \
 - [x] 3.5 无 token 拦截生效 / ThreadLocal 清理无泄漏（2026-08-27：8 用例脚本 docs/dev/test-interceptor35.mjs 全 PASS，含非 Bearer 方案/垃圾 JWT/refresh 当 access/登出黑名单/连续请求无串号）
 - [x] 3.6 上传入 MinIO + media 行落库 + MQ 消息发出（2026-08-27：13 用例全 PASS；DB 实查 4 行 status=0；mc 列出 orig/202608/ 全部对象且匿名可读；MQ 以临时队列实证 mediaId 消息入队——管理插件 publish 计数器在该版本恒 0 属统计怪癖，已以队列深度替代证据；附带含契约形状 data.items 修正）
 - [x] 3.7 缩略图消费成功 + DLQ 兜底验证（2026-08-27：7 用例全 PASS——800ms 内出片/限边等比 800x483 与不放大 300x200 双证/thumb 匿名可读 7.6KB jpeg/两枚毒消息重试两跳后落 DLQ 深度 0→2/毒消息后正常流不受阻；日志与 thumb 对象清单随 CHANGELOG v2.2 存档）
-- [x] 3.8 笔记发布/详情/删除、feed 游标翻页、个人中心全绿（2026-08-27：test-e2e38.mjs 29 用例全 PASS，覆盖资料/头像/发布/feed 两级缓存与翻页/mine 判定/私密可见性(契约 v2.3 补 visibility 字段)/软删幂等/越权矩阵；过程揪出 INSERT 漏列 visibility 缺陷并修复）
+- [x] 3.8 笔记发布/详情/删除、feed 游标翻页、个人中心全绿（2026-08-27：test-e2e38.mjs 29 用例全 PASS，覆盖资料/头像/发布/feed 两级缓存与翻页/mine 判定/私密可见性(契约 v2.3 补 visibility 字段)/软删幂等/越权矩阵；过程揪出 INSERT 漏列 visibility 缺陷并修复；2026-09-02 经 :8081 复验 29/29，并修复 L1 反序列化、分页参数复用和并发旧页回填）
 - [x] 3.9 smoke-backend.http 存档（IDEA HTTP Client 格式全端点正反例 + 可编程 mjs 四件套：auth34/interceptor35/media36/thumbnail37/e2e38）
 - [x] 4.1-4.6 六个前端任务各自验收通过（2026-08-29：P4 浏览器剧本完成；注册 A 发 3 篇含 WebP、登出、B 浏览/强刷、越权删除无入口、A 删除后首页刷新消失；修复 PublishView reactive 导入缺失）
 - [x] P5 联调无阻塞、已知坑记录回填本表（2026-08-31：`mvn compile` 通过；/api/v1/ping 与 Vite `/api` 代理 200；auth/interceptor/media/thumbnail/e2e 共 75 断言全通过；三图 PNG+WebP 上传约 76ms、处理约 266ms；受限环境 Maven 本地仓库写权限问题已记录于 learning/10）
 - [x] 6.5 compose 全栈一次拉起成功（2026-08-31：`docker compose config --quiet` 通过；`docker compose up -d --build` 后 MySQL healthy、backend healthy、Redis/RabbitMQ/MinIO/frontend 均 running，唯一对外端口为 :8081）
 - [x] 6.6 冒烟剧本 7 步全过（2026-08-31：经 :8081 完成 ping、注册和 JWT TTL、上传、MQ 缩略图 status=1、发布、匿名 feed、`/minio` 缩略图反代 200、SPA `/note/:id` 200；浏览器首页新图片可见且控制台无 error）
 - [x] README 状态表更新为"MVP 已部署"（2026-08-31）
+- [x] P7 运维基线三件套可执行（2026-09-02：`backup-mysql.ps1 -Preview` 与实际备份均通过；`watch-backend-errors.ps1` 可过滤 backend 日志；`check-dlq.ps1` 经 Compose 内 `rabbitmqctl` 返回 `media.dlq=0`）
 
 </details>
