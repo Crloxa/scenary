@@ -23,4 +23,7 @@ export const authApi = {
   async login(payload) {
     return unwrap(await instance.post('/auth/login', payload))
   },
+  async logout() {
+    return unwrap(await instance.post('/auth/logout'))
+  },
 }

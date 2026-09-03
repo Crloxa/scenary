@@ -12,6 +12,7 @@ const firstLoading = ref(true)
 const loadingMore = ref(false)
 const nextCursor = ref(undefined)
 const hasMore = ref(false)
+const errorMessage = ref('')
 let observer
 
 async function load(reset = false) {
@@ -24,7 +25,9 @@ async function load(reset = false) {
     reset ? (cards.value = fresh) : cards.value.push(...fresh)
     nextCursor.value = page.nextCursor
     hasMore.value = Boolean(page.hasMore)
+    errorMessage.value = ''
   } catch (e) {
+    errorMessage.value = getErrorText(e)
     window.dispatchEvent(new CustomEvent('app-toast', { detail: { msg: getErrorText(e), type: 'error' } }))
   } finally {
     firstLoading.value = false
@@ -69,6 +72,11 @@ function openUser(userId) {
       <SkeletonCard v-for="i in 8" :key="i" />
     </div>
 
+    <div v-else-if="errorMessage && cards.length === 0" class="py-24 text-center text-ink-soft">
+      <p class="mb-4">加载失败：{{ errorMessage }}</p>
+      <button class="h-10 px-5 rounded-full border border-line hover:bg-mute" @click="load(true)">重试</button>
+    </div>
+
     <div v-else-if="cards.length === 0" class="py-24 text-center text-ink-soft">
       还没有风景，来发第一篇吧 🏔
     </div>
@@ -85,6 +93,10 @@ function openUser(userId) {
       </div>
 
       <div id="feed-sentinel" class="h-10"></div>
+      <div v-if="errorMessage" class="text-center text-sm text-red-500 py-2">
+        <span>加载更多失败：{{ errorMessage }}</span>
+        <button class="ml-2 underline" @click="load(false)">重试</button>
+      </div>
       <p v-if="loadingMore" class="text-center text-xs text-ink-soft py-2">加载中…</p>
       <p v-else-if="!hasMore && cards.length > 0" class="text-center text-xs text-ink-soft py-4">
           — 到底啦 —

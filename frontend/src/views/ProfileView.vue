@@ -1,19 +1,24 @@
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { userApi } from '@/api/user'
 import { useUserStore } from '@/stores/user'
 import { getErrorText } from '@/utils/request'
 import { toast } from '@/utils/toast'
+import { authApi } from '@/api/auth'
 
 const route = useRoute()
 const router = useRouter()
 const store = useUserStore()
 
-const userId = Number(route.params.id)
+const userId = computed(() => Number(route.params.id))
 const isSelf = ref(false)
 const profile = ref(null)
 const notFound = ref(false)
+const profileError = ref('')
+const notesError = ref('')
+const brokenAvatar = ref(false)
+const brokenCards = ref(new Set())
 
 const cards = ref([])
 const nextCursor = ref(undefined)
@@ -25,45 +30,86 @@ let observer
 const editing = ref(false)
 const editForm = reactive({ nickname: '', bio: '' })
 const avatarFile = ref(null)
+const loggingOut = ref(false)
+let loadSeq = 0
 
-async function loadProfile() {
+async function loadProfile(targetId = userId.value, seq = loadSeq) {
   try {
-    profile.value = await userApi.profile(userId)
-  } catch {
-    notFound.value = true
+    const nextProfile = await userApi.profile(targetId)
+    if (seq !== loadSeq || targetId !== userId.value) return
+    profile.value = nextProfile
+  } catch (e) {
+    if (seq !== loadSeq || targetId !== userId.value) return
+    if (e?.code === 40400) notFound.value = true
+    else profileError.value = getErrorText(e)
     return
   }
-  isSelf.value = store.isLoggedIn && store.userId === userId
+  profileError.value = ''
+  isSelf.value = store.isLoggedIn && store.userId === targetId
   editForm.nickname = profile.value.nickname
   editForm.bio = profile.value.bio
 }
 
-async function loadMore() {
+async function loadMore(targetId = userId.value, seq = loadSeq) {
   if (loading.value || !hasMore.value) return
   loading.value = true
   try {
-    const page = await userApi.notes(userId, { cursor: nextCursor.value, limit: 12 })
+    const page = await userApi.notes(targetId, { cursor: nextCursor.value, limit: 12 })
+    if (seq !== loadSeq || targetId !== userId.value) return
     const seen = new Set(cards.value.map(c => c.id))
     cards.value.push(...page.list.filter(c => !seen.has(c.id)))
     nextCursor.value = page.nextCursor
     hasMore.value = Boolean(page.hasMore)
+    notesError.value = ''
   } catch (e) {
-    toast(getErrorText(e), 'error')
+    if (seq === loadSeq && targetId === userId.value) {
+      notesError.value = getErrorText(e)
+      toast(notesError.value, 'error')
+    }
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 }
 
-onMounted(async () => {
-  await Promise.all([loadProfile(), loadMore()])
+function setupObserver() {
+  observer?.disconnect()
   observer = new IntersectionObserver(
     en => {
-      if (en[0].isIntersecting) loadMore()
+      if (en[0].isIntersecting) loadMore(userId.value, loadSeq)
     },
     { rootMargin: '300px' },
   )
   const el = document.getElementById('grid-sentinel')
   if (el) observer.observe(el)
+}
+
+async function loadForRoute() {
+  const seq = ++loadSeq
+  profile.value = null
+  brokenAvatar.value = false
+  brokenCards.value = new Set()
+  notFound.value = false
+  profileError.value = ''
+  notesError.value = ''
+  cards.value = []
+  nextCursor.value = undefined
+  hasMore.value = true
+  loading.value = false
+  await Promise.all([loadProfile(userId.value, seq), loadMore(userId.value, seq)])
+  if (seq !== loadSeq) return
+  await nextTick()
+  setupObserver()
+}
+
+function markCardImageFailed(id) {
+  brokenCards.value = new Set(brokenCards.value).add(id)
+}
+
+onMounted(loadForRoute)
+watch(() => route.params.id, loadForRoute)
+onUnmounted(() => {
+  loadSeq++
+  observer?.disconnect()
 })
 
 function openNote(id) {
@@ -95,11 +141,25 @@ async function onAvatarPicked(e) {
   if (!f) return
   try {
     const { avatarUrl } = await userApi.uploadAvatar(f)
+    brokenAvatar.value = false
     store.patchProfile({ avatarUrl })
-    await loadProfile()
+    await loadProfile(userId.value, loadSeq)
     toast('头像已更新')
   } catch (err) {
     toast(getErrorText(err), 'error')
+  }
+}
+async function logout() {
+  if (loggingOut.value) return
+  loggingOut.value = true
+  try {
+    if (store.accessToken) await authApi.logout()
+  } catch {
+    // 服务端失败不阻止本地清态
+  } finally {
+    store.forceLogout()
+    loggingOut.value = false
+    router.push('/')
   }
 }
 function fmt(ts) {
@@ -115,6 +175,13 @@ function fmt(ts) {
     <button class="h-10 px-6 rounded-full bg-brand-500 text-white" @click="router.push('/')">回首页</button>
   </div>
 
+  <div v-else-if="profileError" class="py-28 text-center text-ink-soft">
+    <p class="mb-4">{{ profileError }}</p>
+    <button class="h-10 px-5 rounded-full border border-line hover:bg-mute" @click="loadForRoute">重试</button>
+  </div>
+
+  <div v-else-if="!profile" class="py-28 text-center text-ink-soft">加载中…</div>
+
   <section v-else-if="profile" class="pt-6">
     <!-- 信息卡 -->
     <header class="flex items-center gap-5 bg-surface rounded-2xl border border-line p-6">
@@ -124,20 +191,14 @@ function fmt(ts) {
         title="更换头像"
         @click="pickAvatar"
       >
-        <img
-          :src="profile.avatarUrl || ''"
-          alt=""
-          class="w-[72px] h-[72px] rounded-full object-cover bg-brand-50"
-          @error="$event.target.src=''"
-        />
+        <img v-if="profile.avatarUrl && !brokenAvatar" :src="profile.avatarUrl" alt="" class="w-[72px] h-[72px] rounded-full object-cover bg-brand-50" @error="brokenAvatar = true" />
+        <span v-else class="w-[72px] h-[72px] rounded-full bg-brand-50 grid place-items-center text-brand-400 text-xl">{{ (profile.nickname || '山').slice(0,1) }}</span>
         <span class="absolute inset-0 rounded-full grid place-items-center bg-black/35 opacity-0 group-hover:opacity-100 transition text-white text-xs">换</span>
       </button>
-      <img
-        v-else
-        :src="profile.avatarUrl || ''"
-        alt=""
-        class="w-[72px] h-[72px] rounded-full object-cover bg-brand-50 shrink-0"
-      />
+      <template v-else>
+        <img v-if="profile.avatarUrl && !brokenAvatar" :src="profile.avatarUrl" alt="" class="w-[72px] h-[72px] rounded-full object-cover bg-brand-50 shrink-0" @error="brokenAvatar = true" />
+        <span v-else class="w-[72px] h-[72px] rounded-full bg-brand-50 grid place-items-center text-brand-400 text-xl shrink-0">{{ (profile.nickname || '山').slice(0,1) }}</span>
+      </template>
 
       <div class="min-w-0 flex-1">
         <div class="flex items-baseline gap-3">
@@ -152,19 +213,21 @@ function fmt(ts) {
         <button data-testid="btn-edit-profile" class="h-9 px-4 rounded-full border border-brand-200 text-brand-600 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-900/30 text-sm" @click="openEditor">
           编辑资料
         </button>
-        <button data-testid="btn-logout" class="h-9 px-4 rounded-full border border-line text-ink-soft hover:bg-mute text-sm" @click="store.forceLogout(); router.push('/')">
-          退出登录
+        <button data-testid="btn-logout" :disabled="loggingOut" class="h-9 px-4 rounded-full border border-line text-ink-soft hover:bg-mute text-sm disabled:opacity-60" @click="logout">
+          {{ loggingOut ? '退出中…' : '退出登录' }}
         </button>
       </div>
     </header>
 
     <!-- 编辑弹层 -->
-    <div v-if="editing" class="fixed inset-0 z-50 bg-black/40 grid place-items-center px-4" @click.self="editing=false">
+      <div v-if="editing" class="fixed inset-0 z-50 bg-black/40 grid place-items-center px-4" @click.self="editing=false">
       <div class="w-full max-w-sm bg-surface rounded-2xl p-5 space-y-3">
         <h2 class="font-medium">编辑资料</h2>
-        <input v-model.trim="editForm.nickname" maxlength="32" placeholder="昵称"
+        <label for="profile-nickname" class="sr-only">昵称</label>
+        <input id="profile-nickname" v-model.trim="editForm.nickname" maxlength="32" placeholder="昵称"
                class="w-full h-11 px-3 rounded-xl bg-mute border border-transparent outline-none focus:border-brand-300 text-sm" />
-        <textarea v-model="editForm.bio" rows="3" maxlength="200" placeholder="个性签名"
+        <label for="profile-bio" class="sr-only">个性签名</label>
+        <textarea id="profile-bio" v-model="editForm.bio" rows="3" maxlength="200" placeholder="个性签名"
                   class="w-full p-3 rounded-xl bg-mute border border-transparent outline-none focus:border-brand-300 text-sm resize-none"></textarea>
         <div class="flex justify-end gap-2 pt-1">
           <button class="h-9 px-4 rounded-full text-sm text-ink-soft hover:bg-neutral-50" @click="editing=false">取消</button>
@@ -172,20 +235,29 @@ function fmt(ts) {
         </div>
       </div>
     </div>
-    <input ref="avatarFile" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" @change="onAvatarPicked" />
+    <input ref="avatarFile" type="file" accept="image/jpeg,image/png" aria-label="上传头像" class="hidden" @change="onAvatarPicked" />
 
     <!-- 九宫格 -->
-    <div v-if="cards.length === 0 && !loading" class="py-20 text-center text-ink-soft">
+    <div v-if="notesError && cards.length === 0 && !loading" class="py-20 text-center text-ink-soft">
+      <p class="mb-4">作品加载失败：{{ notesError }}</p>
+      <button class="h-10 px-5 rounded-full border border-line hover:bg-mute" @click="loadMore(userId, loadSeq)">重试</button>
+    </div>
+    <div v-else-if="cards.length === 0 && !loading" class="py-20 text-center text-ink-soft">
       {{ isSelf ? '还没有作品，点击右上角发布第一篇吧' : 'TA 还没有公开的作品' }}
     </div>
-    <div v-else class="grid grid-cols-3 gap-2 mt-5">
+    <div v-if="notesError && cards.length > 0" class="text-center text-sm text-red-500 py-3">
+      <span>加载更多失败：{{ notesError }}</span>
+      <button class="ml-2 underline" @click="loadMore(userId, loadSeq)">重试</button>
+    </div>
+    <div v-if="cards.length > 0" class="grid grid-cols-3 gap-2 mt-5">
       <button
         v-for="c in cards"
         :key="c.id"
         class="relative aspect-square rounded-lg overflow-hidden group"
         @click="openNote(c.id)"
       >
-        <img :src="c.coverUrl || ''" loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" alt="" />
+        <img v-if="c.coverUrl && !brokenCards.has(c.id)" :src="c.coverUrl" loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" alt="" @error="markCardImageFailed(c.id)" />
+        <span v-else role="img" :aria-label="`${c.title || '笔记'}封面暂时无法显示`" class="w-full h-full grid place-items-center bg-mute text-xs text-ink-soft">图片暂时无法显示</span>
         <span v-if="isSelf && c.visibility === 0" class="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/55 text-white text-[10px]">🔒 私密</span>
         <span class="absolute bottom-1 right-1.5 text-white text-[11px] drop-shadow flex items-center gap-0.5">📄 {{ c.mediaCount }}</span>
       </button>

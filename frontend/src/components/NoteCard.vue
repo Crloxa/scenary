@@ -1,15 +1,29 @@
 <script setup>
+import { ref } from 'vue'
+
 defineProps({
   card: { type: Object, required: true },
 })
-defineEmits(['open'])
+const emit = defineEmits(['open', 'open-user'])
+const imageFailed = ref(false)
+const authorImageFailed = ref(false)
+function openCard(id) { emit('open', id) }
+function onKeydown(event, id) {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    openCard(id)
+  }
+}
 </script>
 
 <template>
   <article
     data-testid="note-card"
+    role="button"
+    tabindex="0"
     class="break-inside-avoid mb-4 cursor-pointer group"
-    @click="$emit('open', card.id)"
+    @click="openCard(card.id)"
+    @keydown="onKeydown($event, card.id)"
   >
     <!-- 封面：预占位防抖动（宽高未知时按 3:4） -->
     <div
@@ -17,12 +31,20 @@ defineEmits(['open'])
       :style="{ aspectRatio: card.coverWidth && card.coverHeight ? `${card.coverWidth}/${card.coverHeight}` : '3/4' }"
     >
       <img
+        v-if="!imageFailed"
         :src="card.coverUrl"
         :alt="card.title || '风景'"
         loading="lazy"
         decoding="async"
         class="w-full h-full object-cover group-hover:scale-[1.03] transition duration-300"
+        @error="imageFailed = true"
       />
+      <div
+        v-else
+        role="img"
+        :aria-label="`${card.title || '风景'}图片暂时无法显示`"
+        class="w-full h-full grid place-items-center text-xs text-ink-soft"
+      >图片暂时无法显示</div>
     </div>
 
     <h3 class="mt-2 text-sm font-medium line-clamp-2 group-hover:text-brand-600 transition">
@@ -35,10 +57,11 @@ defineEmits(['open'])
 
     <div class="mt-1.5 flex items-center gap-2">
       <img
-        v-if="card.author?.avatarUrl"
+        v-if="card.author?.avatarUrl && !authorImageFailed"
         :src="card.author.avatarUrl"
         class="w-5 h-5 rounded-full object-cover"
         alt=""
+        @error="authorImageFailed = true"
       />
       <span
         v-else

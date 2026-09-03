@@ -1,15 +1,20 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { isDark, toggleTheme } from '@/utils/theme'
 import { toast } from '@/utils/toast'
+import { authApi } from '@/api/auth'
 
 const router = useRouter()
 const store = useUserStore()
 const menuOpen = ref(false)
 const rootEl = ref(null)
 const darkMode = ref(isDark())
+const loggingOut = ref(false)
+const avatarImageFailed = ref(false)
+
+watch(() => store.avatarUrl, () => { avatarImageFailed.value = false })
 
 function onToggleTheme() {
   const next = toggleTheme()
@@ -29,26 +34,35 @@ function goPublish() {
   }
   return router.push('/publish')
 }
-function logout() {
-  store.forceLogout()
-  menuOpen.value = false
-  router.push('/')
+async function logout() {
+  if (loggingOut.value) return
+  loggingOut.value = true
+  try {
+    if (store.accessToken) await authApi.logout()
+  } catch {
+    // 本地清态必须成功，服务端失败由下次令牌校验兜底
+  } finally {
+    store.forceLogout()
+    menuOpen.value = false
+    loggingOut.value = false
+    router.push('/')
+  }
 }
 </script>
 
 <template>
   <header class="sticky top-0 z-40 backdrop-blur bg-paper/85 border-b border-line">
-    <div class="max-w-[1100px] mx-auto px-4 h-14 flex items-center justify-between">
-      <RouterLink to="/" class="flex items-center gap-2 select-none">
+    <div class="max-w-[1100px] mx-auto px-4 max-[360px]:px-2 h-14 flex items-center justify-between">
+      <RouterLink to="/" class="flex items-center gap-2 select-none shrink-0 whitespace-nowrap">
         <span class="text-xl leading-none">🏔</span>
         <span class="font-semibold tracking-wide text-brand-500">Scenary</span>
       </RouterLink>
 
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-3 max-[360px]:gap-1 shrink-0">
         <button
           data-testid="nav-theme"
           :aria-label="darkMode ? '切换到日间模式' : '切换到夜间模式'"
-          class="w-9 h-9 rounded-full grid place-items-center text-base hover:bg-mute transition"
+          class="w-9 h-9 shrink-0 rounded-full grid place-items-center text-base hover:bg-mute transition"
           @click="onToggleTheme"
         >
           {{ darkMode ? '☀️' : '🌙' }}
@@ -56,7 +70,7 @@ function logout() {
 
         <button
           data-testid="nav-publish"
-          class="inline-flex items-center gap-1.5 h-9 px-4 rounded-full bg-brand-500 hover:bg-brand-600 active:scale-95 transition text-white text-sm font-medium"
+          class="inline-flex items-center gap-1.5 h-9 px-4 max-[360px]:px-3 shrink-0 whitespace-nowrap rounded-full bg-brand-500 hover:bg-brand-600 active:scale-95 transition text-white text-sm font-medium"
           @click="goPublish"
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
@@ -70,7 +84,7 @@ function logout() {
               class="w-9 h-9 rounded-full overflow-hidden ring-2 ring-brand-100 hover:ring-brand-300 transition"
               @click="menuOpen = !menuOpen"
             >
-              <img v-if="store.avatarUrl" :src="store.avatarUrl" alt="avatar" class="w-full h-full object-cover" />
+              <img v-if="store.avatarUrl && !avatarImageFailed" :src="store.avatarUrl" alt="头像" class="w-full h-full object-cover" @error="avatarImageFailed = true" />
               <span v-else class="block w-full h-full grid place-items-center bg-brand-50 text-brand-400 text-sm">{{ (store.nickname || 'U').slice(0, 1) }}</span>
             </button>
             <div
@@ -84,8 +98,8 @@ function logout() {
               >
                 我的主页
               </button>
-              <button class="w-full text-left px-3 py-2 hover:bg-brand-50 text-red-500" data-testid="nav-logout" @click="logout">
-                退出登录
+              <button :disabled="loggingOut" class="w-full text-left px-3 py-2 hover:bg-brand-50 text-red-500 disabled:opacity-60" data-testid="nav-logout" @click="logout">
+                {{ loggingOut ? '退出中…' : '退出登录' }}
               </button>
             </div>
           </div>
@@ -93,7 +107,7 @@ function logout() {
         <RouterLink
           v-else
           to="/login"
-          class="h-9 px-4 inline-flex items-center rounded-full border border-brand-200 text-brand-600 hover:bg-brand-50 transition text-sm"
+          class="h-9 px-4 max-[360px]:px-3 shrink-0 whitespace-nowrap inline-flex items-center rounded-full border border-brand-200 text-brand-600 hover:bg-brand-50 transition text-sm"
         >
           登录 / 注册
         </RouterLink>

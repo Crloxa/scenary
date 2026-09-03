@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import TopNav from '@/components/TopNav.vue'
 
 const toasts = ref([])
+const online = ref(navigator.onLine)
 let seq = 0
 function onToast(e) {
   const { type = 'info', msg } = e.detail || {}
@@ -12,13 +13,26 @@ function onToast(e) {
     toasts.value = toasts.value.filter(t => t.id !== id)
   }, 2600)
 }
-onMounted(() => window.addEventListener('app-toast', onToast))
-onUnmounted(() => window.removeEventListener('app-toast', onToast))
+function onOnline() { online.value = true }
+function onOffline() { online.value = false }
+onMounted(() => {
+  window.addEventListener('app-toast', onToast)
+  window.addEventListener('online', onOnline)
+  window.addEventListener('offline', onOffline)
+})
+onUnmounted(() => {
+  window.removeEventListener('app-toast', onToast)
+  window.removeEventListener('online', onOnline)
+  window.removeEventListener('offline', onOffline)
+})
 </script>
 
 <template>
   <div class="min-h-screen flex flex-col">
     <TopNav />
+    <div v-if="!online" role="status" class="bg-amber-100 text-amber-900 text-center text-xs py-2">
+      当前网络已断开，恢复连接后可重试失败操作。
+    </div>
     <main class="flex-1 w-full max-w-[1100px] mx-auto px-4 pb-16">
       <RouterView />
     </main>

@@ -78,37 +78,47 @@ async function submit() {
 
       <form class="space-y-3" @submit.prevent="submit">
         <div>
+          <label for="login-username" class="sr-only">用户名</label>
           <input
+            id="login-username"
             v-model.trim="form.username"
             data-testid="input-username"
             placeholder="用户名（4~20 位字母/数字/下划线）"
             class="w-full h-11 px-3.5 rounded-xl border border-line focus:border-brand-300 focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900 outline-none text-sm placeholder:text-neutral-400 dark:placeholder:text-neutral-500 bg-transparent"
             autocomplete="username"
+            :aria-invalid="Boolean(errors.username)"
+            :aria-describedby="errors.username ? 'username-error' : undefined"
           />
-          <p v-if="errors.username" class="mt-1 text-xs text-red-500">{{ errors.username }}</p>
+          <p v-if="errors.username" id="username-error" role="alert" class="mt-1 text-xs text-red-500">{{ errors.username }}</p>
         </div>
 
         <div>
+          <label for="login-password" class="sr-only">密码</label>
           <input
+            id="login-password"
             v-model="form.password"
             data-testid="input-password"
             type="password"
             :placeholder="tab === 'register' ? '密码（8 位以上，含字母和数字）' : '密码'"
             class="w-full h-11 px-3.5 rounded-xl border border-line focus:border-brand-300 focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900 outline-none text-sm placeholder:text-neutral-400 dark:placeholder:text-neutral-500 bg-transparent"
             autocomplete="current-password"
+            :aria-invalid="Boolean(errors.password)"
+            :aria-describedby="errors.password ? 'password-error' : undefined"
           />
-          <p v-if="errors.password" class="mt-1 text-xs text-red-500">{{ errors.password }}</p>
+          <p v-if="errors.password" id="password-error" role="alert" class="mt-1 text-xs text-red-500">{{ errors.password }}</p>
         </div>
 
+        <label v-if="tab === 'register'" for="register-nickname" class="sr-only">昵称</label>
         <input
           v-if="tab === 'register'"
+          id="register-nickname"
           v-model.trim="form.nickname"
           data-testid="input-nickname"
           placeholder="昵称（可选，默认同用户名）"
           class="w-full h-11 px-3.5 rounded-xl border border-line focus:border-brand-300 focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900 outline-none text-sm placeholder:text-neutral-400 dark:placeholder:text-neutral-500 bg-transparent"
         />
 
-        <p v-if="serverError" data-testid="server-error" class="text-xs text-red-500">{{ serverError }}</p>
+        <p v-if="serverError" data-testid="server-error" role="alert" class="text-xs text-red-500">{{ serverError }}</p>
 
         <button
           data-testid="btn-submit"
