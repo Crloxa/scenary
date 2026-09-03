@@ -3,6 +3,7 @@ package com.scenary.auth;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -64,7 +65,11 @@ public class AuthService {
                 ? req.username() : req.nickname());
         user.setBio("");
         user.setStatus(1);
-        userMapper.insert(user);
+        try {
+            userMapper.insert(user);
+        } catch (DuplicateKeyException e) {
+            throw new BizException(ErrorCode.USERNAME_EXISTS);
+        }
         return issuePair(user);
     }
 

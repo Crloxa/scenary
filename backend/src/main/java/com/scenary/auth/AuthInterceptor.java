@@ -3,6 +3,7 @@ package com.scenary.auth;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
+import org.slf4j.MDC;
 import org.springframework.http.HttpMethod;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
@@ -50,7 +51,9 @@ public class AuthInterceptor implements HandlerInterceptor {
         if (authService.isAccessBlacklisted(claims)) {
             throw new BizException(ErrorCode.TOKEN_INVALID, "令牌已登出");
         }
-        UserContext.set(Long.parseLong(claims.getSubject()));
+        long userId = Long.parseLong(claims.getSubject());
+        UserContext.set(userId);
+        MDC.put("userId", String.valueOf(userId));
         return true;
     }
 
@@ -59,5 +62,6 @@ public class AuthInterceptor implements HandlerInterceptor {
                                 @NonNull HttpServletResponse response,
                                 @NonNull Object handler, Exception ex) {
         UserContext.clear();
+        MDC.remove("userId");
     }
 }
