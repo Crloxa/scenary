@@ -1,16 +1,24 @@
 <script setup>
-import { ref, computed, reactive } from 'vue'
-import { useRouter } from 'vue-router'
-import { mediaApi, waitProcessed } from '@/api/media'
+import { ref, computed, reactive, onMounted, onUnmounted } from 'vue'
+import { onBeforeRouteLeave, useRouter } from 'vue-router'
+import { mediaApi, waitProcessed, isAbortError } from '@/api/media'
 import { noteApi } from '@/api/note'
+import { useUserStore } from '@/stores/user'
 import { getErrorText } from '@/utils/request'
 import { toast } from '@/utils/toast'
 
 const router = useRouter()
+const userStore = useUserStore()
 
 const MAX_FILES = 9
-const ACCEPT = 'image/jpeg,image/png,image/webp,image/gif'
+const MAX_BYTES = 10 * 1024 * 1024
+const MAX_CONCURRENT = 3
+const ACCEPT = 'image/jpeg,image/png,image/gif'
 let uid = 0
+let activeUploads = 0
+let disposed = false
+let published = false
+let requestKey = crypto.randomUUID()
 
 /** items: {key,file,url,progress:'uploading'|'processing'|'ready'|'fail', mediaId?} */
 const items = ref([])
@@ -23,10 +31,29 @@ const fileInput = ref(null)
 
 const canSubmit = computed(
   () => title.value.trim().length > 0 &&
-        items.value.some(i => i.progress === 'ready') &&
+        items.value.length > 0 &&
+        items.value.every(i => i.progress === 'ready') &&
         !submitting.value,
 )
 const titleCount = computed(() => title.value.length)
+const hasDraft = computed(() => Boolean(
+  title.value.trim() || content.value.trim() || placeName.value.trim() || items.value.length,
+))
+
+function handleBeforeUnload(event) {
+  if (!published && hasDraft.value) {
+    event.preventDefault()
+    event.returnValue = ''
+  }
+}
+
+onBeforeRouteLeave(() => {
+  if (published || !hasDraft.value || !userStore.isLoggedIn) return true
+  if (submitting.value) return false
+  return window.confirm('当前发布内容尚未完成，确定要离开吗？')
+})
+
+onMounted(() => window.addEventListener('beforeunload', handleBeforeUnload))
 
 function pick() {
   fileInput.value?.click()
@@ -36,6 +63,11 @@ function onPick(e) {
   const list = [...e.target.files]
   e.target.value = ''
   for (const f of list) {
+    const reason = validateFile(f)
+    if (reason) {
+      toast(reason, 'error')
+      continue
+    }
     if (items.value.length >= MAX_FILES) {
       toast(`最多 ${MAX_FILES} 张图片`, 'error')
       break
@@ -49,35 +81,114 @@ function onDrop(e) {
   e.preventDefault()
   for (const f of e.dataTransfer.files) {
     if (items.value.length >= MAX_FILES) return toast(`最多 ${MAX_FILES} 张图片`, 'error')
-    if (f.type.startsWith('image/')) addItem(f)
+    const reason = validateFile(f)
+    if (reason) {
+      toast(reason, 'error')
+      continue
+    }
+    addItem(f)
   }
 }
 
-async function addItem(file) {
+function validateFile(file) {
+  const allowed = ['image/jpeg', 'image/png', 'image/gif']
+  const extension = file?.name?.split('.').pop()?.toLowerCase()
+  if (!file || !file.size) return '不能添加空文件'
+  if (file.size > MAX_BYTES) return '单张图片不能超过 10MB'
+  if (!allowed.includes(file.type) && !(file.type === '' && ['jpg', 'jpeg', 'png', 'gif'].includes(extension))) {
+    return '仅支持 jpg/png/gif 图片'
+  }
+  return ''
+}
+
+function addItem(file) {
   const key = `f${++uid}`
   const item = reactive({
     key,
     file,
     url: URL.createObjectURL(file),
-    progress: 'uploading',
+    progress: 'queued',
     mediaId: null,
+    controller: null,
+    removed: false,
+    error: '',
   })
   items.value.push(item)
+  processQueue()
+}
 
+function processQueue() {
+  if (disposed) return
+  while (activeUploads < MAX_CONCURRENT) {
+    const item = items.value.find(it => it.progress === 'queued' && !it.removed)
+    if (!item) break
+    startUpload(item)
+  }
+}
+
+async function startUpload(item) {
+  activeUploads++
+  item.progress = 'uploading'
+  item.controller = new AbortController()
   try {
     // 立即上传拿 mediaId，再轮询消费者产出缩略图
-    item.mediaId = (await mediaApi.uploadOne(item.file)).mediaId
+    const uploaded = await mediaApi.uploadOne(item.file, { signal: item.controller.signal })
+    if (item.removed || item.controller.signal.aborted || disposed) {
+      if (uploaded?.mediaId && !published) await removeOrphan(uploaded.mediaId)
+      return
+    }
+    item.mediaId = uploaded.mediaId
     item.progress = 'processing'
-    await waitProcessed(item.mediaId)
+    await waitProcessed(item.mediaId, { signal: item.controller.signal })
+    if (item.removed || item.controller.signal.aborted || disposed) {
+      if (item.mediaId && !published) await removeOrphan(item.mediaId)
+      return
+    }
     item.progress = 'ready'
+    item.error = ''
   } catch (err) {
-    item.progress = 'fail'
-    toast(getErrorText(err) || '这张图处理失败，可移除后重传', 'error')
+    if ((isAbortError(err) || item.removed || disposed) && item.mediaId && !published) {
+      const id = item.mediaId
+      item.mediaId = null
+      await removeOrphan(id)
+    }
+    if (!isAbortError(err) && !item.removed && !disposed) {
+      item.progress = 'fail'
+      item.error = getErrorText(err) || '这张图处理失败，可移除后重传'
+      toast(item.error, 'error')
+    }
+  } finally {
+    activeUploads--
+    item.controller = null
+    processQueue()
+  }
+}
+
+function removeOrphan(mediaId) {
+  return mediaApi.remove(mediaId).catch(() => {})
+}
+
+function releasePreview(item) {
+  if (item.url) {
+    URL.revokeObjectURL(item.url)
+    item.url = ''
   }
 }
 
 function removeItem(key) {
-  items.value = items.value.filter(i => i.key !== key)
+  const index = items.value.findIndex(i => i.key === key)
+  if (index < 0) return
+  const item = items.value[index]
+  item.removed = true
+  item.controller?.abort()
+  releasePreview(item)
+  if (item.mediaId && !published) {
+    const id = item.mediaId
+    item.mediaId = null
+    removeOrphan(id)
+  }
+  items.value.splice(index, 1)
+  processQueue()
 }
 function moveItem(key, dir) {
   const arr = items.value
@@ -88,31 +199,34 @@ function moveItem(key, dir) {
 }
 async function retryItem(key) {
   const it = items.value.find(i => i.key === key)
-  if (!it || it.progress === 'fail' && !it.file) return
-  it.progress = 'uploading'
-  try {
-    it.mediaId = (await mediaApi.uploadOne(it.file)).mediaId
-    it.progress = 'processing'
-    await waitProcessed(it.mediaId)
-    it.progress = 'ready'
-  } catch (err) {
-    it.progress = 'fail'
-    toast(getErrorText(err), 'error')
+  if (!it || it.progress !== 'fail' || !it.file) return
+  if (it.mediaId) {
+    const id = it.mediaId
+    it.mediaId = null
+    await removeOrphan(id)
   }
+  it.error = ''
+  it.removed = false
+  it.progress = 'queued'
+  processQueue()
 }
 
 async function submitNote() {
   if (!canSubmit.value) return
   submitting.value = true
   try {
-    const ordered = items.value.filter(i => i.progress === 'ready').map(i => i.mediaId)
+    const ordered = items.value.map(i => i.mediaId)
     await noteApi.create({
       title: title.value.trim(),
       content: content.value.trim(),
       placeName: placeName.value.trim(),
       mediaIds: ordered,
       visibility: Number(visibility.value),
+      requestKey,
     })
+    published = true
+    requestKey = crypto.randomUUID()
+    items.value.forEach(releasePreview)
     toast('发布成功')
     router.push('/')
   } catch (e) {
@@ -121,6 +235,18 @@ async function submitNote() {
     submitting.value = false
   }
 }
+
+onUnmounted(() => {
+  window.removeEventListener('beforeunload', handleBeforeUnload)
+  disposed = true
+  items.value.forEach(item => {
+    item.removed = true
+    item.controller?.abort()
+    releasePreview(item)
+    if (item.mediaId && !published) removeOrphan(item.mediaId)
+  })
+  items.value = []
+})
 </script>
 
 <template>
@@ -143,7 +269,8 @@ async function submitNote() {
             class="absolute inset-x-1 bottom-1 h-6 rounded-full text-[11px] text-white grid place-items-center backdrop-blur px-1 truncate"
             :class="it.progress === 'fail' ? 'bg-red-500/90' : 'bg-black/50'"
           >
-            <template v-if="it.progress === 'uploading'">上传中…</template>
+            <template v-if="it.progress === 'queued'">等待上传…</template>
+            <template v-else-if="it.progress === 'uploading'">上传中…</template>
             <template v-else-if="it.progress === 'processing'">
               <svg class="animate-spin -ml-0.5 mr-1 h-3 w-3" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity=".25"/><path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
               处理中
@@ -153,11 +280,11 @@ async function submitNote() {
 
           <!-- 操作角标 -->
           <div class="absolute top-1 right-1 flex gap-1">
-            <button class="w-5 h-5 rounded-full bg-black/55 text-white text-xs leading-none grid place-items-center" title="移除" @click="removeItem(it.key)">×</button>
+            <button aria-label="移除图片" class="w-5 h-5 rounded-full bg-black/55 text-white text-xs leading-none grid place-items-center" title="移除" @click="removeItem(it.key)">×</button>
           </div>
           <div class="absolute top-1 left-1 flex gap-0.5">
-            <button v-if="idx > 0" class="w-5 h-5 rounded-full bg-black/45 text-white text-[10px]" title="前移" @click="moveItem(it.key, -1)">←</button>
-            <button v-if="idx < items.length - 1" class="w-5 h-5 rounded-full bg-black/45 text-white text-[10px]" title="后移" @click="moveItem(it.key, 1)">→</button>
+            <button v-if="idx > 0" aria-label="前移图片" class="w-5 h-5 rounded-full bg-black/45 text-white text-[10px]" title="前移" @click="moveItem(it.key, -1)">←</button>
+            <button v-if="idx < items.length - 1" aria-label="后移图片" class="w-5 h-5 rounded-full bg-black/45 text-white text-[10px]" title="后移" @click="moveItem(it.key, 1)">→</button>
           </div>
           <button
             v-if="it.progress === 'fail'"
@@ -177,14 +304,16 @@ async function submitNote() {
           +
         </button>
       </div>
-      <p class="mt-2 text-[11px] text-ink-soft">{{ items.length }}/{{ MAX_FILES }} 张 · 支持 jpg/png/webp/gif · 可拖拽进来</p>
-      <input ref="fileInput" type="file" multiple :accept="ACCEPT" class="hidden" @change="onPick" />
+      <p class="mt-2 text-[11px] text-ink-soft">{{ items.length }}/{{ MAX_FILES }} 张 · 支持 jpg/png/gif · 可拖拽进来</p>
+      <input ref="fileInput" type="file" multiple :accept="ACCEPT" aria-label="选择图片" class="hidden" @change="onPick" />
     </div>
 
     <!-- 表单 -->
     <form class="mt-4 space-y-3 bg-surface rounded-2xl border border-line p-4" @submit.prevent="submitNote">
       <div>
+        <label for="publish-title" class="sr-only">标题</label>
         <input
+          id="publish-title"
           v-model="title"
           data-testid="input-title"
           maxlength="64"
@@ -193,20 +322,25 @@ async function submitNote() {
         />
         <p class="text-right text-[11px] text-ink-soft mt-0.5">{{ titleCount }}/64</p>
       </div>
+      <label for="publish-content" class="sr-only">正文</label>
       <textarea
+        id="publish-content"
         v-model="content"
         rows="4"
         maxlength="2000"
         placeholder="这一刻的风景与心情（选填）"
         class="w-full p-3 rounded-xl bg-mute border border-transparent outline-none focus:border-brand-300 text-sm resize-none"
       ></textarea>
+      <label for="publish-place" class="sr-only">地点</label>
       <input
+        id="publish-place"
         v-model="placeName"
         maxlength="128"
         placeholder="📍 添加地点（选填）"
         class="w-full h-10 px-3 rounded-xl bg-mute border border-transparent outline-none focus:border-brand-300 text-sm"
       />
-      <div class="flex items-center gap-4 text-sm text-ink-soft select-none">
+      <fieldset class="flex items-center gap-4 text-sm text-ink-soft select-none">
+        <legend class="sr-only">笔记可见范围</legend>
         <label class="inline-flex items-center gap-1.5 cursor-pointer">
           <input v-model="visibility" type="radio" value="1" class="accent-brand-500 w-4 h-4" />
           🌍 公开
@@ -215,7 +349,7 @@ async function submitNote() {
           <input v-model="visibility" type="radio" value="0" class="accent-brand-500 w-4 h-4" />
           🔒 仅自己可见
         </label>
-      </div>
+      </fieldset>
       <button
         data-testid="btn-publish-submit"
         type="submit"

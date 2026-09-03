@@ -22,6 +22,7 @@ instance.interceptors.response.use(
   res => res.data,
   async error => {
     const { response, config } = error
+    if (axios.isCancel(error)) throw error
     if (!response) {
       throw withText(error, '网络异常，请检查连接')
     }
@@ -44,7 +45,9 @@ instance.interceptors.response.use(
         })
       const refreshed = await refreshing
       if (!refreshed) {
+        useUserStore().forceLogout(true)
         kickToLogin()
+        throw withText(error, '登录已过期，请重新登录')
       }
       return instance(config)
     }

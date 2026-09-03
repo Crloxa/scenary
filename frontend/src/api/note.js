@@ -1,9 +1,9 @@
 import instance, { unwrap } from '@/utils/request'
 
 export const noteApi = {
-  async create({ title, content = '', placeName = '', mediaIds, visibility = 1 }) {
+  async create({ title, content = '', placeName = '', mediaIds, visibility = 1, requestKey = null }) {
     return unwrap(
-      await instance.post('/notes', { title, content, placeName, mediaIds, visibility }),
+      await instance.post('/notes', { title, content, placeName, mediaIds, visibility, requestKey }),
     )
   },
   async detail(noteId) {
