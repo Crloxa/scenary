@@ -2,6 +2,66 @@
 
 > 维护规约见 [AGENTS.md §4.1](AGENTS.md)：满足触发条件必须追加条目；历史条目不改写，错误用勘误行修正。
 
+## [v2.25] · 2026-09-03 · P8 验收数字校正与文档闭环
+
+- **验收勘误**：补录并发幂等回归后 Docker Maven 测试实际为 `21/21`，同步当前证据、HANDOVER 和学习笔记；历史版本条目保留不改写（影响 `docs/evidence/2026-09-03-P8改进验收.md`、`docs/HANDOVER.md`、`docs/learning/14-P8验收证据与异步状态.md`）。
+- **原子提交**：P8 功能、测试和运维改动已拆为认证、媒体、笔记、traceId、前端请求/上传、前端页面、后端测试、前端测试和运维提交；本条关联 `852d8c0`、`d959bbe`、`2223bc4`、`96f259d`、`65378c2`、`ec046e1`、`2e72b8b`、`770ba87`、`5e489be`。
+- **状态闭环**：AGENTS、README、03 Checklist、HANDOVER、CHANGELOG、API/架构/部署文档、证据和学习索引已对齐，P8 保持完成，P9 保持未启动。
+
+## [v2.24] · 2026-09-03 · P8 范围审阅与原子提交闭环
+
+- **审阅修正**：补齐发布页草稿离开保护、提交中禁止导航、退出登录后的守卫放行和图片排序按钮无障碍标签；前端回归由 11/11 增至 12/12（影响 `frontend/src/views/PublishView.vue`、`frontend/tests/PublishView.spec.js`）。
+- **文档收口**：同步 P8 证据中的 Playwright、迁移预览、实际未覆盖边界和前端断言数量；修正异步失败“人工标记 status=2”、部署示例未固定镜像和前端 lint 门禁表述（影响 `docs/evidence/2026-09-03-P8改进验收.md`、`docs/01-技术栈与总体架构.md`、`docs/02-API接口规范.md`、`docs/03-MVP实施与Docker部署.md`、`docs/learning/07-RabbitMQ手动ack与DLX三件套.md`、`docs/HANDOVER.md`）。
+- **提交治理**：P8 工作树已按认证、媒体、笔记、前端、测试、运维和文档边界完成中文 conventional commit；历史媒体 URL 仅执行 `-Preview`，正式批量迁移仍由部署运维执行（影响 `ops/migrate-media-urls.ps1`、P8 证据与交接文档）。
+
+## [v2.23] · 2026-09-03 · P8 全量验收与文档闭环
+
+- **验收完成**：Compose 黑盒认证/拦截/媒体/缩略图/端到端为 `18/8/15/7/30`，P8 集成矩阵 `6/6`，合计 `84/84`；P8 出口门禁通过，P9 保持未启动（关联 `docs/evidence/2026-09-03-P8改进验收.md`、`docs/03-MVP实施与Docker部署.md`）。
+- **测试门禁**：Docker Maven JUnit `20/20`、前端 Vitest `11/11`、Vite 构建、两份 Compose config、tracked/全工作树敏感信息扫描和 `git diff --check` 均通过（影响 `backend/src/test`、`frontend/tests`、`.github/workflows/ci.yml`）。
+- **运维证据**：备份恢复后 users/notes/media 为 `147/81/213` 且与源库一致，不存在数据库恢复返回退出码 1，临时库已清理（影响 `ops/restore-mysql.ps1`、P8 证据报告）。
+- **浏览器回归**：使用用户提供图片完成注册→上传→发布“月下宫墙”→详情→删除后只读核验；390/768/1440 首页、登录、公开详情无水平溢出且 console error=0（影响 P8 证据报告、`docs/HANDOVER.md`）。
+- **文档沉淀**：新增 P8 全量证据和第 14 篇学习笔记，并同步 Checklist、HANDOVER、README、AGENTS 与学习索引；工作树仍未提交（影响 `docs/evidence/2026-09-03-P8改进验收.md`、`docs/learning/14-P8验收证据与异步状态.md` 及关联文档）。
+
+## [v2.22] · 2026-09-03 · P8 Compose 复验中间 checkpoint
+
+- **验收发现**：最新容器复验中，认证脚本受持久化 `rl:register` 测试计数影响而中止；上传脚本对 `status=0` 尚未生成的缩略图立即匿名读取，时序断言不成立；数据库集成脚本按索引列数误计双列唯一键。当前 P8 不标记完成，待修正验收口径并串行重跑（影响 `docs/dev/test-media36.mjs`、`docs/dev/test-p8-integration.mjs`、`docs/HANDOVER.md`）。
+- **最新状态**：认证 18/18、拦截链 8/8、媒体 15/15、缩略图 7/7、Compose 集成 6/6 已通过；端到端在公开/私密详情作者视角处失败并中止，正在定位（影响 `docs/dev/test-e2e38.mjs`、详情查询实现）。
+- **根因与修复**：`NoteService` 对 `Long` 用户 ID 使用引用比较，ID 大于 127 时误判作者视角；改为值比较并新增详情单测，端到端脚本同步改为安全断言后待重建容器复验（影响 `backend/src/main/java/com/scenary/note/NoteService.java`、`backend/src/test/java/com/scenary/note/NoteServiceTest.java`、`docs/dev/test-e2e38.mjs`）。
+- **门禁修复**：CI 敏感信息扫描的正则以连字符开头，改用 `git grep -e` 显式传递模式，避免扫描命令被误解析为选项；待重新执行等价扫描（影响 `.github/workflows/ci.yml`）。
+
+## [v2.21] · 2026-09-03 · P8 后端止血与配置收口
+
+- **认证**：`AuthService.register` 捕获 `DuplicateKeyException` 并回 `41001`，并发注册不再落 500；新增单测覆盖唯一键冲突翻译。
+- **发布**：`POST /notes` 新增可选 `requestKey` 幂等键，重复提交返回同一篇笔记；媒体绑定改为 `note_id IS NULL` 条件更新并校验影响行数，绑定失败直接回滚。
+- **媒体**：缩略图消费者在最终失败后写入 `status=2`、失败原因与时间，再进入 DLQ；状态查询与详情展示改为按配置返回展示 URL，默认不暴露原图。
+- **配置与部署**：`backend/run-dev.sh` 改为缺少必需 env 即失败；`application-dev.yml` 去掉 secret 默认值；`docker-compose*.yml` 固定 MinIO 镜像版本并补 Redis 依赖检查。
+- **验收**：新增 `backend/src/test/java/com/scenary/{auth,note,mq}` 三组单测，`cd backend && mvn -q test` 13/13 通过；`cd frontend && npm run build`、`docker compose config --quiet`、`docker compose -f docker-compose.middleware.yml config --quiet` 均通过；证据已归档至 `docs/evidence/2026-09-03-P8后端止血与配置收口.md`。
+
+## [v2.20] · 2026-09-02 · 补齐 P8 学习笔记
+
+- **学习沉淀**：新增 `docs/learning/13-MVP审计与质量门禁.md`，记录从 happy path 复验转向状态/并发/权限生命周期/外部故障/用户可理解性审计的方法、验证证据和可复用结论。
+- **索引同步**：`docs/learning/00-学习笔记索引.md` 登记第 13 篇，关联 P8 改进阶段。
+- **状态说明**：P8 仍处于改进中；前端首批止血已通过 `npm run build`，后端 P0 和完整 P8 证据报告尚未完成，Checklist 不勾选。
+
+## [v2.19] · 2026-09-02 · MVP 审计与后续开发文档立项
+
+- **审计**：前端与后端子 agent 完成代码及实测审计，新增 `docs/frontend-audit-2026-09-02.md`；确认动态路由复用、登出未撤销 refresh、私密内容可被黑名单 access 读取、媒体绑定竞态、刷新旋转非原子、MQ 失败永久处理中、对象/资源泄漏、配置与测试门禁等 P0/P1 问题。
+- **改进总纲**：新增 `docs/04-产品与工程改进总纲.md`，将问题编号化并拆成 P8-01~P8-22，定义前端视觉/交互/无障碍、后端可靠性、CI/备份/对象存储和证据验收门槛；当前实现 agent 以该文档为唯一施工入口。
+- **后续路线**：新增 `docs/05-后续开发路线图与实施手册.md`，详述 P9 社交、P10 评论通知、P11 搜索、P12 视频地点、P13 内容安全、P14 规模化的 API/数据/前端/后端/运维/验收与回滚要求；P8 未通过前不启动后续功能。
+- **状态同步**：README、AGENTS、HANDOVER 增加文档入口并将下一步改为 P8 P0 止血；未修改 02 API 契约或现有实现代码。
+
+## [v2.18] · 2026-09-02 · 补充后端 JUnit 单元测试
+
+- **测试**：新增 `backend/src/test` 下 3 个 JUnit 5 测试类、9 个纯逻辑用例，覆盖 JWT 签发/解析/身份窥探、图片魔数识别与读取窗口、游标分页边界；`cd backend && mvn -q test` 退出码 0，无需 Docker 或外部中间件。
+- **边界更新**：MVP 证据报告与 HANDOVER 测试矩阵改为记录 JUnit 9/9；数据库交互和跨模块编排仍由 Docker 黑盒脚本覆盖，完整 Repository 集成测试暂未纳入。
+
+## [v2.17] · 2026-09-02 · MVP 证据链复验与门禁
+
+- **运行复验**：Compose 全栈重建并启动成功，backend/MySQL healthy；认证、拦截、上传、端到端四组黑盒脚本经 `:8081` 入口取得 18/8/13/29，共 68/68 PASS；前端构建及浏览器首页/登录页、console error 检查通过。
+- **证据缺口修复**：`test-thumbnail37.mjs` 原先固定依赖宿主 `:15672`，与生产 Compose 仅暴露 `:8081` 冲突；新增管理 API 不可达时的 Compose 容器回退，不新增依赖或端口。
+- **证据归档**：新增 `docs/evidence/README.md` 和 `docs/evidence/2026-09-02-MVP复验.md`，记录验证对象、环境、命令、结果与未覆盖边界；同步更新 AGENTS、03 Checklist 与 HANDOVER。
+- **治理门禁**：二期 A 起每个 Phase/功能环节必须提交可复现证据报告，并与 Checklist、HANDOVER、CHANGELOG 相互引用；证据缺失或必需验收不可重跑时不得标记完成。
+
 ## [v2.16] · 2026-09-02 · 补齐 Phase 7 可执行验收
 
 - **缺陷修复**：`backup-mysql.ps1 -Preview` 不再向同名 Switch 参数赋值，且预览模式不创建目录；实际备份改为将数据库名安全地作为容器内 shell 参数传递，并通过容器环境变量提供 MySQL 密码，避免落入进程参数。

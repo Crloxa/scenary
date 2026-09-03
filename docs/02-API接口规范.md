@@ -131,7 +131,7 @@
 
 ### 3.3 POST /users/me/avatar — 上传头像 🔒
 
-Content-Type: multipart/form-data，字段名 `file`，单张 image/jpeg|png|webp ≤5MB。
+Content-Type: multipart/form-data，字段名 `file`，单张 image/jpeg|png ≤5MB。
 同步处理：MinIO 存 `avatar/{userId}/{uuid}.jpg` + Thumbnailator 生成 200×200 封面式缩放覆盖原路径（头像不分图）。
 响应 data：`{ "avatarUrl": "http://.../avatar/10086/x.jpg" }`，并自动写入 users.avatar_url。
 
@@ -159,21 +159,23 @@ Content-Type: multipart/form-data，字段名 `file`，单张 image/jpeg|png|web
 
 ### 4.1 POST /media/images — 批量上传原图 🔒
 
-multipart/form-data，字段名 `files`，可重复多个，1≤数量≤9；单张 ≤10MB；mime 限 jpeg/png/webp/gif。
+multipart/form-data，字段名 `files`，可重复多个，1≤数量≤9；单张 ≤10MB；mime 限 jpeg/png/gif。
 流程：写 MinIO 原图 → 建 media(status=0) → 发 MQ → **立即返回**。
+
+> 当前运行时不引入 WebP 解码器，因此 WebP 即使魔数正确也在上传阶段以 `40000` 拒绝；这样不会先存原图再进入不可恢复的异步失败。后续若登记并引入稳定解码器，需先更新本契约和依赖评估。
 
 响应 data：
 
 ```json
 {
   "items": [
-    { "mediaId": 501, "url": "http://.../orig/202608/a1.jpg", "thumbUrl": null,
+    { "mediaId": 501, "url": "http://.../thumb/202608/a1_t.jpg", "thumbUrl": null,
       "status": 0, "width": null, "height": null }
   ]
 }
 ```
 
-> 注：上文示例 URL 为 MinIO 直链形态；生产/容器部署时 host 由后端配置 `SCENARY_MINIO_PUBLIC_HOST` 决定（可能指向反代路径，如 `http://<服务器>:8081/minio`）。**前端铁律：永远直接使用接口返回的完整 URL，禁止自行拼接域名或改写路径。**
+> 注：上文示例 URL 为展示地址；生产/容器部署时 host 由后端配置 `SCENARY_MINIO_PUBLIC_HOST` 决定（可能指向反代路径，如 `http://<服务器>:8081/minio`）。默认策略只返回缩略图展示地址，即使仍在处理中也不把原图直链交给客户端；只有显式打开 `SCENARY_MINIO_EXPOSE_ORIGINAL_URL=true` 才返回原图。**前端铁律：永远直接使用接口返回的完整 URL，禁止自行拼接域名或改写路径。**
 
 ### 4.2 GET /media/{mediaId} — 查询处理状态 🔒 (仅 owner)
 
@@ -183,16 +185,18 @@ multipart/form-data，字段名 `files`，可重复多个，1≤数量≤9；单
 
 ```json
 { "mediaId": 501, "status": 1,
-  "url": "http://.../orig/202608/a1.jpg", "thumbUrl": "http://.../thumb/202608/a1_t.jpg",
+  "url": "http://.../thumb/202608/a1_t.jpg", "thumbUrl": "http://.../thumb/202608/a1_t.jpg",
   "width": 1080, "height": 1440 }
 ```
 
-状态机：`0 PROCESSING → 1 DONE / 2 FAILED`（消费者 DLQ 兜底后人工标记 2）。
+说明：`url` 为展示 URL；默认返回缩略图展示地址，是否暴露原图由 `SCENARY_MINIO_EXPOSE_ORIGINAL_URL` 决定。处理失败时 `status=2`，前端应立即显示失败并允许重传。
+
+状态机：`0 PROCESSING → 1 DONE / 2 FAILED`；消费者本地重试耗尽后先写入 `status=2` 与失败原因/时间，再 `nack(requeue=false)` 进入 DLQ，前端可立即展示失败并允许重传。
 错误：40300 非 owner；40400 不存在。
 
 ### 4.3 DELETE /media/{mediaId} — 删除未使用的媒体 🔒 (仅 owner)
 
-仅允许 note_id IS NULL 的游离媒体删除（发布绑定后走删笔记通道）。MinIO 文件保留（后台清理策略二期）。响应 data=null。
+仅允许 note_id IS NULL 的游离媒体删除（发布绑定后走删笔记通道）。删除接口保留兼容的异步清理语义；后台定时任务会在保留期后删除对象并清理数据库行。响应 data=null。
 
 ---
 
@@ -207,11 +211,12 @@ multipart/form-data，字段名 `files`，可重复多个，1≤数量≤9；单
   "title": "雨后的四姑娘山",
   "content": "十月初的雪线，云开了一小时。拍摄于双桥沟。",
   "placeName": "四川·四姑娘山",
-  "mediaIds": [501, 502, 503]
+  "mediaIds": [501, 502, 503],
+  "requestKey": "7d4a0b4b-0e06-4cbe-a7d6-f4d1f1b2a6f0"
 }
 ```
 
-校验：title 1~64 必填；content ≤2000 可空串；mediaIds 1~9 个、全部属于本人、全部 status=1（否则 40901）；placeName ≤128 可空。
+校验：title 1~64 必填；content ≤2000 可空串；mediaIds 1~9 个、全部属于本人、全部 status=1（否则 40901）；placeName ≤128 可空；requestKey 可选，建议 UUID，同一 user+requestKey 重试返回同一篇笔记。
 事务动作：insert notes → 批量 update media SET note_id, order_no(1..n) → 回填 notes.cover_url=首图 thumb_url、media_count → 推进 Redis `feed:first:v1:version`（提交后再次推进，隔离并发旧查询回写）。
 
 响应 data：
@@ -239,7 +244,7 @@ multipart/form-data，字段名 `files`，可重复多个，1≤数量≤9；单
     "avatarUrl": "http://.../avatar/10086/a1b2.jpg"
   },
   "images": [
-    { "mediaId": 501, "url": "http://.../orig/202608/a1.jpg",
+    { "mediaId": 501, "url": "http://.../thumb/202608/a1_t.jpg",
       "thumbUrl": "http://.../thumb/202608/a1_t.jpg", "width": 1080, "height": 1440 },
     { "mediaId": 502, "url": "...", "thumbUrl": "...", "width": 1080, "height": 810 }
   ],
@@ -247,7 +252,7 @@ multipart/form-data，字段名 `files`，可重复多个，1≤数量≤9；单
 }
 ```
 
-说明：列表场景只用 coverUrl/thumbUrl；详情页 img 用原 url 但 CSS 限宽即可（压缩加载优化列二期，如 OSS 图片参数裁剪）。
+说明：列表场景只用 coverUrl/thumbUrl；详情页 img 用返回的 url（默认缩略图展示，是否暴露原图由 `SCENARY_MINIO_EXPOSE_ORIGINAL_URL` 决定）。
 
 ### 5.3 DELETE /notes/{id} — 删除笔记 🔒 (仅 author)
 

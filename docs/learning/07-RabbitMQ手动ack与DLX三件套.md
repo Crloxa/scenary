@@ -21,7 +21,7 @@ ERROR thumbnail failed after retries -> dlq             # nack(requeue=false)
 
 1. **绝不盲目 requeue**：业务性故障（行不存在、内容不可解码）重试一万次也不会自愈。重投只保留给"broker 自己抖"的场景——而那类瞬时抖动用消费者内部的有限次 try（本项目 2 次）更可控、更可观测。
 2. **yml 侧再上一道保险**：`default-requeue-rejected: false` 把监听容器抛出的未捕获异常也默认走 nack，防止某个分支漏 catch 引发 requeue 风暴。
-3. **死信不是垃圾场而是档案室**：bad message 带原始字节完整躺在 `media.dlq`，人工排查/补投有据可依。契约特意不自动置 status=2 —— 那是人工查明真相后的动作。
+3. **死信不是垃圾场而是档案室**：bad message 带原始字节完整躺在 `media.dlq`，人工排查/补投有据可依；P8 起可识别的媒体处理失败会在进入 DLQ 前自动写入 `status=2`、失败原因和时间，避免前端永久轮询。
 
 ## 原理（两个容易踩的暗坑）
 

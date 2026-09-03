@@ -1,7 +1,7 @@
 # Scenary · 极简风景图文社区（MVP 立项）
 
 > 工作代号 **Scenary**，源自 [../思绪.txt](../思绪.txt) 的产品设想第 1 条：以纯风景图片/视频为内容的小红书式分享社区。
-> 本仓库已完成 Phase 7 运维基线与前序全栈验收；当前 MVP 可通过 Docker Compose 一键部署。
+> 本仓库已完成 Phase 7 运维基线与 P8 全量验收；当前 MVP 可通过 Docker Compose 一键部署，P9 尚未启动。
 
 ## MVP 范围（用户已确认）
 
@@ -21,9 +21,13 @@
 | [docs/01-技术栈与总体架构.md](docs/01-技术栈与总体架构.md) | 技术选型理由、架构图、目录结构（分包风格对照）、核心设计决策（JWT 双令牌 / MQ 异步图片管线 / Feed 缓存 / 对象存储）、数据库 DDL 全量、"延后安装清单"回装成本评估 | 开工前通读，遇到"为什么这么设计"回来看 |
 | [docs/02-API接口规范.md](docs/02-API接口规范.md) | 全部 MVP 接口定义：路径、鉴权、请求/响应示例、错误码表、状态机与时序图。前后端并行开发的契约文件 | 前后端各一份对照实现 |
 | [docs/03-MVP实施与Docker部署.md](docs/03-MVP实施与Docker部署.md) | 从零到 `docker compose up` 的逐步施工手册：环境准备 → 脚手架 → 中间件 → 后端 8 步 → 前端 6 步 → 联调 → 容器化部署 → 冒烟验收 checklist | 施工时照着做 |
+| [docs/04-产品与工程改进总纲.md](docs/04-产品与工程改进总纲.md) | MVP 诚实审计、P8 P0 止血任务、前端重构规范、后端可靠性规范与验收门槛 | 当前改进施工入口；交给实现 agent 前先读 |
+| [docs/05-后续开发路线图与实施手册.md](docs/05-后续开发路线图与实施手册.md) | P9 社交、P10 评论通知、P11 搜索、P12 视频地点、P13 审核、P14 规模化的分阶段设计与出口条件 | P8 完成后按阶段开工 |
+| [docs/evidence/2026-09-03-P8改进验收.md](docs/evidence/2026-09-03-P8改进验收.md) | P8 全量验收的环境、命令、断言、浏览器回归、备份恢复与边界 | P8 完成证据 |
+| [docs/frontend-audit-2026-09-02.md](docs/frontend-audit-2026-09-02.md) | 前端实测审计与复现依据（路由、登出、错误态、上传、响应式、无障碍、测试缺口） | 前端 agent 施工前对照 |
 | [CHANGELOG.md](CHANGELOG.md) | 变更日志：一切产出物落盘/契约变更/决策变更的唯一记录处（追加制） | 每次变更后更新 |
 | [docs/HANDOVER.md](docs/HANDOVER.md) | **持续维护的交接文档**：当前状态、怎么跑、验证证据、待办与坑位速查 | 新会话接管 / 每次阶段或验收变化后更新 |
-| [docs/learning/00-学习笔记索引.md](docs/learning/00-学习笔记索引.md) | 学习笔记索引 + 12 个预定主题 backlog（踩坑与新概念强制沉淀） | 完成一个 Phase 或解掉一个坑后写一篇 |
+| [docs/learning/00-学习笔记索引.md](docs/learning/00-学习笔记索引.md) | 学习笔记索引 + 已完成主题与 backlog（踩坑与新概念强制沉淀） | 完成一个 Phase 或解掉一个坑后写一篇 |
 
 ## 技术栈一句话
 
@@ -40,4 +44,4 @@ Java 21 + Spring Boot 3.5 + MyBatis(+PageHelper/Flyway) + MySQL(InnoDB) + Redis 
 
 ## 状态与变更记录
 
-变更的唯一记录处是 [CHANGELOG.md](CHANGELOG.md)（追加制，当前 v2.16）；进度唯一真相源是 [docs/03](docs/03-MVP实施与Docker部署.md) 末尾的交付 Checklist；agent 会话入口固定为 [AGENTS.md](AGENTS.md)。三者分工不重复维护。
+变更的唯一记录处是 [CHANGELOG.md](CHANGELOG.md)（追加制，当前 v2.25）；进度唯一真相源是 [docs/03](docs/03-MVP实施与Docker部署.md) 末尾的交付 Checklist；agent 会话入口固定为 [AGENTS.md](AGENTS.md)。三者分工不重复维护。

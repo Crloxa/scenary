@@ -4,6 +4,8 @@
 > 设计依据：[01-技术栈与总体架构](01-技术栈与总体架构.md)；接口契约：[02-API接口规范](02-API接口规范.md)。
 > 写作日期：2026-08-27 · 环境假设：Windows + Git Bash（命令均为 bash 可执行）
 > 说明：仓库并存 `docker-compose.middleware.yml`（开发期中间件基座）与 `docker-compose.yml`（全栈编排），两份是有意分开的阶段性产物而非冗余，分别见 Phase 2 / Phase 6。
+> 证据门禁：从二期 A 起，每个 Phase/功能环节除通过本节验收并勾选 Checklist 外，还必须按 [evidence/README.md](evidence/README.md) 提交可复现报告；报告缺失或必需命令无法重跑时不得进入完成态。MVP 基线复验见 [2026-09-02-MVP复验.md](evidence/2026-09-02-MVP复验.md)。
+> 改进施工：MVP 复验后发现的产品与工程缺陷统一进入 [04-产品与工程改进总纲](04-产品与工程改进总纲.md) 的 P8，不回写为“已完成 MVP”或在本手册中零散插入补丁；后续能力路线见 [05-后续开发路线图与实施手册](05-后续开发路线图与实施手册.md)。
 
 ---
 
@@ -135,7 +137,7 @@ PUBLIC_HOST=localhost        # 浏览器访问地址（冒烟脚本与图片反�
 ```yaml
 services:
   mysql:
-    image: mysql:8.4
+    image: mysql:8.4@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
@@ -152,12 +154,17 @@ services:
       retries: 10
 
   redis:
-    image: redis:7-alpine
+    image: redis:7-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
     ports: ["6379:6379"]
     volumes: ["scenary-redis-data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   rabbitmq:
-    image: rabbitmq:3.13-management
+    image: rabbitmq:3.13-management@sha256:e582c0bc7766f3342496d8485efb5a1df782b5ce3886ad017e2eaae442311f69
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
@@ -165,7 +172,7 @@ services:
     volumes: ["scenary-mq-data:/var/lib/rabbitmq"]
 
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z-cpuv1@sha256:13582eff79c6605a2d315bdd0e70164142ea7e98fc8411e9e10d089502a6d883
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -174,7 +181,7 @@ services:
     volumes: ["scenary-minio-data:/data"]
 
   minio-init:                       # 一次性建桶容器
-    image: minio/mc:latest
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z-cpuv1@sha256:95b5b3f7969a5c5a9f3a700ba72d5c84172819e13385aaf916e237cf111ab868
     depends_on: [minio]
     entrypoint: >
       /bin/sh -c "
@@ -295,7 +302,7 @@ scenary:
 
 ```dockerfile
 # ---- build ----
-FROM maven:3.9-eclipse-temurin-21 AS build
+FROM maven:3.9-eclipse-temurin-21@sha256:8f6ac126f7810bb5549c4cd122d2bf0e9cda5bdeb0838aa928f09e779fd8bef8 AS build
 WORKDIR /app
 COPY pom.xml .
 RUN mvn -B dependency:go-offline
@@ -303,7 +310,7 @@ COPY src ./src
 RUN mvn -B clean package -DskipTests
 
 # ---- runtime ----
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21-jre-alpine@sha256:974b08960c5d96694c780e65b2d5705268ab1e1ca1a0dd0caf4ba6c3fe34d699
 WORKDIR /app
 RUN apk add --no-cache wget \
     && addgroup -S app \
@@ -318,14 +325,14 @@ ENTRYPOINT ["sh","-c","java $JAVA_OPTS -jar app.jar"]
 ### 6.2 frontend/Dockerfile
 
 ```dockerfile
-FROM node:22-alpine AS build
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm config set registry https://registry.npmmirror.com && npm ci
 COPY . .
 RUN npm run build
 
-FROM nginx:1.27-alpine
+FROM nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
@@ -372,7 +379,7 @@ server {
 ```yaml
 services:
   mysql:
-    image: mysql:8.4
+    image: mysql:8.4@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
@@ -390,13 +397,18 @@ services:
       retries: 15
 
   redis:
-    image: redis:7-alpine
+    image: redis:7-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
     restart: unless-stopped
     command: ["sh", "-c", "exec redis-server ${REDIS_ARGS}"]
     volumes: ["scenary-redis-data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   rabbitmq:
-    image: rabbitmq:3.13-management
+    image: rabbitmq:3.13-management@sha256:e582c0bc7766f3342496d8485efb5a1df782b5ce3886ad017e2eaae442311f69
     restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
@@ -404,7 +416,7 @@ services:
     volumes: ["scenary-mq-data:/var/lib/rabbitmq"]
 
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z-cpuv1@sha256:13582eff79c6605a2d315bdd0e70164142ea7e98fc8411e9e10d089502a6d883
     restart: unless-stopped
     command: ["server", "/data"]
     environment:
@@ -413,7 +425,7 @@ services:
     volumes: ["scenary-minio-data:/data"]
 
   minio-init:
-    image: minio/mc:latest
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z-cpuv1@sha256:95b5b3f7969a5c5a9f3a700ba72d5c84172819e13385aaf916e237cf111ab868
     depends_on: [minio]
     entrypoint: >
       /bin/sh -c "
@@ -427,8 +439,9 @@ services:
     restart: unless-stopped
     depends_on:
       mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
       rabbitmq: { condition: service_started }
-      minio: { condition: service_started }
+      minio-init: { condition: service_completed_successfully }
     environment:
       SPRING_PROFILES_ACTIVE: prod
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?useUnicode=true&characterEncoding=utf8&connectionTimeZone=Asia/Shanghai
@@ -451,6 +464,7 @@ services:
       SCENARY_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
       SCENARY_MINIO_BUCKET: ${MINIO_BUCKET}
       SCENARY_MINIO_PUBLIC_HOST: http://${PUBLIC_HOST}:8081/minio   # 见下方“反代说明”
+      SCENARY_MINIO_EXPOSE_ORIGINAL_URL: "false"
       SCENARY_JWT_SECRET: ${JWT_SECRET}
       SCENARY_JWT_ACCESS_TTL: ${JWT_ACCESS_TTL_SECONDS}
       SCENARY_JWT_REFRESH_TTL: ${JWT_REFRESH_TTL_SECONDS}
@@ -479,6 +493,8 @@ volumes:
 > **对象 URL 反代说明（重要）**：compose 内网里 backend 存取用 `http://minio:9000`，但**浏览器**要能打开接口返回的图片链接，靠的是 public-host 配置。两种方案（默认 B，6.3 的 nginx.conf 已内置 `/minio/` 反代段）：
 > - **B（整洁，推荐）**：浏览器经同一端口走反代——`SCENARY_MINIO_PUBLIC_HOST=http://${PUBLIC_HOST}:8081/minio`；
 > - **A（直连）**：给 minio 服务加 `ports: ["9000:9000"]` 映射，public-host 直接设 `http://${PUBLIC_HOST}:9000`。
+>
+> 另外，`SCENARY_MINIO_EXPOSE_ORIGINAL_URL=false` 是默认策略：接口优先返回缩略图展示地址，只有显式打开时才把原图直接暴露给客户端。
 >
 > 两方案只需保证该变量与 nginx 配置匹配；前端代码零改动（它只认接口返回的完整 URL）。
 >
@@ -548,5 +564,18 @@ TOKEN=<上一步accessToken>; curl -s -X POST $BASE/media/images \
 - [x] 6.6 冒烟剧本 7 步全过（2026-08-31：经 :8081 完成 ping、注册和 JWT TTL、上传、MQ 缩略图 status=1、发布、匿名 feed、`/minio` 缩略图反代 200、SPA `/note/:id` 200；浏览器首页新图片可见且控制台无 error）
 - [x] README 状态表更新为"MVP 已部署"（2026-08-31）
 - [x] P7 运维基线三件套可执行（2026-09-02：`backup-mysql.ps1 -Preview` 与实际备份均通过；`watch-backend-errors.ps1` 可过滤 backend 日志；`check-dlq.ps1` 经 Compose 内 `rabbitmqctl` 返回 `media.dlq=0`）
+- [x] MVP 证据链复验归档（2026-09-02：Compose 重建成功；五组 API 黑盒脚本 75/75；后端 JUnit 5 单元测试 9/9；前端构建、首页/登录页和 console error 检查通过；证据与边界见 `docs/evidence/2026-09-02-MVP复验.md`）
 
 </details>
+
+---
+
+## 附 2 · P8 改进阶段 Checklist（当前进度真相源）
+
+> P8 的任务定义、文件边界和验收标准以 [04-产品与工程改进总纲](04-产品与工程改进总纲.md) 为准。完成项均由 [P8 全量验收证据](evidence/2026-09-03-P8改进验收.md) 支撑；P9 尚未启动。
+
+- [x] P8-01~P8-07 P0 止血：刷新重放、上传生命周期、媒体失败状态、注册竞态、发布幂等、配置 fail-fast、原图隐私（2026-09-03：前后端测试、黑盒矩阵和 P8 Compose 集成矩阵通过；默认展示缩略图；`ops/migrate-media-urls.ps1 -Preview` 提供历史直链迁移入口）
+- [x] P8-08~P8-13 前端产品重构：视觉 token、错误/加载态、发布工作台、动态路由、响应式、无障碍、图片 fallback、草稿保护、前端测试（2026-09-03：5 个 Vitest 文件 12/12、Playwright 1/1、构建通过；in-app Browser 完成真实图片发布/详情/删除后只读核验）
+- [x] P8-14~P8-18 后端工程补强：traceId、媒体可靠性、数据库约束、集成测试、Feed 缓存证据（2026-09-03：Docker Maven JUnit 20/20；P8 Compose 集成 6/6；V2/V3、Redis、RabbitMQ、Feed 并发证据通过）
+- [x] P8-19~P8-22 发布运维：CI、备份恢复、镜像可复现、P8 证据报告（2026-09-03：备份恢复计数一致、失败恢复非零退出、镜像固定 digest、CI 检查无敏感信息命中；报告见 `docs/evidence/2026-09-03-P8改进验收.md`）
+- [x] P8 出口门禁：390/768/1440 三个宽度浏览器剧本、后端/前端测试、Compose 配置检查、证据报告、HANDOVER/CHANGELOG 同步（2026-09-03：三宽度无水平溢出、console error=0；全部文档已同步，P9 未启动）

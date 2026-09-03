@@ -1,11 +1,11 @@
 # Scenary · 交接文档（HANDOVER）
 
 > 新会话/新协作者快速接管用。治理规则入口仍是 [../AGENTS.md](../AGENTS.md)，本文只回答"现状怎么跑、测什么、下一步做什么"。
-> 更新时间：2026-09-02 · 对应版本 v2.16 · 进度真相源 [03 手册末尾 Checklist](03-MVP实施与Docker部署.md)
+> 更新时间：2026-09-03 · 对应版本 v2.25 · 进度真相源 [03 手册末尾 Checklist](03-MVP实施与Docker部署.md) · 最新证据 [P8 全量验收](evidence/2026-09-03-P8改进验收.md) · 当前改进入口 [04 产品与工程改进总纲](04-产品与工程改进总纲.md) · 最新学习笔记 [14 P8 验收证据与异步状态](learning/14-P8验收证据与异步状态.md)
 
 ## 1. 一句话现状
 
-后端 MVP 功能完备（18 端点全绿），前端六视图可用并已切换薄荷绿×青冥×茶白双主题；P4、P5 和 P6 均已验收，Phase 7 运维基线已落盘。全栈由 Docker Compose 在 `:8081` 对外提供，backend health、`/api`、`/minio` 和 SPA history 路由已实测。
+后端 MVP 主链路已验收（18 端点全绿），前端六视图可用并已切换薄荷绿×青冥×茶白双主题；P4、P5、P6 和 Phase 7 均已验收。P8 已于 2026-09-03 通过全量出口门禁：媒体最终失败写入 `status=2` 与失败原因/时间、注册并发唯一键兜底、发布幂等键、dev 启动 fail-fast、MinIO 展示 URL 策略、traceId、数据库约束、备份恢复和前端回归均有证据。全栈由 Docker Compose 在 `:8081` 对外提供，backend health、`/api`、`/minio` 和 SPA history 路由已实测。P9 尚未启动。
 
 ## 2. 如何跑起来
 
@@ -24,10 +24,14 @@ docker compose ps
 |---|---|---|---|
 | 认证安全 | `node docs/dev/test-auth34.mjs` | 注册/旋转重放/登出吊销/登录锁 | ✅18 |
 | 拦截链 | `node docs/dev/test-interceptor35.mjs` | 无令牌矩阵/黑名单/ThreadLocal 清理 | ✅8 |
-| 上传管线 | `node docs/dev/test-media36.mjs` | 魔数欺骗/越权/删除闭环/对象可读 | ✅13 |
-| MQ 闭环 | `node docs/dev/test-thumbnail37.mjs` | 出片尺寸语义/DLQ 双毒消息 | ✅7 |
-| 端到端 | `node docs/dev/test-e2e38.mjs` | 发布/feed 缓存/可见性矩阵/软删幂等 | ✅29 |
-| 前端门禁 | `cd frontend && npm run build` | SFC 静态校验 | ✅ |
+| 上传管线 | `node docs/dev/test-media36.mjs` | 魔数欺骗/越权/删除闭环/对象可读/异步状态 | ✅15 |
+| MQ 闭环 | `node docs/dev/test-thumbnail37.mjs` | 出片尺寸语义/DLQ 双毒消息；管理端口不可达时自动走 Compose 容器 | ✅7 |
+| 端到端 | `node docs/dev/test-e2e38.mjs` | 发布/feed 缓存/可见性矩阵/软删幂等 | ✅30 |
+| P8 Compose 集成 | `node docs/dev/test-p8-integration.mjs` | Flyway/约束、Redis 吊销、RabbitMQ 失败/DLQ、Feed 并发缓存 | ✅6 |
+| 后端单元 | `docker run --rm -v "${PWD}\backend:/usr/src/app" -v scenary-m2-cache:/root/.m2 -w /usr/src/app maven:3.9.11-eclipse-temurin-21 mvn -B test` | 认证/媒体/消费者/traceId/Feed/笔记边界回归 | ✅21 |
+| 前端单元 | `cd frontend && npm test` | request、媒体、发布、登录、NoteCard | ✅12 |
+| 前端浏览器 | `cd frontend && npm run test:e2e` | 390px 路由、登录表单键盘操作、console/page error | ✅1 |
+| 前端门禁 | `cd frontend && npm run build` | SFC 静态校验 | ✅99 modules |
 | Phase 6 编排 | `docker compose config --quiet` | Compose 插值与 YAML | ✅ |
 | Phase 6 全栈 | `docker compose up -d --build`、`docker compose ps` | backend health、服务依赖与 :8081 对外入口 | ✅ |
 | Phase 6 冒烟 | 经 `http://localhost:8081/api/v1` 执行注册→上传→轮询→发布→匿名 feed | JWT 配置、MQ 缩略图、Nginx `/api` 与 `/minio`、SPA 路由 | ✅ |
@@ -35,14 +39,19 @@ docker compose ps
 
 脚本均已随机化用户名（v2.5 修复二次执行撞名）。IDEA HTTP 版冒烟：[smoke-backend.http](dev/smoke-backend.http)，图片夹具在 `docs/dev/fixtures/`（含真 webp）。
 
-2026-09-02 已经由 Compose 对外入口 `http://localhost:8081/api/v1` 复验认证/拦截链/上传/端到端四组脚本，断言结果为 18/8/13/29。首页 L1 使用版本化键，发布或删除推进版本，避免并发旧查询回写到当前首页；仅默认 10 条首页走 L1，自定义 `limit` 保持独立查询语义。
+2026-09-03 最终 Compose 复验由入口 `http://localhost:8081/api/v1` 得到认证/拦截链/上传/缩略图/端到端五组 `18/8/15/7/30`，共 `78/78`；P8 Compose 集成矩阵 `6/6`，合计 `84/84`；后端 Docker Maven JUnit `21/21`、前端 Vitest `12/12`。首页 L1 使用版本化键，发布或删除推进版本，避免并发旧查询回写到当前首页；仅默认 10 条首页走 L1，自定义 `limit` 保持独立查询语义。
+
+本轮完整证据、环境指纹与验证边界归档在 [2026-09-03-P8改进验收](evidence/2026-09-03-P8改进验收.md)；历史 MVP 基线见 [2026-09-02-MVP复验报告](evidence/2026-09-02-MVP复验.md)。用户提供图片的真实浏览器剧本已完成发布、详情和删除后的只读核验；390/768/1440 均无水平溢出，console error=0。后续 Phase/功能环节仍必须先按 [证据链规范](evidence/README.md) 落盘报告；P9 当前不启动。
 
 ## 4. 待办清单（按优先级）
 
-> 当前工作边界：Phase 7 已完成；下一步转入二期A 预研，不在本轮展开。
+> 当前工作边界：Phase 7 已完成，P8 已于 2026-09-03 全量验收通过；P9 及二期 A 尚未开始，需另行安排施工。
 
-1. **部署数据迁移评估**：开发期已有媒体行会持久化旧的 MinIO 直连 URL；切到仅 :8081 的全栈编排后，该历史内容需重传或写数据迁移改为 `/minio` 反代 URL。新上传内容已验证正常。
-2. **二期A 预研**：视频上传/地点标注的接口缝已在架构中预留，但本轮不展开。
+1. **历史媒体 URL 迁移**：开发期已有媒体行可能持久化旧 MinIO 直连 URL；已提供 `ops/migrate-media-urls.ps1`，先用 `-Preview` 核对参数，再按新旧 public host 批量重建 media、note 封面和可选头像 URL。实际历史数据迁移仍是部署前运维动作。
+2. **P8 证据维护**：若正式执行历史 URL 迁移，需追加运维证据和 CHANGELOG 勘误，不回改本报告历史结果。
+3. **后续路线**：P9 及二期 A 暂不开始；获得安排后按 [05 后续开发路线图](05-后续开发路线图与实施手册.md) 立项，视频/地点进入 P12。
+
+> 当前施工记录：P8-01~P8-22 已落地并完成验证；后端测试、前端测试/构建、Playwright、Compose 集成、备份恢复和浏览器三宽度回归均有证据。最终报告为 `docs/evidence/2026-09-03-P8改进验收.md`，学习笔记为 `docs/learning/14-P8验收证据与异步状态.md`；03 Checklist 已勾选 P8，改动已按模块完成原子 commit。
 
 ## 5. 关键决策与坑位速查（细节见对应文档）
 
