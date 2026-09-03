@@ -1,0 +1,67 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    env:
+      MYSQL_DATABASE: scenary
+      MYSQL_USER: scenary
+      MYSQL_PASSWORD: scenary-pass
+      MYSQL_ROOT_PASSWORD: root-pass
+      RABBITMQ_DEFAULT_USER: scenary
+      RABBITMQ_DEFAULT_PASS: mq-pass
+      MINIO_ROOT_USER: scenary
+      MINIO_ROOT_PASSWORD: minio-pass
+      MINIO_BUCKET: scenary-media
+      JWT_SECRET: 01234567890123456789012345678901
+      JWT_ACCESS_TTL_SECONDS: 7200
+      JWT_REFRESH_TTL_SECONDS: 2592000
+      PUBLIC_HOST: localhost
+      REDIS_ARGS: --appendonly no
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18.0'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Backend test
+        working-directory: backend
+        run: mvn -q test
+      - name: Frontend install
+        working-directory: frontend
+        run: npm ci
+      - name: Frontend test
+        working-directory: frontend
+        run: npm test
+      - name: Frontend build
+        working-directory: frontend
+        run: npm run build
+      - name: Browser install
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Frontend browser test
+        working-directory: frontend
+        run: npm run test:e2e
+      - name: Compose config
+        run: docker compose config --quiet
+      - name: Compose middleware config
+        run: docker compose -f docker-compose.middleware.yml config --quiet
+      - name: Sensitive information scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          pattern='-----BEGIN (RSA |OPENSSH |EC |DSA |)PRIVATE KEY-----|AKIA[0-9A-Z]{16}|(ghp|github_pat|xox[baprs])-[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9]{20,}'
+          if git grep -n -I -E -e "$pattern" -- ':!.env' ':!.env.*' ':!.env.example'; then
+            echo 'Potential credential material found in tracked files.' >&2
+            exit 1
+          fi

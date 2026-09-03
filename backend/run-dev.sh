@@ -15,6 +15,20 @@ if [ -f ../.env ]; then
   done < ../.env
 fi
 
+required_vars=(MYSQL_DATABASE MYSQL_USER MYSQL_PASSWORD RABBITMQ_DEFAULT_USER RABBITMQ_DEFAULT_PASS MINIO_ROOT_USER MINIO_ROOT_PASSWORD MINIO_BUCKET JWT_SECRET)
+missing_vars=()
+for var_name in "${required_vars[@]}"; do
+  value="${!var_name:-}"
+  if [ -z "$value" ] || [[ "$value" == YOUR_*_HERE ]]; then
+    missing_vars+=("$var_name")
+  fi
+done
+if [ ${#missing_vars[@]} -gt 0 ]; then
+  echo "[run-dev] 缺少必需环境变量或仍使用模板占位符: ${missing_vars[*]}" >&2
+  echo "[run-dev] 请先复制 .env.example 为 .env 并填入对应值，再重试" >&2
+  exit 1
+fi
+
 # 版本守卫：项目基线 JDK 21。长生命周期的终端可能仍持有改默认前的旧 JAVA_HOME，
 # 此处检测到 <21 就回落到本机 .jdks 下最高版本的 ms-21 目录。
 cur_major="$("${JAVA_HOME:+$JAVA_HOME/bin/java}" -version 2>&1 | head -1 | sed 's/.*version "\([0-9]*\).*/\1/')"

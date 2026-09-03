@@ -1,10 +1,10 @@
-# 本地开发配置（docs/03 Phase 3）。密钥走 env 占位符：仓库永远不出现真实密钥；
-# 缺省值仅为「cp .env.example 后未注入 env」时的兜底，正式运行请经 backend/run-dev.sh 注入 .env。
+# 本地开发配置（docs/03 Phase 3）。密钥全部走 env 占位符；
+# 若未注入 .env，backend/run-dev.sh 会直接失败，不再使用默认密钥兜底。
 spring:
   datasource:
     url: jdbc:mysql://localhost:3306/scenary?useUnicode=true&characterEncoding=utf8&connectionTimeZone=Asia/Shanghai
-    username: scenary
-    password: scenary_pwd_2026
+    username: ${MYSQL_USER}
+    password: ${MYSQL_PASSWORD}
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -14,8 +14,8 @@ spring:
       port: 6379
   rabbitmq:
     host: localhost
-    username: scenary_mq
-    password: mq_pwd_2026
+    username: ${RABBITMQ_DEFAULT_USER}
+    password: ${RABBITMQ_DEFAULT_PASS}
     listener:
       simple:
         acknowledge-mode: manual
@@ -34,14 +34,15 @@ mybatis:
 
 scenary:
   jwt:
-    # ≥32 字符约束见 docs/01 §8；dev 兜底串仅限本机联调
-    secret: ${JWT_SECRET:dev-only-secret-0000000000000000000000ffff}
+    # ≥32 字符约束见 docs/01 §8；本文件不提供兜底默认值
+    secret: ${JWT_SECRET}
     access-ttl: 7200
     refresh-ttl: 2592000
     issuer: scenary
   minio:
     endpoint: http://localhost:9000
-    access-key: minio_admin
-    secret-key: ${MINIO_ROOT_PASSWORD:minio_pwd_change_me_2026}
-    bucket: scenary-media
+    access-key: ${MINIO_ROOT_USER}
+    secret-key: ${MINIO_ROOT_PASSWORD}
+    bucket: ${MINIO_BUCKET}
     public-host: http://localhost:9000
+    expose-original-url: false

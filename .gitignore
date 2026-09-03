@@ -12,6 +12,8 @@ backend/*.log
 frontend/node_modules/
 frontend/dist/
 frontend/*.local
+frontend/playwright-report/
+frontend/test-results/
 
 # ---- IDE / 系统 ----
 .idea/
