@@ -17,6 +17,7 @@ public class NoteEntity {
     private String coverUrl;
     private Integer mediaCount;
     private String placeName;
+    private String requestKey;
     /** 1公开 0私密 2已删除(软删) */
     private Integer visibility;
     private Date createdAt;

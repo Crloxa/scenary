@@ -2,7 +2,9 @@ package com.scenary.note;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +17,7 @@ import com.scenary.common.ErrorCode;
 import com.scenary.common.GridCardVO;
 import com.scenary.common.PageResult;
 import com.scenary.media.MediaMapper;
+import com.scenary.media.MinioService;
 import com.scenary.user.UserEntity;
 import com.scenary.user.UserMapper;
 
@@ -32,18 +35,28 @@ public class NoteService {
     private final NoteMapper noteMapper;
     private final MediaMapper mediaMapper;
     private final UserMapper userMapper;
+    private final MinioService minio;
     private final StringRedisTemplate redis;
 
     public NoteService(NoteMapper noteMapper, MediaMapper mediaMapper,
-                       UserMapper userMapper, StringRedisTemplate redis) {
+                       UserMapper userMapper, MinioService minio, StringRedisTemplate redis) {
         this.noteMapper = noteMapper;
         this.mediaMapper = mediaMapper;
         this.userMapper = userMapper;
+        this.minio = minio;
         this.redis = redis;
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = DuplicateKeyException.class)
     public NoteCreatedVO create(long userId, NoteCreateRequest req) {
+        String requestKey = normalizeRequestKey(req.requestKey());
+        if (requestKey != null) {
+            NoteEntity existing = noteMapper.findByUserAndRequestKey(userId, requestKey);
+            if (existing != null) {
+                return toCreated(existing);
+            }
+        }
+
         List<MediaItemSnapshot> snapshots = req.mediaIds().stream()
                 .map(id -> {
                     var m = mediaMapper.findById(id);
@@ -69,19 +82,33 @@ public class NoteService {
         note.setTitle(req.title());
         note.setContent(req.content() == null ? "" : req.content());
         note.setPlaceName(req.placeName());
+        note.setRequestKey(requestKey);
         // 契约 v2.3：可见性入参缺省公开；越界值已被 Bean Validation 拦截
         note.setVisibility(req.visibility() == null ? 1 : req.visibility());
         note.setCoverUrl(snapshots.get(0).thumbUrl());
         note.setMediaCount(snapshots.size());
-        noteMapper.insert(note);
-
-        for (int i = 0; i < snapshots.size(); i++) {
-            mediaMapper.bindToNote(note.getId(), i + 1, snapshots.get(i).id());
+        try {
+            noteMapper.insert(note);
+            for (int i = 0; i < snapshots.size(); i++) {
+                int updated = mediaMapper.bindToNote(note.getId(), i + 1, snapshots.get(i).id());
+                if (updated != 1) {
+                    throw new BizException(ErrorCode.INTERNAL_ERROR, "媒体绑定失败，请重试");
+                }
+            }
+        } catch (DuplicateKeyException e) {
+            if (requestKey == null) {
+                throw e;
+            }
+            NoteEntity existing = noteMapper.findByUserAndRequestKey(userId, requestKey);
+            if (existing != null) {
+                return toCreated(existing);
+            }
+            throw new BizException(ErrorCode.INTERNAL_ERROR, "笔记发布失败，请重试");
         }
-        // 先推进版本；控制器会在事务代理提交后再推进一次，隔离提交窗口内启动的旧查询。
+        // 先推进版本，再在事务提交后推进一次，隔离提交窗口内启动的旧查询。
         invalidateFirstPageCache();
         invalidateFirstPageAfterCommit();
-        return new NoteCreatedVO(note.getId(), note.getCoverUrl());
+        return toCreated(note);
     }
 
     public void delete(long userId, long noteId) {
@@ -131,10 +158,10 @@ public class NoteService {
         var briefs = briefsMap(List.of(n.getUserId()));
         var author = toAuthor(n.getUserId(), briefs);
         var images = mediaMapper.selectByNoteIds(List.of(noteId)).stream()
-                .map(m -> new NoteDetailVO.ImageItem(m.getId(), m.getUrl(),
+                .map(m -> new NoteDetailVO.ImageItem(m.getId(), minio.displayUrl(m),
                         m.getThumbUrl(), m.getWidth(), m.getHeight()))
                 .toList();
-        boolean mine = viewerId != null && viewerId == n.getUserId();
+        boolean mine = Objects.equals(viewerId, n.getUserId());
         return new NoteDetailVO(n.getId(), n.getTitle(), n.getContent(), n.getPlaceName(),
                 n.getVisibility(), n.getCreatedAt().getTime(), author, images, mine);
     }
@@ -156,7 +183,7 @@ public class NoteService {
         NoteEntity n = noteMapper.findById(noteId);
         // 不存在 / 已软删 / 他人私密 —— 一律 404 隐藏存在性
         if (n == null || n.getVisibility() == null || n.getVisibility() == 2
-                || (n.getVisibility() == 0 && (viewerId == null || viewerId != n.getUserId()))) {
+                || (n.getVisibility() == 0 && !Objects.equals(viewerId, n.getUserId()))) {
             throw new BizException(ErrorCode.NOT_FOUND);
         }
         return n;
@@ -172,6 +199,18 @@ public class NoteService {
         UserEntity u = briefs.get(userId);
         return u == null ? new AuthorVO(userId, "已注销", null)
                 : new AuthorVO(u.getId(), u.getNickname(), u.getAvatarUrl());
+    }
+
+    private String normalizeRequestKey(String requestKey) {
+        if (requestKey == null) {
+            return null;
+        }
+        String trimmed = requestKey.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private NoteCreatedVO toCreated(NoteEntity note) {
+        return new NoteCreatedVO(note.getId(), note.getCoverUrl());
     }
 
     static int clampLimit(Integer limitParam) {

@@ -5,18 +5,26 @@
 
     <sql id="all_columns">
         id, user_id, title, content, cover_url, media_count,
-        place_name, visibility, created_at, updated_at
+        place_name, request_key, visibility, created_at, updated_at
     </sql>
 
     <insert id="insert" parameterType="com.scenary.note.NoteEntity"
             useGeneratedKeys="true" keyProperty="id" keyColumn="id">
-        INSERT INTO notes (user_id, title, content, place_name, cover_url, media_count, visibility)
-        VALUES (#{userId}, #{title}, #{content}, #{placeName}, #{coverUrl}, #{mediaCount}, #{visibility})
+        INSERT INTO notes (user_id, title, content, place_name, request_key, cover_url, media_count, visibility)
+        VALUES (#{userId}, #{title}, #{content}, #{placeName}, #{requestKey}, #{coverUrl}, #{mediaCount}, #{visibility})
     </insert>
 
     <select id="findById" resultType="com.scenary.note.NoteEntity">
         SELECT <include refid="all_columns"/>
         FROM notes WHERE id = #{id} LIMIT 1
+    </select>
+
+    <select id="findByUserAndRequestKey" resultType="com.scenary.note.NoteEntity">
+        SELECT <include refid="all_columns"/>
+        FROM notes
+        WHERE user_id = #{userId} AND request_key = #{requestKey}
+        LIMIT 1
+        FOR UPDATE
     </select>
 
     <select id="selectFeedRows" resultType="com.scenary.note.NoteEntity">

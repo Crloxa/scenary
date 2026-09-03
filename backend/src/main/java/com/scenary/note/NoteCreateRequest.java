@@ -18,5 +18,6 @@ public record NoteCreateRequest(
         @NotEmpty(message = "至少选择一张图片") @Size(max = 9, message = "最多 9 张图片")
         List<Long> mediaIds,
         @Min(value = 0, message = "visibility 仅允许 0(私密)/1(公开)")
-        @Max(value = 1, message = "visibility 仅允许 0(私密)/1(公开)") Integer visibility) {
+        @Max(value = 1, message = "visibility 仅允许 0(私密)/1(公开)") Integer visibility,
+        @Size(max = 64, message = "幂等键最长 64 字") String requestKey) {
 }

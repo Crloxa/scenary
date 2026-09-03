@@ -12,6 +12,9 @@ public interface NoteMapper {
 
     NoteEntity findById(@Param("id") Long id);
 
+    NoteEntity findByUserAndRequestKey(@Param("userId") Long userId,
+                                       @Param("requestKey") String requestKey);
+
     /**
      * feed 游标查询：visibility=1 AND id<cursor，order id DESC；吃 idx_feed_cursor。
      */

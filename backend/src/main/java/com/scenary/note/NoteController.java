@@ -33,10 +33,7 @@ public class NoteController {
 
     @PostMapping
     public Result<NoteCreatedVO> create(@Valid @RequestBody NoteCreateRequest req) {
-        NoteCreatedVO created = noteService.create(UserContext.require(), req);
-        // 此处已越过 @Transactional 代理边界，保证不会向客户端返回带旧首页缓存的发布成功结果。
-        noteService.invalidateFirstPageCache();
-        return Result.ok(created);
+        return Result.ok(noteService.create(UserContext.require(), req));
     }
 
     @GetMapping("/{noteId}")
