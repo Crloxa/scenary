@@ -55,9 +55,12 @@ const uploadWaitDone = async (at, w=900, h=700) => {
   // ---- 发布与 feed ----
   const m1 = await uploadWaitDone(A.accessToken);
   const m2 = await uploadWaitDone(A.accessToken, 1200, 500);
-  const created = await j(await fetch(B+'/notes',{method:'POST',headers:{...AT,'content-type':'application/json'},body:JSON.stringify({
-      title:'雨后的四姑娘山', content:'十月初的雪线，云开了一小时。拍摄于双桥沟，光线从东侧打到雪面上。', placeName:'四川·四姑娘山', mediaIds:[m1.mediaId,m2.mediaId]})}));
+  const requestKey = crypto.randomUUID();
+  const publishBody = {title:'雨后的四姑娘山', content:'十月初的雪线，云开了一小时。拍摄于双桥沟，光线从东侧打到雪面上。', placeName:'四川·四姑娘山', mediaIds:[m1.mediaId,m2.mediaId], requestKey};
+  const created = await j(await fetch(B+'/notes',{method:'POST',headers:{...AT,'content-type':'application/json'},body:JSON.stringify(publishBody)}));
   ok('④ 发布 code=0 coverUrl=首图thumb', created.code===0 && created.data.coverUrl===m1.thumbUrl);
+  const repeated = await j(await fetch(B+'/notes',{method:'POST',headers:{...AT,'content-type':'application/json'},body:JSON.stringify(publishBody)}));
+  ok('④b 同 requestKey 重试只返回同一篇', repeated.code===0 && repeated.data.id===created.data.id);
 
   // 私密笔记（契约 v2.3 补充字段）
   const m3 = await uploadWaitDone(A.accessToken, 300, 800);
@@ -93,8 +96,8 @@ const uploadWaitDone = async (at, w=900, h=700) => {
   // ---- 详情与可见性 ----
   {
     const dA = await j(await fetch(B+'/notes/'+created.data.id,{headers:AT}));
-    ok('⑨ 作者看 mine=true images有序', dA.data.mine===true && dA.data.images.length===2 &&
-       dA.data.images[0].thumbUrl===m1.thumbUrl);
+    ok('⑨ 作者看 mine=true images有序', dA.code===0 && dA.data?.mine===true && dA.data.images?.length===2 &&
+       dA.data.images[0].thumbUrl===m1.thumbUrl, dA.message);
     const dB = await j(await fetch(B+'/notes/'+created.data.id));
     ok('⑨b 匿名 mine=false 且公开可见', dB.data.mine===false && dB.data.title==='雨后的四姑娘山');
     const dp = await j(await fetch(B+'/notes/'+priv.data.id));
@@ -102,7 +105,7 @@ const uploadWaitDone = async (at, w=900, h=700) => {
     const dpB = await j(await fetch(B+'/notes/'+priv.data.id,{headers:BT}));
     ok('⑨d 他人访问私密 -> 40400', dpB.code===40400);
     const dpA = await j(await fetch(B+'/notes/'+priv.data.id,{headers:AT}));
-    ok('⑨e 作者本人访问私密 -> mine=true', dpA.data.mine===true);
+    ok('⑨e 作者本人访问私密 -> mine=true', dpA.code===0 && dpA.data?.mine===true, dpA.message);
   }
 
   // ---- 个人网格与计数 ----

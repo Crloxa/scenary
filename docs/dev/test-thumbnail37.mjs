@@ -1,17 +1,19 @@
 // Phase 3-3.7 缩略图管线验收：成功消费/DLQ 坏消息两类/匿名可读
 import zlib from 'node:zlib';
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 const B = process.env.SCENARY_API_BASE_URL ?? 'http://localhost:8080/api/v1';
 const MQ = process.env.SCENARY_RABBITMQ_API_BASE_URL ?? 'http://localhost:15672/api';
 const envFile = new URL('../../.env', import.meta.url);
+const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 const localEnv = Object.fromEntries(readFileSync(envFile, 'utf8').split(/\r?\n/).flatMap(line => {
   const match = line.match(/^\s*([A-Z][A-Z0-9_]*)=(.*)$/);
   return match ? [[match[1], match[2].trim()]] : [];
 }));
 const mqUser = process.env.RABBITMQ_DEFAULT_USER ?? localEnv.RABBITMQ_DEFAULT_USER;
 const mqPass = process.env.RABBITMQ_DEFAULT_PASS ?? localEnv.RABBITMQ_DEFAULT_PASS;
-if (!mqUser || !mqPass) throw new Error('RabbitMQ credentials must be set in .env or process environment.');
-const MQAUTH = 'Basic ' + Buffer.from(`${mqUser}:${mqPass}`).toString('base64');
+const MQAUTH = mqUser && mqPass ? 'Basic ' + Buffer.from(`${mqUser}:${mqPass}`).toString('base64') : null;
 const PASSWORD = `T9${Date.now().toString(36)}a!`;
 let pass = 0, fail = 0;
 const ok = (n, c, x='') => { c ? pass++ : fail++; console.log(`${c?'PASS':'FAIL'} | ${n}${x?' | '+x:''}`); };
@@ -24,13 +26,41 @@ function makePng(w,h,[r,g,b]=[64,128,200]){
   const rows=[]; for(let y=0;y<h;y++){rows.push(Buffer.from([0])); const px=Buffer.alloc(w*3); px.fill(r);px[1]=g;px[2]=b; rows.push(px);}
   return Buffer.concat([Buffer.from([0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A]),chunk('IHDR',ihdr),chunk('IDAT',zlib.deflateSync(Buffer.concat(rows))),chunk('IEND',Buffer.alloc(0))]);
 }
+const compose = args => {
+  const result = spawnSync('docker', ['compose', ...args], {cwd:repoRoot, encoding:'utf8'});
+  if (result.status !== 0) throw new Error(result.stderr || result.stdout || 'docker compose command failed');
+  return result.stdout;
+};
+let mqMode = process.env.SCENARY_RABBITMQ_MODE ?? 'auto';
+const resolveMqMode = async () => {
+  if (mqMode !== 'auto') return mqMode;
+  if (MQAUTH) {
+    try {
+      const r = await fetch(MQ+'/overview',{headers:{authorization:MQAUTH}});
+      if (r.ok) return mqMode='http';
+    } catch {}
+  }
+  compose(['exec','-T','rabbitmq','rabbitmqctl','version']);
+  return mqMode='compose';
+};
 const mqPublish = async payload => {
-  const r = await fetch(MQ+'/exchanges/%2F/media.event/publish',{method:'POST',headers:{authorization:MQAUTH,'content-type':'application/json'},body:JSON.stringify({properties:{},routing_key:'media.uploaded',payload:typeof payload==='string'?payload:JSON.stringify(payload),payload_encoding:'string'})});
-  return r.json();
+  const body = typeof payload==='string' ? payload : JSON.stringify(payload);
+  if (await resolveMqMode() === 'http') {
+    const r = await fetch(MQ+'/exchanges/%2F/media.event/publish',{method:'POST',headers:{authorization:MQAUTH,'content-type':'application/json'},body:JSON.stringify({properties:{},routing_key:'media.uploaded',payload:body,payload_encoding:'string'})});
+    return r.json();
+  }
+  compose(['exec','-T','rabbitmq','sh','-lc','rabbitmqadmin -u "$RABBITMQ_DEFAULT_USER" -p "$RABBITMQ_DEFAULT_PASS" publish exchange=media.event routing_key=media.uploaded payload="$1" >/dev/null','rabbitmqadmin',body]);
+  return {routed:true};
 };
 const dlqDepth = async () => {
-  const j = await (await fetch(MQ+'/queues/%2F/media.dlq',{headers:{authorization:MQAUTH}})).json();
-  return j.messages ?? 0;
+  if (await resolveMqMode() === 'http') {
+    const j = await (await fetch(MQ+'/queues/%2F/media.dlq',{headers:{authorization:MQAUTH}})).json();
+    return j.messages ?? 0;
+  }
+  const line = compose(['exec','-T','rabbitmq','rabbitmqctl','list_queues','-q','-p','/','name','messages'])
+    .split(/\r?\n/).find(value => /^media\.dlq\s+\d+$/.test(value));
+  if (!line) throw new Error('media.dlq was not found.');
+  return Number(line.match(/\d+$/)[0]);
 };
 
 (async()=>{

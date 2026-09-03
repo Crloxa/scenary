@@ -51,15 +51,26 @@ const AUTH = {Authorization:'Bearer '+owner.data.accessToken};
   ok('② 双图上传 code=0 items=2', j.code===0 && j.data.items.length===2);
   ok('② 状态=0 thumbUrl=null width=null',
      j.data.items.every(i=>i.status===0&&i.thumbUrl===null&&i.width===null));
-  ok('② URL 形如 publicHost/bucket/orig/', /\/scenary-media\/orig\/\d{6}\/[0-9a-f-]{36}\.png$/.test(j.data.items[0].url), j.data.items[0].url);
+  // P8-07 隐私默认值：上传响应只返回 thumb 展示地址，不把 orig 直链交给客户端。
+  ok('② URL 形如 publicHost/bucket/thumb/', /\/scenary-media\/thumb\/\d{6}\/[0-9a-f-]{36}_t\.jpg$/.test(j.data.items[0].url), j.data.items[0].url);
   globalThis.ids = j.data.items.map(i=>i.mediaId);
   globalThis.urls = j.data.items.map(i=>i.url);
 }
 
-// ③ 匿名直读对象 URL（bucket download 策略）
+// ③ 上传立即返回展示地址，但 status=0 时缩略图对象可能尚未生成；先验证地址契约，再等出片后匿名直读。
 {
   const r = await fetch(globalThis.urls[0]);
-  ok('③ 对象 URL 可匿名 GET 且 content-type=image/png', r.status===200 && r.headers.get('content-type')==='image/png');
+  ok('③ 处理中展示 URL 仍为 thumb 地址', r.status===200 || r.status===404);
+  let ready = null;
+  for (let i=0; i<20; i++) {
+    const status = await (await fetch(B+'/media/'+globalThis.ids[0],{headers:AUTH})).json();
+    if (status.data?.status===1) { ready=status.data; break; }
+    if (status.data?.status===2) break;
+    await new Promise(resolve=>setTimeout(resolve,300));
+  }
+  const thumb = ready ? await fetch(globalThis.urls[0]) : null;
+  ok('③b 出片后展示缩略图可匿名 GET 且为 jpeg', thumb?.status===200 && thumb.headers.get('content-type')==='image/jpeg',
+     `status=${ready?.status ?? 'none'} http=${thumb?.status ?? 'none'} type=${thumb?.headers.get('content-type') ?? 'none'}`);
 }
 
 // ④ 魔数欺骗：文本内容伪装 .jpg
@@ -68,6 +79,17 @@ const AUTH = {Authorization:'Bearer '+owner.data.accessToken};
   const r = await fetch(B+'/media/images',{method:'POST',headers:AUTH,body:fd});
   const j = await r.json();
   ok('④ 内容伪装 -> 40000', r.status===400 && j.code===40000, j.message);
+}
+
+// ④b 当前契约显式拒绝 WebP，避免上传后才在无解码器的消费者中失败
+{
+  const webp = Buffer.alloc(12);
+  webp.write('RIFF', 0, 'ascii');
+  webp.write('WEBP', 8, 'ascii');
+  const fd = new FormData(); fd.append('files', new Blob([webp],{type:'image/webp'}), 'sample.webp');
+  const r = await fetch(B+'/media/images',{method:'POST',headers:AUTH,body:fd});
+  const j = await r.json();
+  ok('④b WebP -> 40000（当前契约）', r.status===400 && j.code===40000, j.message);
 }
 
 // ⑤ 超 10MB
