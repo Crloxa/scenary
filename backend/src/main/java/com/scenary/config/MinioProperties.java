@@ -2,7 +2,9 @@ package com.scenary.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
+import org.springframework.validation.annotation.Validated;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 /**
@@ -11,12 +13,19 @@ import lombok.Data;
  */
 @Data
 @Component
+@Validated
 @ConfigurationProperties(prefix = "scenary.minio")
 public class MinioProperties {
 
+    @NotBlank
     private String endpoint;
+    @NotBlank
     private String accessKey;
+    @NotBlank
     private String secretKey;
+    @NotBlank
     private String bucket;
+    @NotBlank
     private String publicHost;
+    private boolean exposeOriginalUrl;
 }

@@ -16,7 +16,7 @@ import org.springframework.context.annotation.Configuration;
  * 只增 binding 不复用队列（docs/01 §8）。
  *
  * 工作链路：media.uploaded -> media.thumbnail.q（带 DLX）
- * 兜底链路：消费最终失败 nack(requeue=false) -> media.dead exchange -> media.dlq 留档人工排查
+ * 兜底链路：消费最终失败先落 status=2，再 nack(requeue=false) -> media.dead exchange -> media.dlq 留档人工重放
  */
 @Configuration
 public class RabbitConfig {

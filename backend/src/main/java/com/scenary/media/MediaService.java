@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -22,7 +23,7 @@ import com.scenary.config.RabbitConfig;
 
 /**
  * 上传管线（docs/01 §5.2）：嗅探魔数 -> 存原图 -> 建 media(status=0) -> 发 media.uploaded 即返回。
- * 消息发送失败不回滚上传：媒体停留在 PROCESSING 由人工/清理策略兜底，避免整批作废。
+ * 消息发送失败不回滚上传：媒体停留在 PROCESSING，由定时重试与清理策略兜底，避免整批作废。
  */
 @Service
 public class MediaService {
@@ -50,25 +51,34 @@ public class MediaService {
         }
         String month = MONTH.format(LocalDate.now());
         List<MediaItemVO> items = new ArrayList<>(files.size());
+        List<Long> createdMediaIds = new ArrayList<>(files.size());
         int order = 1;
-        for (MultipartFile file : files) {
-            if (file == null || file.isEmpty()) {
-                throw new BizException(ErrorCode.VALIDATION, "包含空文件");
+        try {
+            for (MultipartFile file : files) {
+                if (file == null || file.isEmpty()) {
+                    throw new BizException(ErrorCode.VALIDATION, "包含空文件");
+                }
+                if (file.getSize() > MAX_FILE_BYTES) {
+                    throw new BizException(ErrorCode.VALIDATION, "单张图片不能超过 10MB");
+                }
+                MediaEntity media = store(userId, file, order++, month);
+                createdMediaIds.add(media.getId());
+                publishUploaded(media.getId());
+                items.add(new MediaItemVO(media.getId(), minio.displayUrl(media), null,
+                        media.getStatus(), null, null));
             }
-            if (file.getSize() > MAX_FILE_BYTES) {
-                throw new BizException(ErrorCode.VALIDATION, "单张图片不能超过 10MB");
-            }
-            MediaEntity media = store(userId, file, order++, month);
-            publishUploaded(media.getId());
-            items.add(new MediaItemVO(media.getId(), media.getUrl(), null,
-                    media.getStatus(), null, null));
+        } catch (RuntimeException e) {
+            // 批量请求是一个用户操作：后续文件失败时，回收本次请求已经创建的游离媒体。
+            cleanupCreatedMedia(userId, createdMediaIds);
+            throw e;
         }
         return new MediaUploadVO(items);
     }
 
     public MediaItemVO getStatus(long userId, long mediaId) {
         MediaEntity media = requireOwned(userId, mediaId);
-        return new MediaItemVO(media.getId(), media.getUrl(),
+        String url = minio.displayUrl(media);
+        return new MediaItemVO(media.getId(), url,
                 media.getThumbUrl(), media.getStatus(), media.getWidth(), media.getHeight());
     }
 
@@ -93,44 +103,117 @@ public class MediaService {
     }
 
     private MediaEntity store(long userId, MultipartFile file, int order, String month) {
+        String objectKey = null;
         try (InputStream raw = file.getInputStream()) {
             BufferedInputStream in = new BufferedInputStream(raw);
             in.mark(MediaImageType.sniffBytes() + 1);
             MediaImageType type = MediaImageType.detect(MediaImageType.readHead(in));
             in.reset();
-            if (type == null) {
+            if (type == null || type == MediaImageType.WEBP) {
                 throw new BizException(ErrorCode.VALIDATION,
-                        "仅支持 jpeg/png/webp/gif 图片，且文件内容须与扩展名一致");
+                        "仅支持 jpeg/png/gif 图片，且文件内容须与扩展名一致");
             }
-            String key = "orig/" + month + "/" + UUID.randomUUID() + "." + type.ext();
-            minio.put(key, in, file.getSize(), type.mime());
+            objectKey = "orig/" + month + "/" + UUID.randomUUID() + "." + type.ext();
+            minio.put(objectKey, in, file.getSize(), type.mime());
 
             MediaEntity media = new MediaEntity();
             media.setUserId(userId);
             media.setOrderNo(order);
             media.setBucket(minioProps.getBucket());
-            media.setObjectKey(key);
-            media.setUrl(minio.publicUrl(key));
+            media.setObjectKey(objectKey);
+            media.setUrl(minio.publicUrl(objectKey));
             media.setMime(type.mime());
             media.setSizeBytes(file.getSize());
             media.setStatus(0);
             mediaMapper.insert(media);
             return media;
         } catch (BizException e) {
+            compensateObject(objectKey);
             throw e;
         } catch (Exception e) {
+            compensateObject(objectKey);
             log.error("store image failed", e);
             throw new BizException(ErrorCode.INTERNAL_ERROR, "图片处理失败");
         }
     }
 
     private void publishUploaded(long mediaId) {
+        tryPublish(mediaId);
+    }
+
+    /** 首发与定时重试共用同一抢占逻辑；最多 3 次，失败保持 status=0 可观测。 */
+    private void tryPublish(long mediaId) {
+        if (mediaMapper.claimPublish(mediaId, new Date()) != 1) {
+            return;
+        }
         try {
             rabbitTemplate.convertAndSend(RabbitConfig.EXCHANGE_MEDIA_EVENT,
                     RabbitConfig.RK_MEDIA_UPLOADED, Map.of("mediaId", mediaId));
+            mediaMapper.markPublishSuccess(mediaId);
         } catch (Exception e) {
-            // 消息黑洞兜底：media 停留 status=0 可观测（轮询接口），不会假装成功
+            String reason = e.getClass().getSimpleName();
+            mediaMapper.markPublishFailure(mediaId, reason.length() > 255 ? reason.substring(0, 255) : reason);
+            // 消息失败不假装上传完成：保持 status=0，由 retryPendingPublishes 再尝试，最终由清理任务兜底。
             log.error("publish media.uploaded failed, mediaId={}", mediaId, e);
+        }
+    }
+
+    public void retryPendingPublishes() {
+        Date before = new Date(System.currentTimeMillis() - 30_000L);
+        for (MediaEntity media : mediaMapper.selectPendingPublish(before, 20)) {
+            tryPublish(media.getId());
+        }
+    }
+
+    /** 删除超过保留期且尚未绑定笔记的媒体及其对象；对象删除失败时保留数据库行待下次重试。 */
+    public void cleanupStaleUnbound() {
+        Date before = new Date(System.currentTimeMillis() - 24 * 60 * 60 * 1000L);
+        for (MediaEntity media : mediaMapper.selectStaleUnbound(before, 100)) {
+            try {
+                if (media.getObjectKey() != null) {
+                    minio.remove(media.getObjectKey());
+                }
+                if (media.getThumbObjectKey() != null
+                        && !media.getThumbObjectKey().equals(media.getObjectKey())) {
+                    minio.remove(media.getThumbObjectKey());
+                }
+                mediaMapper.deleteStaleUnbound(media.getId());
+            } catch (Exception e) {
+                log.warn("stale media cleanup deferred, mediaId={}", media.getId(), e);
+            }
+        }
+    }
+
+    private void compensateObject(String objectKey) {
+        if (objectKey == null) {
+            return;
+        }
+        try {
+            minio.remove(objectKey);
+        } catch (Exception cleanupError) {
+            log.error("failed to compensate object after DB insert failure, objectKey={}", objectKey, cleanupError);
+        }
+    }
+
+    private void cleanupCreatedMedia(long userId, List<Long> mediaIds) {
+        for (Long mediaId : mediaIds) {
+            try {
+                MediaEntity media = mediaMapper.findById(mediaId);
+                if (media == null || media.getNoteId() != null || media.getUserId() == null
+                        || media.getUserId() != userId) {
+                    continue;
+                }
+                if (media.getObjectKey() != null) {
+                    minio.remove(media.getObjectKey());
+                }
+                if (media.getThumbObjectKey() != null
+                        && !media.getThumbObjectKey().equals(media.getObjectKey())) {
+                    minio.remove(media.getThumbObjectKey());
+                }
+                mediaMapper.deleteStaleUnbound(mediaId);
+            } catch (Exception cleanupError) {
+                log.error("failed to rollback media upload, mediaId={}", mediaId, cleanupError);
+            }
         }
     }
 }

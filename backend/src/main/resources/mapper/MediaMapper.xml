@@ -6,16 +6,18 @@
     <sql id="all_columns">
         id, user_id, note_id, order_no, bucket, object_key, url,
         thumb_object_key, thumb_url, mime, size_bytes, width, height, status,
+        failure_reason, failed_at, publish_status, publish_attempts, last_publish_at,
         created_at, updated_at
     </sql>
 
     <insert id="insert" parameterType="com.scenary.media.MediaEntity"
             useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO media
-            (user_id, note_id, order_no, bucket, object_key, url, mime, size_bytes, status)
+            (user_id, note_id, order_no, bucket, object_key, url, mime, size_bytes, status,
+             publish_status, publish_attempts)
         VALUES
             (#{userId}, #{noteId}, #{orderNo}, #{bucket}, #{objectKey},
-             #{url}, #{mime}, #{sizeBytes}, #{status})
+             #{url}, #{mime}, #{sizeBytes}, #{status}, 0, 0)
     </insert>
 
     <select id="findById" resultType="com.scenary.media.MediaEntity">
@@ -29,19 +31,73 @@
         UPDATE media
         SET status          = #{status},
             thumb_object_key = #{thumbObjectKey},
-            thumb_url       = #{thumbUrl},
-            width           = #{width},
-            height          = #{height}
-        WHERE id = #{id}
+            thumb_url        = #{thumbUrl},
+            width            = #{width},
+            height           = #{height},
+            failure_reason   = NULL,
+            failed_at        = NULL
+        WHERE id = #{id} AND status = 0
     </update>
+
+    <update id="updateFailureResult">
+        UPDATE media
+        SET status         = 2,
+            thumb_object_key = NULL,
+            thumb_url      = NULL,
+            width          = NULL,
+            height         = NULL,
+            failure_reason = #{failureReason},
+            failed_at      = #{failedAt}
+        WHERE id = #{id} AND status = 0
+    </update>
+
+    <update id="claimPublish">
+        UPDATE media
+        SET publish_attempts = publish_attempts + 1,
+            last_publish_at = #{attemptedAt}
+        WHERE id = #{id}
+          AND publish_status = 0
+          AND publish_attempts &lt; 3
+          AND (last_publish_at IS NULL
+               OR last_publish_at &lt; DATE_SUB(#{attemptedAt}, INTERVAL 30 SECOND))
+    </update>
+
+    <update id="markPublishSuccess">
+        UPDATE media
+        SET publish_status = 1,
+            failure_reason = NULL
+        WHERE id = #{id} AND publish_status = 0
+    </update>
+
+    <update id="markPublishFailure">
+        UPDATE media
+        SET failure_reason = #{reason}
+        WHERE id = #{id} AND publish_status = 0
+    </update>
+
+    <select id="selectPendingPublish" resultType="com.scenary.media.MediaEntity">
+        SELECT <include refid="all_columns"/>
+        FROM media
+        WHERE note_id IS NULL
+          AND status = 0
+          AND publish_status = 0
+          AND publish_attempts &lt; 3
+          AND (last_publish_at IS NULL OR last_publish_at &lt; #{before})
+        ORDER BY id ASC
+        LIMIT #{limit}
+    </select>
 
     <delete id="deleteUnbound">
         DELETE FROM media WHERE id = #{id} AND user_id = #{userId} AND note_id IS NULL
     </delete>
 
+    <delete id="deleteStaleUnbound">
+        DELETE FROM media WHERE id = #{id} AND note_id IS NULL
+    </delete>
+
     <update id="bindToNote">
         UPDATE media SET note_id = #{noteId}, order_no = #{orderNo}
-        WHERE id = #{mediaId}
+        WHERE id = #{mediaId} AND note_id IS NULL
     </update>
 
     <select id="selectByNoteIds" resultType="com.scenary.media.MediaEntity">
@@ -50,6 +106,16 @@
         WHERE note_id IN
         <foreach collection="noteIds" item="nid" open="(" separator="," close=")">#{nid}</foreach>
         ORDER BY note_id ASC, order_no ASC, id ASC
+    </select>
+
+    <select id="selectStaleUnbound" resultType="com.scenary.media.MediaEntity">
+        SELECT <include refid="all_columns"/>
+        FROM media
+        WHERE note_id IS NULL
+          AND status IN (0, 2)
+          AND created_at &lt; #{before}
+        ORDER BY id ASC
+        LIMIT #{limit}
     </select>
 
 </mapper>

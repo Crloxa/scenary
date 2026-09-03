@@ -25,6 +25,11 @@ public class MediaEntity {
     private Integer height;
     /** 0处理中 1完成 2失败（docs/02 §4.2 状态机） */
     private Integer status;
+    private String failureReason;
+    private Date failedAt;
+    private Integer publishStatus;
+    private Integer publishAttempts;
+    private Date lastPublishAt;
     private Date createdAt;
     private Date updatedAt;
 }

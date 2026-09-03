@@ -81,7 +81,7 @@ public class UserService {
         try {
             MediaImageType type = MediaImageType.detect(
                     MediaImageType.readHead(file.getInputStream()));
-            // 契约白名单 §3.3 不含 gif；webp 虽可存储但 JDK 原生解码不支持重采样
+            // 头像契约只允许 jpeg/png；JDK 原生不支持 WebP 重采样，避免先存入不可用对象。
             if (type == null || type == MediaImageType.GIF || type == MediaImageType.WEBP) {
                 throw new BizException(ErrorCode.VALIDATION, "头像仅支持 jpeg/png");
             }

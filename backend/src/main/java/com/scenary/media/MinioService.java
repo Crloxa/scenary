@@ -56,6 +56,41 @@ public class MinioService {
         return props.getPublicHost() + "/" + props.getBucket() + "/" + objectKey;
     }
 
+    /** 默认展示 URL：优先缩略图；仅在显式配置 exposeOriginalUrl=true 时暴露原图。 */
+    public String displayUrl(MediaEntity media) {
+        if (media == null) {
+            return null;
+        }
+        if (props.isExposeOriginalUrl()) {
+            return media.getUrl();
+        }
+        if (media.getThumbUrl() != null && !media.getThumbUrl().isBlank()) {
+            return media.getThumbUrl();
+        }
+        return publicUrl(thumbKeyOf(media.getObjectKey()));
+    }
+
+    public String displayUrl(String objectKey) {
+        if (props.isExposeOriginalUrl()) {
+            return publicUrl(objectKey);
+        }
+        return publicUrl(thumbKeyOf(objectKey));
+    }
+
+    /** orig/{yyyyMM}/{uuid}.{ext} -> thumb/{yyyyMM}/{uuid}_t.jpg（与原图同 uuid 成对） */
+    public static String thumbKeyOf(String objectKey) {
+        if (objectKey == null || objectKey.isBlank() || objectKey.startsWith("thumb/")) {
+            return objectKey;
+        }
+        int slash = objectKey.indexOf('/');
+        if (slash < 0) {
+            return objectKey;
+        }
+        String withoutPrefix = objectKey.substring(slash + 1);
+        int dot = withoutPrefix.lastIndexOf('.');
+        return "thumb/" + (dot > 0 ? withoutPrefix.substring(0, dot) : withoutPrefix) + "_t.jpg";
+    }
+
     public void remove(String objectKey) {
         try {
             minioClient.removeObject(RemoveObjectArgs.builder()

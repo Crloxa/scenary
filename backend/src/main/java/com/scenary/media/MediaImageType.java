@@ -4,7 +4,7 @@ import java.util.Map;
 
 /**
  * 图片魔数嗅探：多部分表单的 Content-Type 由客户端自报，绝不可信；
- * 服务端按文件头字节判定真实类型（契约 docs/02 §4.1 允许 jpeg/png/webp/gif）。
+ * 服务端按文件头字节判定真实类型（检测器保留 WebP 以便明确拒绝，当前上传契约允许 jpeg/png/gif）。
  */
 public enum MediaImageType {
 

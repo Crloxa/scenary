@@ -4,6 +4,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Date;
 
 import javax.imageio.ImageIO;
 
@@ -63,6 +64,7 @@ public class ThumbnailConsumer {
             channel.basicAck(deliveryTag, false);
         } catch (Exception e) {
             log.error("thumbnail failed after retries, mediaId={} -> dlq", mediaId, e);
+            markFailure(mediaId, e);
             channel.basicNack(deliveryTag, false, false);
         }
     }
@@ -100,15 +102,16 @@ public class ThumbnailConsumer {
         if (media == null) {
             throw new IllegalStateException("media row missing: " + mediaId);
         }
+        // RabbitMQ 至少一次投递：已完成或已最终失败的重复消息直接确认，避免重复写对象/反复告警。
+        if (media.getStatus() != null && media.getStatus() != 0) {
+            log.info("thumbnail message already settled, mediaId={} status={}", mediaId, media.getStatus());
+            return;
+        }
         BufferedImage src = ImageIO.read(minio.get(media.getObjectKey()));
         String thumbKey = thumbKeyOf(media.getObjectKey());
         if (src == null) {
-            // JDK 解不了的格式（如 webp）：契约允许上传，走降级——原图直充当封面/缩略位，
-            // 不产出独立 _t.jpg。宽高留空由前端默认 3:4 占位。
-            log.warn("undecodable format, degrade copy-through: {}", media.getObjectKey());
-            mediaMapper.updateProcessResult(mediaId, 1, media.getObjectKey(),
-                    minio.publicUrl(media.getObjectKey()), null, null);
-            return;
+            // JDK 解不了的格式不能把原图复制为公开缩略图，否则会绕过原图隐私策略。
+            throw new IllegalStateException("unsupported image encoding");
         }
         int w = src.getWidth();
         int h = src.getHeight();
@@ -130,8 +133,21 @@ public class ThumbnailConsumer {
 
     /** orig/{yyyyMM}/{uuid}.{ext} -> thumb/{yyyyMM}/{uuid}_t.jpg（与原图同 uuid 成对） */
     static String thumbKeyOf(String objectKey) {
-        String withoutPrefix = objectKey.substring(objectKey.indexOf('/') + 1);
-        int dot = withoutPrefix.lastIndexOf('.');
-        return ("thumb/" + (dot > 0 ? withoutPrefix.substring(0, dot) : withoutPrefix)) + "_t.jpg";
+        return MinioService.thumbKeyOf(objectKey);
+    }
+
+    private void markFailure(long mediaId, Exception e) {
+        String reason = e.getClass().getSimpleName();
+        if (e.getMessage() != null && !e.getMessage().isBlank()) {
+            reason += ": " + e.getMessage();
+        }
+        if (reason.length() > 255) {
+            reason = reason.substring(0, 255);
+        }
+        try {
+            mediaMapper.updateFailureResult(mediaId, reason, new Date());
+        } catch (Exception updateError) {
+            log.warn("failed to persist failure state, mediaId={}", mediaId, updateError);
+        }
     }
 }
