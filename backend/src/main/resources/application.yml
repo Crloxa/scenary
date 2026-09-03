@@ -4,3 +4,7 @@ spring:
     name: scenary-backend
   profiles:
     active: dev
+
+logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} [trace=%X{traceId},user=%X{userId}] - %msg%n"
