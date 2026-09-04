@@ -5,13 +5,16 @@
 
     <sql id="all_columns">
         id, user_id, title, content, cover_url, media_count,
-        place_name, request_key, visibility, created_at, updated_at
+        place_name, latitude, longitude, place_source, place_precision,
+        request_key, visibility, created_at, updated_at
     </sql>
 
     <insert id="insert" parameterType="com.scenary.note.NoteEntity"
             useGeneratedKeys="true" keyProperty="id" keyColumn="id">
-        INSERT INTO notes (user_id, title, content, place_name, request_key, cover_url, media_count, visibility)
-        VALUES (#{userId}, #{title}, #{content}, #{placeName}, #{requestKey}, #{coverUrl}, #{mediaCount}, #{visibility})
+        INSERT INTO notes (user_id, title, content, place_name, latitude, longitude, place_source,
+                           place_precision, request_key, cover_url, media_count, visibility)
+        VALUES (#{userId}, #{title}, #{content}, #{placeName}, #{latitude}, #{longitude}, #{placeSource},
+                #{placePrecision}, #{requestKey}, #{coverUrl}, #{mediaCount}, #{visibility})
     </insert>
 
     <select id="findById" resultType="com.scenary.note.NoteEntity">

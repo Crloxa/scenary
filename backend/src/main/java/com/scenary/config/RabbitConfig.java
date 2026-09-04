@@ -15,18 +15,21 @@ import org.springframework.context.annotation.Configuration;
  * MQ 拓扑契约：单一 topic exchange `media.event`，routing key 以 <域>.<动作> 命名，
  * 只增 binding 不复用队列（docs/01 §8）。
  *
- * 工作链路：media.uploaded -> media.thumbnail.q（带 DLX）
- * 兜底链路：消费最终失败先落 status=2，再 nack(requeue=false) -> media.dead exchange -> media.dlq 留档人工重放
+ * 工作链路：media.uploaded -> media.thumbnail.q；video.transcode -> video.transcode.q（均带 DLX）
+ * 兜底链路：消费最终失败先落状态，再 nack(requeue=false) -> media.dead exchange -> 各自 DLQ 留档人工重放
  */
 @Configuration
 public class RabbitConfig {
 
     public static final String EXCHANGE_MEDIA_EVENT = "media.event";
     public static final String RK_MEDIA_UPLOADED = "media.uploaded";
+    public static final String RK_VIDEO_TRANSCODE = "video.transcode";
 
     public static final String QUEUE_MEDIA_THUMBNAIL = "media.thumbnail.q";
+    public static final String QUEUE_VIDEO_TRANSCODE = "video.transcode.q";
     public static final String EXCHANGE_MEDIA_DEAD = "media.dead";
     public static final String QUEUE_MEDIA_DLQ = "media.dlq";
+    public static final String QUEUE_VIDEO_DLQ = "video.dlq";
 
     @Bean
     public TopicExchange mediaEventExchange() {
@@ -53,6 +56,19 @@ public class RabbitConfig {
     }
 
     @Bean
+    public Queue videoTranscodeQueue() {
+        return QueueBuilder.durable(QUEUE_VIDEO_TRANSCODE)
+                .deadLetterExchange(EXCHANGE_MEDIA_DEAD)
+                .deadLetterRoutingKey(RK_VIDEO_TRANSCODE)
+                .build();
+    }
+
+    @Bean
+    public Queue videoDlq() {
+        return QueueBuilder.durable(QUEUE_VIDEO_DLQ).build();
+    }
+
+    @Bean
     public Binding mediaThumbnailBinding(TopicExchange mediaEventExchange,
                                          Queue mediaThumbnailQueue) {
         return BindingBuilder.bind(mediaThumbnailQueue)
@@ -63,6 +79,19 @@ public class RabbitConfig {
     public Binding mediaDlqBinding(TopicExchange mediaDeadExchange, Queue mediaDlq) {
         return BindingBuilder.bind(mediaDlq)
                 .to(mediaDeadExchange).with(RK_MEDIA_UPLOADED);
+    }
+
+    @Bean
+    public Binding videoTranscodeBinding(TopicExchange mediaEventExchange,
+                                         Queue videoTranscodeQueue) {
+        return BindingBuilder.bind(videoTranscodeQueue)
+                .to(mediaEventExchange).with(RK_VIDEO_TRANSCODE);
+    }
+
+    @Bean
+    public Binding videoDlqBinding(TopicExchange mediaDeadExchange, Queue videoDlq) {
+        return BindingBuilder.bind(videoDlq)
+                .to(mediaDeadExchange).with(RK_VIDEO_TRANSCODE);
     }
 
     @Bean

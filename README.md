@@ -1,7 +1,7 @@
 # Scenary · 极简风景图文社区（MVP 立项）
 
 > 工作代号 **Scenary**，源自 [../思绪.txt](../思绪.txt) 的产品设想第 1 条：以纯风景图片/视频为内容的小红书式分享社区。
-> 本仓库已完成 Phase 7 运维基线、P8 全量验收、P9 社交最小闭环、P10 评论通知（含未覆盖项补充）与 P11 搜索与发现；MVP 可通过 Docker Compose 一键部署，下一步为 P12 视频与地点；P13 内容审核和 P14 规模化运维暂列长期 TODO。
+> 本仓库已完成 Phase 7 运维基线、P8 全量验收、P9 社交最小闭环、P10 评论通知（含未覆盖项补充）、P11 搜索与发现和 P12 视频与地点基础链路；P12-E1 体验优化、P13 内容审核和 P14 规模化运维暂列后续/长期 TODO。
 
 ## MVP 范围（用户已确认）
 
@@ -11,7 +11,7 @@
 | 主页双列瀑布流卡片 | 评论（P10） |
 | 新建图文笔记（≤9 图） | 私信、管理后台 |
 | 个人中心（资料编辑 + 我的笔记网格） | 地图 API、AI 安全门（接口留缝） |
-| 笔记详情页（浏览闭环） | 视频上传（二期接 ffmpeg 管线） |
+| 笔记详情页（浏览闭环） | 视频上传（MVP 外；P12 基础链路已完成，E1 后置） |
 | 公开笔记搜索（标题/正文/地点/作者） | |
 
 ## 文档索引
@@ -29,6 +29,7 @@
 | [docs/evidence/2026-09-04-P10评论与通知验收.md](docs/evidence/2026-09-04-P10评论与通知验收.md) | P10 评论/回复、软删、通知、限流、前后端回归与 Compose 验收 | P10 完成证据 |
 | [docs/evidence/2026-09-04-P10未覆盖项补充验收.md](docs/evidence/2026-09-04-P10未覆盖项补充验收.md) | P10 敏感词、实时 WebSocket、三浏览器、键盘/读屏语义与压力基线 | P10 补充完成证据 |
 | [docs/evidence/2026-09-04-P11搜索与发现验收.md](docs/evidence/2026-09-04-P11搜索与发现验收.md) | P11 搜索契约、可见性/游标、索引迁移、前端和性能验收 | P11 完成证据 |
+| [docs/evidence/2026-09-04-P12视频与地点验收.md](docs/evidence/2026-09-04-P12视频与地点验收.md) | P12 视频转码、地点字段、EXIF 隐私、队列隔离和前端回归 | P12 完成证据 |
 | [docs/frontend-audit-2026-09-02.md](docs/frontend-audit-2026-09-02.md) | 前端实测审计与复现依据（路由、登出、错误态、上传、响应式、无障碍、测试缺口） | 前端 agent 施工前对照 |
 | [CHANGELOG.md](CHANGELOG.md) | 变更日志：一切产出物落盘/契约变更/决策变更的唯一记录处（追加制） | 每次变更后更新 |
 | [docs/HANDOVER.md](docs/HANDOVER.md) | **持续维护的交接文档**：当前状态、怎么跑、验证证据、待办与坑位速查 | 新会话接管 / 每次阶段或验收变化后更新 |
@@ -49,4 +50,4 @@ Java 21 + Spring Boot 3.5 + MyBatis(+PageHelper/Flyway) + MySQL(InnoDB) + Redis 
 
 ## 状态与变更记录
 
-变更的唯一记录处是 [CHANGELOG.md](CHANGELOG.md)（追加制，当前 v2.34）；进度唯一真相源是 [docs/03](docs/03-MVP实施与Docker部署.md) 末尾的交付 Checklist；agent 会话入口固定为 [AGENTS.md](AGENTS.md)。三者分工不重复维护。
+变更的唯一记录处是 [CHANGELOG.md](CHANGELOG.md)（追加制，当前 v2.36）；进度唯一真相源是 [docs/03](docs/03-MVP实施与Docker部署.md) 末尾的交付 Checklist；agent 会话入口固定为 [AGENTS.md](AGENTS.md)。三者分工不重复维护。

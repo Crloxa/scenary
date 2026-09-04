@@ -1,6 +1,8 @@
 package com.scenary.note;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -67,11 +69,15 @@ public class NoteService {
                     if (m.getNoteId() != null) {
                         throw new BizException(ErrorCode.VALIDATION, "媒体已被其他笔记使用: " + id);
                     }
-                    if (m.getStatus() == null || m.getStatus() != 1) {
+                    boolean ready = m.getStatus() != null
+                            && (m.getStatus() == 1
+                            || (m.getMediaType() != null && m.getMediaType() == 1 && m.getStatus() == 12));
+                    if (!ready) {
                         throw new BizException(ErrorCode.MEDIA_NOT_READY,
                                 "媒体仍在处理中，请稍后重试");
                     }
-                    return new MediaItemSnapshot(m.getId(), m.getThumbUrl());
+                    return new MediaItemSnapshot(m.getId(), m.getThumbUrl(), m.getMediaType(),
+                            m.getExifLatitude(), m.getExifLongitude());
                 })
                 .toList();
 
@@ -80,6 +86,11 @@ public class NoteService {
         note.setTitle(req.title());
         note.setContent(req.content() == null ? "" : req.content());
         note.setPlaceName(req.placeName());
+        Location location = resolveLocation(req, snapshots);
+        note.setLatitude(location.latitude());
+        note.setLongitude(location.longitude());
+        note.setPlaceSource(location.source());
+        note.setPlacePrecision(location.precision());
         note.setRequestKey(requestKey);
         // 契约 v2.3：可见性入参缺省公开；越界值已被 Bean Validation 拦截
         note.setVisibility(req.visibility() == null ? 1 : req.visibility());
@@ -121,7 +132,55 @@ public class NoteService {
     }
 
     /** 记录快照的轻量内部结构，避免把 media 实体散出模块 */
-    private record MediaItemSnapshot(long id, String thumbUrl) {
+    private record MediaItemSnapshot(long id, String thumbUrl, Integer mediaType,
+                                     BigDecimal exifLatitude, BigDecimal exifLongitude) {
+    }
+
+    private Location resolveLocation(NoteCreateRequest req, List<MediaItemSnapshot> snapshots) {
+        boolean hasLatitude = req.latitude() != null;
+        boolean hasLongitude = req.longitude() != null;
+        if (hasLatitude != hasLongitude) {
+            throw new BizException(ErrorCode.VALIDATION, "纬度和经度必须同时提供");
+        }
+        String requestedSource = req.placeSource() == null ? null
+                : req.placeSource().trim().toUpperCase(Locale.ROOT);
+        if (requestedSource != null && !List.of("MANUAL", "EXIF", "MAP").contains(requestedSource)) {
+            throw new BizException(ErrorCode.VALIDATION, "地点来源无效");
+        }
+        if (hasLatitude) {
+            if ("EXIF".equals(requestedSource)) {
+                throw new BizException(ErrorCode.VALIDATION, "EXIF 坐标不能由客户端提交");
+            }
+            return new Location(req.latitude(), req.longitude(),
+                    requestedSource == null ? "MAP" : requestedSource,
+                    normalizePrecision(req.placePrecision(), "EXACT"));
+        }
+        if ("MAP".equals(requestedSource)) {
+            throw new BizException(ErrorCode.VALIDATION, "地图地点必须提供坐标");
+        }
+        if ("EXIF".equals(requestedSource)) {
+            return firstExif(snapshots);
+        }
+        if ("MANUAL".equals(requestedSource) || snapshots.stream()
+                .noneMatch(item -> item.exifLatitude() != null && item.exifLongitude() != null)) {
+            return new Location(null, null, "MANUAL", req.placePrecision());
+        }
+        return firstExif(snapshots);
+    }
+
+    private Location firstExif(List<MediaItemSnapshot> snapshots) {
+        return snapshots.stream()
+                .filter(item -> item.exifLatitude() != null && item.exifLongitude() != null)
+                .findFirst()
+                .map(item -> new Location(item.exifLatitude(), item.exifLongitude(), "EXIF", null))
+                .orElseThrow(() -> new BizException(ErrorCode.VALIDATION, "未读取到有效 EXIF 坐标"));
+    }
+
+    private String normalizePrecision(String precision, String fallback) {
+        return precision == null || precision.isBlank() ? fallback : precision.trim();
+    }
+
+    private record Location(BigDecimal latitude, BigDecimal longitude, String source, String precision) {
     }
 
     /**
@@ -141,11 +200,18 @@ public class NoteService {
         var author = toAuthor(n.getUserId(), briefs);
         var images = mediaMapper.selectByNoteIds(List.of(noteId)).stream()
                 .map(m -> new NoteDetailVO.ImageItem(m.getId(), minio.displayUrl(m),
-                        m.getThumbUrl(), m.getWidth(), m.getHeight()))
+                        m.getThumbUrl(), m.getWidth(), m.getHeight(),
+                        com.scenary.media.MediaType.from(m.getMediaType()).label(), m.getDurationMs(),
+                        m.getPlaybackUrl(), m.getPlaybackLowUrl()))
                 .toList();
         boolean mine = Objects.equals(viewerId, n.getUserId());
+        boolean exposeLocation = !"EXIF".equals(n.getPlaceSource());
         return new NoteDetailVO(n.getId(), n.getTitle(), n.getContent(), n.getPlaceName(),
-                n.getVisibility(), n.getCreatedAt().getTime(), author, images, mine);
+                exposeLocation ? n.getLatitude() : null,
+                exposeLocation ? n.getLongitude() : null,
+                n.getPlaceSource(), exposeLocation ? n.getPlacePrecision() : null,
+                n.getVisibility(), n.getCreatedAt().getTime(), author, images,
+                com.scenary.common.SocialVO.empty(), mine);
     }
 
     /** P9 社交模块只可对公开且未删除笔记建立关系。 */

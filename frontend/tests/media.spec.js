@@ -16,9 +16,12 @@ describe('media upload state helpers', () => {
     expect(statusSpy).toHaveBeenCalledTimes(2)
   })
 
-  it('exposes server-side failed processing immediately', async () => {
+  it('exposes server-side image and video failures immediately', async () => {
     vi.spyOn(mediaApi, 'status').mockResolvedValueOnce({ status: 2 })
-    await expect(waitProcessed(7, { intervalMs: 1, maxTries: 1 })).rejects.toThrow('图片处理失败')
+    await expect(waitProcessed(7, { intervalMs: 1, maxTries: 1 })).rejects.toThrow('媒体处理失败')
+
+    mediaApi.status.mockResolvedValueOnce({ status: 13 })
+    await expect(waitProcessed(8, { intervalMs: 1, maxTries: 1 })).rejects.toThrow('媒体处理失败')
   })
 
   it('cancels before issuing a status request', async () => {

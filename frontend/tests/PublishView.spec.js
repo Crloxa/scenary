@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
   uploadOne: vi.fn(),
+  uploadVideo: vi.fn(),
   remove: vi.fn(),
   waitProcessed: vi.fn(),
   push: vi.fn(),
@@ -11,7 +12,11 @@ const state = vi.hoisted(() => ({
 }))
 
 vi.mock('@/api/media', () => ({
-  mediaApi: { uploadOne: state.uploadOne, remove: state.remove },
+  mediaApi: {
+    uploadOne: state.uploadOne,
+    uploadVideo: state.uploadVideo,
+    remove: state.remove,
+  },
   waitProcessed: state.waitProcessed,
   isAbortError: error => error?.name === 'AbortError',
 }))
@@ -29,6 +34,7 @@ import PublishView from '@/views/PublishView.vue'
 
 beforeEach(() => {
   state.uploadOne.mockReset()
+  state.uploadVideo.mockReset()
   state.remove.mockReset().mockResolvedValue(undefined)
   state.waitProcessed.mockReset().mockResolvedValue({ status: 1 })
   state.push.mockReset()
@@ -43,6 +49,10 @@ beforeEach(() => {
 function files(count) {
   return Array.from({ length: count }, (_, i) =>
     new File(['image'], `photo-${i}.png`, { type: 'image/png' }))
+}
+
+function videoFile(name = 'clip.mp4') {
+  return new File(['video'], name, { type: 'video/mp4' })
 }
 
 describe('PublishView upload queue', () => {
@@ -93,5 +103,40 @@ describe('PublishView upload queue', () => {
     expect(state.remove).toHaveBeenCalledWith(1)
     wrapper.unmount()
     expect(URL.revokeObjectURL).toHaveBeenCalledTimes(4)
+  })
+
+  it('uploads one video, waits for video readiness, and submits coordinates', async () => {
+    state.uploadVideo.mockResolvedValue({
+      mediaId: 701, mediaType: 'VIDEO', status: 11,
+    })
+    state.waitProcessed.mockResolvedValue({
+      mediaId: 701, mediaType: 'VIDEO', status: 12,
+      playbackUrl: '/video-720.mp4', playbackLowUrl: '/video-480.mp4',
+    })
+    state.create.mockResolvedValue({ id: 88 })
+    const wrapper = mount(PublishView)
+    const input = wrapper.get('input[type="file"]')
+    Object.defineProperty(input.element, 'files', { configurable: true, value: [videoFile()] })
+
+    await input.trigger('change')
+    await flushPromises()
+    await wrapper.get('[data-testid="input-title"]').setValue('山谷短片')
+    await wrapper.get('[data-testid="input-latitude"]').setValue('30.9785')
+    await wrapper.get('[data-testid="input-longitude"]').setValue('102.7591')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(state.uploadVideo).toHaveBeenCalledTimes(1)
+    expect(state.uploadOne).not.toHaveBeenCalled()
+    expect(state.waitProcessed).toHaveBeenCalledWith(701, expect.objectContaining({ signal: expect.any(AbortSignal) }))
+    expect(state.create).toHaveBeenCalledWith(expect.objectContaining({
+      mediaIds: [701],
+      latitude: 30.9785,
+      longitude: 102.7591,
+      placeSource: 'MAP',
+      placePrecision: 'EXACT',
+    }))
+    expect(wrapper.find('video').exists()).toBe(true)
+    wrapper.unmount()
   })
 })

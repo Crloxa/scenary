@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Date;
+import java.math.BigDecimal;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -151,5 +152,67 @@ class NoteServiceTest {
         assertTrue(detail.mine());
         assertEquals(1, detail.images().size());
         assertEquals("http://example/thumb.jpg", detail.images().get(0).thumbUrl());
+    }
+
+    @Test
+    void createPersistsExplicitMapCoordinates() {
+        NoteService service = new NoteService(noteMapper, mediaMapper, userMapper, minio, redis);
+
+        MediaEntity media = new MediaEntity();
+        media.setId(21L);
+        media.setUserId(7L);
+        media.setStatus(1);
+        media.setThumbUrl("http://example/thumb.jpg");
+        when(mediaMapper.findById(21L)).thenReturn(media);
+        doAnswer(invocation -> {
+            NoteEntity note = invocation.getArgument(0);
+            note.setId(99L);
+            return 1;
+        }).when(noteMapper).insert(any(NoteEntity.class));
+        when(mediaMapper.bindToNote(99L, 1, 21L)).thenReturn(1);
+
+        service.create(7L, new NoteCreateRequest("山谷", "", "四姑娘山", List.of(21L),
+                new BigDecimal("30.9785"), new BigDecimal("102.7591"), "map", "EXACT", 1, null));
+
+        org.mockito.ArgumentCaptor<NoteEntity> noteCaptor =
+                org.mockito.ArgumentCaptor.forClass(NoteEntity.class);
+        verify(noteMapper).insert(noteCaptor.capture());
+        NoteEntity saved = noteCaptor.getValue();
+        assertEquals(new BigDecimal("30.9785"), saved.getLatitude());
+        assertEquals(new BigDecimal("102.7591"), saved.getLongitude());
+        assertEquals("MAP", saved.getPlaceSource());
+        assertEquals("EXACT", saved.getPlacePrecision());
+    }
+
+    @Test
+    void derivesExifCoordinatesButDetailDoesNotExposeThem() {
+        NoteService service = new NoteService(noteMapper, mediaMapper, userMapper, minio, redis);
+
+        MediaEntity media = new MediaEntity();
+        media.setId(22L);
+        media.setUserId(7L);
+        media.setStatus(1);
+        media.setThumbUrl("http://example/thumb.jpg");
+        media.setExifLatitude(new BigDecimal("30.123456"));
+        media.setExifLongitude(new BigDecimal("102.654321"));
+        when(mediaMapper.findById(22L)).thenReturn(media);
+        doAnswer(invocation -> {
+            NoteEntity note = invocation.getArgument(0);
+            note.setId(100L);
+            note.setCreatedAt(new Date(456L));
+            return 1;
+        }).when(noteMapper).insert(any(NoteEntity.class));
+        when(mediaMapper.bindToNote(100L, 1, 22L)).thenReturn(1);
+
+        service.create(7L, new NoteCreateRequest("EXIF", "", "", List.of(22L),
+                null, null, "EXIF", null, 1, null));
+
+        org.mockito.ArgumentCaptor<NoteEntity> noteCaptor =
+                org.mockito.ArgumentCaptor.forClass(NoteEntity.class);
+        verify(noteMapper).insert(noteCaptor.capture());
+        NoteEntity saved = noteCaptor.getValue();
+        assertEquals("EXIF", saved.getPlaceSource());
+        assertEquals(new BigDecimal("30.123456"), saved.getLatitude());
+        assertEquals(new BigDecimal("102.654321"), saved.getLongitude());
     }
 }

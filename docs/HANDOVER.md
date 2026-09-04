@@ -1,11 +1,11 @@
 # Scenary · 交接文档（HANDOVER）
 
 > 新会话/新协作者快速接管用。治理规则入口仍是 [../AGENTS.md](../AGENTS.md)，本文只回答"现状怎么跑、测什么、下一步做什么"。
-> 更新时间：2026-09-04 · 对应版本 v2.34 · 进度真相源 [03 手册末尾 Checklist](03-MVP实施与Docker部署.md) · 最新证据 [P11 搜索与发现验收](evidence/2026-09-04-P11搜索与发现验收.md) · 当前改进入口 [05 后续开发路线图](05-后续开发路线图与实施手册.md) · 最新学习笔记 [18 P11 搜索与发现](learning/18-P11搜索与发现.md)
+> 更新时间：2026-09-04 · 对应版本 v2.36 · 进度真相源 [03 手册末尾 Checklist](03-MVP实施与Docker部署.md) · 最新证据 [P12 视频与地点验收](evidence/2026-09-04-P12视频与地点验收.md) · 当前改进入口 [05 后续开发路线图](05-后续开发路线图与实施手册.md) · 最新学习笔记 [19 P12 视频转码与地点隐私](learning/19-P12视频转码与地点隐私.md)
 
 ## 1. 一句话现状
 
-后端 MVP 主链路已验收（18 端点全绿），前端七视图可用并已切换薄荷绿×青冥×茶白双主题；P4、P5、P6 和 Phase 7 均已验收。P8 已于 2026-09-03 通过全量出口门禁；P9、P10（含未覆盖项补充）和 P11 搜索与发现均已于 2026-09-04 完成。全栈由 Docker Compose 在 `:8081` 对外提供，backend health、`/api`、`/minio`、SPA history 和 WebSocket 升级链路已实测。
+后端 MVP 主链路已验收（18 端点全绿），前端七视图可用并已切换薄荷绿×青冥×茶白双主题；P4、P5、P6 和 Phase 7 均已验收。P8 已于 2026-09-03 通过全量出口门禁；P9、P10（含未覆盖项补充）、P11 搜索与发现和 P12 视频与地点基础链路均已于 2026-09-04 完成。全栈由 Docker Compose 在 `:8081` 对外提供，backend health、`/api`、`/minio`、SPA history 和 WebSocket 升级链路已实测。
 
 ## 2. 如何跑起来
 
@@ -34,10 +34,12 @@ docker compose ps
 | P10 压力基线 | `node docs/dev/test-p10-load.mjs` | 10 并发/10 秒只读请求、吞吐、p50/p95/p99、错误率、压测后健康 | ✅ |
 | P11 搜索黑盒 | `node docs/dev/test-p11-search.mjs` | 字段覆盖、受控 LIKE、可见性、排序、opaque cursor、边界码和 p95 | ✅13 |
 | P11 索引分析 | `pwsh -File ops/rebuild-search-index.ps1` | ANALYZE、搜索索引和 EXPLAIN 查询计划 | ✅ |
-| 后端单元 | `cd backend && mvn test -q` | 认证/媒体/消费者/traceId/Feed/笔记/社交/评论/通知/搜索边界回归 | ✅37 |
-| 前端单元 | `cd frontend && npm test` | request、媒体、发布、登录、NoteCard、社交、评论/通知、搜索 API 与视图 | ✅27 |
+| P12 视频地点黑盒 | `node docs/dev/test-p12-video-location.mjs` | 魔数/状态、ffprobe/ffmpeg 产物、MAP 坐标、EXIF 隐私、V7 和队列隔离 | ✅11 |
+| 后端单元 | `cd backend && mvn test -q` | 认证/媒体/视频消费者/traceId/Feed/笔记/社交/评论/通知/搜索边界回归 | ✅39 |
+| 前端单元 | `cd frontend && npm test` | request、媒体/视频、发布、详情、登录、NoteCard、社交、评论/通知、搜索 API 与视图 | ✅31 |
 | 前端浏览器 | `cd frontend && npm run test:e2e` | Chromium/Firefox/WebKit 的 390px 路由、评论/通知语义、键盘焦点、console/page error | ✅6 |
 | P11 前端浏览器 | `cd frontend && SCENARY_FRONTEND_URL=http://localhost:8081 npx playwright test e2e/p11-search.spec.js` | Chromium/Firefox/WebKit 搜索 query/sort/highlight/可分享 URL | ✅3 |
+| P12 前端浏览器 | `cd frontend && npx playwright test e2e/p12-video.spec.js` | Chromium/Firefox/WebKit 视频发布、单次提交、地点字段、详情播放 | ✅3 |
 | 前端门禁 | `cd frontend && npm run build` | SFC 静态校验 | ✅107 modules |
 | Phase 6 编排 | `docker compose config --quiet` | Compose 插值与 YAML | ✅ |
 | Phase 6 全栈 | `docker compose up -d --build`、`docker compose ps` | backend health、服务依赖与 :8081 对外入口 | ✅ |
@@ -46,20 +48,20 @@ docker compose ps
 
 脚本均已随机化用户名（v2.5 修复二次执行撞名）。IDEA HTTP 版冒烟：[smoke-backend.http](dev/smoke-backend.http)，图片夹具在 `docs/dev/fixtures/`（含真 webp）。
 
-2026-09-03 P8 最终 Compose 复验由入口 `http://localhost:8081/api/v1` 得到认证/拦截链/上传/缩略图/端到端五组 `18/8/15/7/30`，共 `78/78`；P8 Compose 集成矩阵 `6/6`，合计 `84/84`。2026-09-04 P9 黑盒 `13/13`、后端 Docker Maven JUnit `26/26`、前端 Vitest `15/15`、Vite 构建 `101 modules`；P9 浏览器只读主流程确认首页卡片和详情页提供明确的点赞/收藏控件，`/bookmarks` 路由可达。2026-09-04 P10 初版黑盒 `18/18`、主机 Maven JUnit `32/32`、前端 Vitest `23/23`、Vite 构建 `105 modules`、三浏览器 Playwright `6/6`；补充黑盒 `4/4`，压力基线 10 并发/10 秒共 `15561` 请求、错误率 `0`、吞吐 `1555.01 req/s`、p50/p95/p99 `5.75/11.49/16.64ms`，V5 已应用，Compose 重建/健康和真实 WebSocket 升级链路均通过。2026-09-04 P11 已有 V5 数据升级至 V6、临时空 schema V1~V6 前向迁移通过；搜索黑盒 `13/13`，后端 JUnit `37/37`，前端 Vitest `27/27`，构建 `107 modules`，三浏览器专项 `3/3`，20 次查询 p95 `17.14ms`，索引分析/EXPLAIN 和 Compose 重建/健康均通过。
+2026-09-03 P8 最终 Compose 复验由入口 `http://localhost:8081/api/v1` 得到认证/拦截链/上传/缩略图/端到端五组 `18/8/15/7/30`，共 `78/78`；P8 Compose 集成矩阵 `6/6`，合计 `84/84`。2026-09-04 P9 黑盒 `13/13`、后端 Docker Maven JUnit `26/26`、前端 Vitest `15/15`、Vite 构建 `101 modules`；P9 浏览器只读主流程确认首页卡片和详情页提供明确的点赞/收藏控件，`/bookmarks` 路由可达。2026-09-04 P10 初版黑盒 `18/18`、主机 Maven JUnit `32/32`、前端 Vitest `23/23`、Vite 构建 `105 modules`、三浏览器 Playwright `6/6`；补充黑盒 `4/4`，压力基线 10 并发/10 秒共 `15561` 请求、错误率 `0`、吞吐 `1555.01 req/s`、p50/p95/p99 `5.75/11.49/16.64ms`，V5 已应用，Compose 重建/健康和真实 WebSocket 升级链路均通过。2026-09-04 P11 已有 V5 数据升级至 V6、临时空 schema V1~V6 前向迁移通过；搜索黑盒 `13/13`，后端 JUnit `37/37`，前端 Vitest `27/27`，构建 `107 modules`，三浏览器专项 `3/3`，20 次查询 p95 `17.14ms`，索引分析/EXPLAIN 和 Compose 重建/健康均通过。P12 已有 V6 数据升级至 V7，视频地点黑盒 `11/11`，后端 JUnit `39/39`，前端 Vitest `31/31`，构建 `107 modules`，三浏览器专项 `3/3`；容器内 ffmpeg/ffprobe `8.1.2`，MAP/EXIF 隐私和视频队列隔离均通过。
 
-P8 完整证据、环境指纹与验证边界归档在 [2026-09-03-P8改进验收](evidence/2026-09-03-P8改进验收.md)；P9 证据归档在 [2026-09-04-P9社交最小闭环验收](evidence/2026-09-04-P9社交最小闭环验收.md)；P10 初版证据归档在 [2026-09-04-P10评论与通知验收](evidence/2026-09-04-P10评论与通知验收.md)，补充证据归档在 [2026-09-04-P10未覆盖项补充验收](evidence/2026-09-04-P10未覆盖项补充验收.md)；P11 证据归档在 [2026-09-04-P11搜索与发现验收](evidence/2026-09-04-P11搜索与发现验收.md)；历史 MVP 基线见 [2026-09-02-MVP复验报告](evidence/2026-09-02-MVP复验.md)。后续 Phase/功能环节仍必须先按 [证据链规范](evidence/README.md) 落盘报告；下一步进入 P12 视频与地点。
+P8 完整证据、环境指纹与验证边界归档在 [2026-09-03-P8改进验收](evidence/2026-09-03-P8改进验收.md)；P9 证据归档在 [2026-09-04-P9社交最小闭环验收](evidence/2026-09-04-P9社交最小闭环验收.md)；P10 初版证据归档在 [2026-09-04-P10评论与通知验收](evidence/2026-09-04-P10评论与通知验收.md)，补充证据归档在 [2026-09-04-P10未覆盖项补充验收](evidence/2026-09-04-P10未覆盖项补充验收.md)；P11 证据归档在 [2026-09-04-P11搜索与发现验收](evidence/2026-09-04-P11搜索与发现验收.md)；P12 证据归档在 [2026-09-04-P12视频与地点验收](evidence/2026-09-04-P12视频与地点验收.md)；历史 MVP 基线见 [2026-09-02-MVP复验报告](evidence/2026-09-02-MVP复验.md)。后续 Phase/功能环节仍必须先按 [证据链规范](evidence/README.md) 落盘报告；下一步进入 P12-E1 分片/预签名/断点续传体验优化。
 
 ## 4. 待办清单（按优先级）
 
-> 当前工作边界：Phase 7、P8、P9、P10 和 P11 均已通过全量出口验收；下一步按 05 手册进入 P12 视频与地点。
+> 当前工作边界：Phase 7、P8、P9、P10、P11 和 P12 基础链路均已通过全量出口验收；下一步按 05 手册评估 P12-E1 分片/预签名/断点续传体验优化。
 
 1. **历史媒体 URL 迁移**：开发期已有媒体行可能持久化旧 MinIO 直连 URL；已提供 `ops/migrate-media-urls.ps1`，先用 `-Preview` 核对参数，再按新旧 public host 批量重建 media、note 封面和可选头像 URL。实际历史数据迁移仍是部署前运维动作。
 2. **P8 证据维护**：若正式执行历史 URL 迁移，需追加运维证据和 CHANGELOG 勘误，不回改本报告历史结果。
-3. **后续路线**：P11 已完成并归档证据；下一步为 P12 视频与地点。
+3. **后续路线**：P12-01~P12-05 已完成并归档证据；下一步为 P12-E1 分片/预签名/断点续传体验优化，仍需单独立项和验收。
 4. **长期 TODO（暂不排期）**：P13 内容审核、P14 规模化运维；两者的设计草案和重新立项出口条件保留在 [05 后续开发路线图](05-后续开发路线图与实施手册.md) 中。
 
-> 当前施工记录：P8-01~P8-22、P9-01~P9-05、P10-01~P10-06、P10-S01~P10-S05 与 P11-01~P11-05 均已落地并完成验证；P11 出口报告为 `docs/evidence/2026-09-04-P11搜索与发现验收.md`，学习笔记为 `docs/learning/18-P11搜索与发现.md`；03 Checklist 已勾选 P8、P9、P10、P10 补充项和 P11。
+> 当前施工记录：P8-01~P8-22、P9-01~P9-05、P10-01~P10-06、P10-S01~P10-S05、P11-01~P11-05 与 P12-01~P12-05 均已落地并完成验证；P12 出口报告为 `docs/evidence/2026-09-04-P12视频与地点验收.md`，学习笔记为 `docs/learning/19-P12视频转码与地点隐私.md`；P12-E1 分片/预签名/断点续传仍未施工。
 
 ## 5. 关键决策与坑位速查（细节见对应文档）
 

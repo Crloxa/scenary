@@ -34,6 +34,12 @@ public class MediaController {
         return Result.ok(mediaService.uploadImages(UserContext.require(), files));
     }
 
+    @PostMapping("/videos")
+    public Result<MediaUploadVO> uploadVideo(
+            @RequestPart(value = "file", required = false) MultipartFile file) {
+        return Result.ok(mediaService.uploadVideo(UserContext.require(), file));
+    }
+
     @GetMapping("/{mediaId}")
     public Result<MediaItemVO> status(@PathVariable long mediaId) {
         return Result.ok(mediaService.getStatus(UserContext.require(), mediaId));

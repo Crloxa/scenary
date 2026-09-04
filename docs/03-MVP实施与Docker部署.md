@@ -237,7 +237,7 @@ spring:
       simple: { acknowledge-mode: manual, concurrency: 2, prefetch: 1,
                 default-requeue-rejected: false }
   servlet:
-    multipart: { max-file-size: 10MB, max-request-size: 100MB }
+    multipart: { max-file-size: 200MB, max-request-size: 205MB }
 mybatis:
   mapper-locations: classpath:mapper/*.xml
   configuration: { map-underscore-to-camel-case: true }
@@ -455,8 +455,8 @@ services:
       SPRING_RABBITMQ_LISTENER_SIMPLE_CONCURRENCY: 2
       SPRING_RABBITMQ_LISTENER_SIMPLE_PREFETCH: 1
       SPRING_RABBITMQ_LISTENER_SIMPLE_DEFAULT_REQUEUE_REJECTED: "false"
-      SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE: 10MB
-      SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE: 100MB
+      SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE: 200MB
+      SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE: 205MB
       MYBATIS_MAPPER_LOCATIONS: classpath:mapper/*.xml
       MYBATIS_CONFIGURATION_MAP_UNDERSCORE_TO_CAMEL_CASE: "true"
       SCENARY_MINIO_ENDPOINT: http://minio:9000
@@ -630,3 +630,16 @@ TOKEN=<上一步accessToken>; curl -s -X POST $BASE/media/images \
 - [x] P11-04 前端搜索：导航搜索入口、搜索页、query/sort、加载/空态/失败重试、加载更多、结果卡片和 URL 可分享（2026-09-04：Vitest、构建和 Chromium/Firefox/WebKit 专项通过）
 - [x] P11-05 运维与性能：搜索索引重建/分析脚本可重跑，记录 EXPLAIN、样本量、p95、慢查询与回滚边界（2026-09-04：ANALYZE/EXPLAIN 通过；20 次样本 p95 17.14ms，回滚边界已记录）
 - [x] P11 出口门禁：后端/前端测试、Compose/Flyway、黑盒可见性与分页矩阵、浏览器主流程、证据报告和文档闭环（2026-09-04：后端 37/37、前端 27/27、构建 107 modules、浏览器 3/3；证据见 `docs/evidence/2026-09-04-P11搜索与发现验收.md`）
+
+---
+
+## 附 6 · P12 视频与地点 Checklist
+
+> P12 任务定义以 [05-后续开发路线图与实施手册](05-后续开发路线图与实施手册.md) §6 为准。本轮先完成基础链路；分片/预签名直传、外部逆地理编码和地图 UI 作为后续 P12-E1，不提前扩大范围。
+
+- [x] P12-01 契约与数据层：API v1.4、V7 媒体类型/视频状态/播放字段、notes 坐标字段，已有 V6 与空库迁移验证（2026-09-04：已有 V6 数据升级至 V7，V7=1 且 8 个扩展字段存在；本轮未执行 `down -v`）
+- [x] P12-02 视频上传：容器/魔数校验、大小/时长/分辨率限制，原始对象不进响应（2026-09-04：黑盒魔数/处理中/原始路径断言通过；时长 120 秒、最长边 3840、大小 200MB 限制已由服务端实现）
+- [x] P12-03 独立转码链路：`video.transcode` 队列与 DLQ、封面、480p/720p MP4、失败可观测/可重试，图片队列不被毒消息阻塞（2026-09-04：黑盒封面/720p/480p 可读、队列隔离通过；消费者失败先落 FAILED 再 nack 到 video.dlq，初次发现奇数宽度问题后已补齐偶数尺寸）
+- [x] P12-04 地点隐私：手工/地图坐标与 EXIF 只读提取，公开响应不泄露原始 EXIF GPS（2026-09-04：MAP 坐标公开响应和 EXIF 候选坐标隐藏断言通过）
+- [x] P12-05 前端体验：视频选择/处理中/失败重传/播放和地点字段；重复提交、刷新和离开页面边界有回归（2026-09-04：Vitest 31/31、构建 107 modules、三浏览器视频发布/转码等待/详情播放 3/3；提交中离开保护与单次发布请求有回归）
+- [x] P12 出口门禁：后端/前端测试、Compose/ffmpeg、媒体队列隔离、EXIF 隐私、浏览器回归、证据报告和文档闭环（2026-09-04：后端 JUnit 39/39、P12 黑盒 11/11、Compose 重建/健康、ffmpeg/ffprobe 8.1.2 和证据/学习/交接文档均通过；P12-E1 分片/预签名体验优化后置）

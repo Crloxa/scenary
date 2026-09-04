@@ -12,6 +12,12 @@ export const mediaApi = {
     const data = unwrap(await instance.post('/media/images', fd, config))
     return data.items[0]
   },
+  async uploadVideo(file, config = {}) {
+    const fd = new FormData()
+    fd.append('file', file)
+    const data = unwrap(await instance.post('/media/videos', fd, config))
+    return data.items[0]
+  },
   async status(mediaId, config = {}) {
     return unwrap(await instance.get(`/media/${mediaId}`, config))
   },
@@ -20,16 +26,16 @@ export const mediaApi = {
   },
 }
 
-/** 轮询直至 status∈{1,2} 或超时（契约建议 800ms×30） */
+/** 轮询直至图片/视频完成或失败（契约建议 800ms×30）。 */
 export async function waitProcessed(mediaId, { intervalMs = 800, maxTries = 30, signal } = {}) {
   for (let i = 0; i < maxTries; i++) {
     if (signal?.aborted) throw abortError()
     const s = await mediaApi.status(mediaId, { signal })
-    if (s.status === 1) return s
-    if (s.status === 2) throw new Error('图片处理失败')
+    if (s.status === 1 || s.status === 12) return s
+    if (s.status === 2 || s.status === 13 || s.status === 14) throw new Error('媒体处理失败')
     await waitWithAbort(intervalMs, signal)
   }
-  throw new Error('图片处理超时')
+  throw new Error('媒体处理超时')
 }
 
 function waitWithAbort(ms, signal) {

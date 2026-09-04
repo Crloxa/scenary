@@ -1,5 +1,19 @@
 # Changelog · Scenary
 
+## [v2.36] · 2026-09-04 · P12 视频与地点基础链路完成
+
+- **功能落地**：完成 V7 视频媒体字段与笔记坐标、MP4/MOV/WEBM 魔数校验、200MB/120秒/3840长边限制、独立 `video.transcode` 队列与 `video.dlq`，容器内 ffprobe/ffmpeg 生成封面和 480p/720p MP4；原始视频只保留 object key，不进入响应（影响 `backend/src/main/java/com/scenary/media/`、`backend/src/main/java/com/scenary/mq/VideoTranscodeConsumer.java`、`backend/src/main/resources/db/migration/V7__video_location.sql`、`backend/Dockerfile`、`docker-compose.yml`）。
+- **地点与前端**：完成服务端只读 EXIF GPS 候选、MAP/手工坐标发布和公开响应隐私保护；发布页支持视频预览/处理中/失败重传/离开保护，详情页使用转码视频播放（影响 `backend/src/main/java/com/scenary/note/`、`frontend/src/views/PublishView.vue`、`frontend/src/views/NoteDetailView.vue`、`frontend/src/api/`）。
+- **缺陷修复**：发现 16:9 视频按 854×480 等比缩放会得到奇数宽度 853，导致 libx264 失败；转码滤镜增加偶数尺寸 pad，实测最终产物为 854×480（影响 `backend/src/main/java/com/scenary/media/VideoTranscodeService.java`）。
+- **验收闭环**：P12 黑盒 `11/11`、后端 JUnit `39/39`、前端 Vitest `31/31`、构建 `107 modules`、三浏览器 Playwright `3/3`、Compose 重建/健康和 V7 实查通过；证据与学习笔记已归档并同步 Checklist、HANDOVER、README、AGENTS（影响 `docs/evidence/2026-09-04-P12视频与地点验收.md`、`docs/learning/19-P12视频转码与地点隐私.md`、`frontend/e2e/p12-video.spec.js`）。
+- **边界**：分片/预签名/断点续传、私有桶/短时签名、外部逆地理编码和地图 UI 延后到 P12-E1/后续增强；现有 Compose MinIO public-read 边界保持不变。
+
+## [v2.35] · 2026-09-04 · P12 视频与地点基础链路立项
+
+- **范围先行**：P12 首期收敛为单文件视频基础上传/转码、封面与 480p/720p MP4、手工/地图坐标及 EXIF 隐私读取；分片/预签名断点续传、外部逆地理编码和地图 UI 延后，不在本轮扩大范围（影响 `docs/05-后续开发路线图与实施手册.md`、`docs/03-MVP实施与Docker部署.md`）。
+- **依赖冻结登记**：允许引入容器运行时 `ffmpeg/ffprobe` 和 Java `metadata-extractor`，前者承担容器探测/转码，后者只读图片 EXIF GPS；均登记回装位置、限制与回滚边界，不引入地图供应商或前端地图依赖（影响 `docs/01-技术栈与总体架构.md`）。
+- **契约登记**：API 升级为 v1.4，新增 `/media/videos`、视频状态/播放字段和笔记坐标字段；实现与 P12 验收待本阶段后续提交补齐（影响 `docs/02-API接口规范.md`）。
+
 ## [v2.34] · 2026-09-04 · P11 搜索与发现完成
 
 - **功能落地**：新增公开笔记搜索后端与 `GET /api/v1/search/notes`，覆盖标题/正文/地点/作者昵称，采用受控 LIKE、公开/软删/禁用作者过滤、`recent`/`relevance` 排序、opaque cursor 和纯文本 highlight（影响 `backend/src/main/java/com/scenary/search/`、`backend/src/main/resources/mapper/SearchMapper.xml`、`docs/02-API接口规范.md`）。

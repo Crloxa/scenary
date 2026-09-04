@@ -5,9 +5,13 @@ package com.scenary.media;
  */
 public record MediaItemVO(
         Long mediaId,
+        String mediaType,
         String url,
         String thumbUrl,
         Integer status,
         Integer width,
-        Integer height) {
+        Integer height,
+        Long durationMs,
+        String playbackUrl,
+        String playbackLowUrl) {
 }

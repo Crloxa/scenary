@@ -9,7 +9,7 @@ RUN mvn -B clean package -DskipTests
 # ---- runtime ----
 FROM eclipse-temurin:21-jre-alpine@sha256:974b08960c5d96694c780e65b2d5705268ab1e1ca1a0dd0caf4ba6c3fe34d699
 WORKDIR /app
-RUN apk add --no-cache wget \
+RUN apk add --no-cache wget ffmpeg \
     && addgroup -S app \
     && adduser -S app -G app
 USER app

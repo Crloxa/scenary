@@ -2,7 +2,7 @@
 
 > 本文档是前后端并行开发的**唯一契约**。实现以本文为准；不一致时改代码不改文档，改文档必须记录变更。
 > 配套：架构背景见 [01](01-技术栈与总体架构.md)，施工顺序见 [03](03-MVP实施与Docker部署.md)。
-> 版本 v1.3 · 2026-09-04
+> 版本 v1.4 · 2026-09-04
 
 ---
 
@@ -214,7 +214,26 @@ multipart/form-data，字段名 `files`，可重复多个，1≤数量≤9；单
 状态机：`0 PROCESSING → 1 DONE / 2 FAILED`；消费者本地重试耗尽后先写入 `status=2` 与失败原因/时间，再 `nack(requeue=false)` 进入 DLQ，前端可立即展示失败并允许重传。
 错误：40300 非 owner；40400 不存在。
 
-### 4.3 DELETE /media/{mediaId} — 删除未使用的媒体 🔒 (仅 owner)
+### 4.3 POST /media/videos — 上传视频 🔒
+
+multipart/form-data，字段名固定 `file`，一次一个视频；上限 200MB，服务端按容器格式/魔数识别 MP4/MOV/WEBM，忽略扩展名和客户端 MIME。当前基础链路限制时长 ≤120 秒、分辨率最长边 ≤3840，超过限制返回 `40000`。
+
+流程：写入私有原始对象 → 建立 `mediaType=VIDEO`、`status=11 PROCESSING` 行 → 发布独立 `video.transcode` 消息 → 立即返回。消费者使用 `ffprobe/ffmpeg` 生成 JPEG 封面和 480p/720p MP4；原始视频不出现在响应中。视频状态码为 `10 UPLOADING`、`11 PROCESSING`、`12 READY`、`13 FAILED`、`14 EXPIRED`，不能与图片的 `0/1/2` 混用。
+
+响应 data：
+
+```json
+{
+  "mediaId": 601, "mediaType": "VIDEO", "status": 11,
+  "url": "http://.../thumb/202609/video_t.jpg", "thumbUrl": null,
+  "width": null, "height": null, "durationMs": null,
+  "playbackUrl": null, "playbackLowUrl": null
+}
+```
+
+处理完成后 `GET /media/{mediaId}` 返回 `status=12`、封面 `url/thumbUrl`、`durationMs`、`playbackUrl`（720p）和 `playbackLowUrl`（480p）；失败为 `status=13`，前端显示失败并允许删除后重传。视频队列与图片缩略图队列隔离，失败消息进入视频专用 DLQ。
+
+### 4.4 DELETE /media/{mediaId} — 删除未使用的媒体 🔒 (仅 owner)
 
 仅允许 note_id IS NULL 的游离媒体删除（发布绑定后走删笔记通道）。删除接口保留兼容的异步清理语义；后台定时任务会在保留期后删除对象并清理数据库行。响应 data=null。
 
@@ -231,12 +250,16 @@ multipart/form-data，字段名 `files`，可重复多个，1≤数量≤9；单
   "title": "雨后的四姑娘山",
   "content": "十月初的雪线，云开了一小时。拍摄于双桥沟。",
   "placeName": "四川·四姑娘山",
+  "latitude": 30.9785,
+  "longitude": 102.7591,
+  "placeSource": "MAP",
+  "placePrecision": "EXACT",
   "mediaIds": [501, 502, 503],
   "requestKey": "7d4a0b4b-0e06-4cbe-a7d6-f4d1f1b2a6f0"
 }
 ```
 
-校验：title 1~64 必填；content ≤2000 可空串；mediaIds 1~9 个、全部属于本人、全部 status=1（否则 40901）；placeName ≤128 可空；requestKey 可选，建议 UUID，同一 user+requestKey 重试返回同一篇笔记。
+校验：title 1~64 必填；content ≤2000 可空串；mediaIds 1~9 个、全部属于本人、图片 status=1 或视频 status=12（否则 40901）；placeName ≤128 可空；latitude 范围 -90~90、longitude 范围 -180~180，必须成对出现；placeSource 取 `MANUAL`、`EXIF`、`MAP`，缺省按来源推断；placePrecision ≤32。EXIF 坐标只在服务端读取，公开响应不返回原始 EXIF 坐标，只有用户明确选择 MAP/分享坐标时才返回 latitude/longitude；requestKey 可选，建议 UUID，同一 user+requestKey 重试返回同一篇笔记。
 事务动作：insert notes → 批量 update media SET note_id, order_no(1..n) → 回填 notes.cover_url=首图 thumb_url、media_count → 事务提交后由 Controller 推进 Redis `feed:first:v1:version`，避免发布响应前的旧查询回写为当前首页快照。
 
 响应 data：
@@ -257,6 +280,10 @@ multipart/form-data，字段名 `files`，可重复多个，1≤数量≤9；单
   "title": "雨后的四姑娘山",
   "content": "十月初的雪线……",
   "placeName": "四川·四姑娘山",
+  "latitude": 30.9785,
+  "longitude": 102.7591,
+  "placeSource": "MAP",
+  "placePrecision": "EXACT",
   "visibility": 1,
   "createdAt": 1756261200000,
   "author": {
@@ -264,8 +291,9 @@ multipart/form-data，字段名 `files`，可重复多个，1≤数量≤9；单
     "avatarUrl": "http://.../avatar/10086/a1b2.jpg"
   },
   "images": [
-    { "mediaId": 501, "url": "http://.../thumb/202608/a1_t.jpg",
-      "thumbUrl": "http://.../thumb/202608/a1_t.jpg", "width": 1080, "height": 1440 },
+    { "mediaId": 501, "mediaType": "IMAGE", "url": "http://.../thumb/202608/a1_t.jpg",
+      "thumbUrl": "http://.../thumb/202608/a1_t.jpg", "width": 1080, "height": 1440,
+      "durationMs": null, "playbackUrl": null, "playbackLowUrl": null },
     { "mediaId": 502, "url": "...", "thumbUrl": "...", "width": 1080, "height": 810 }
   ],
   "social": {
@@ -281,7 +309,7 @@ multipart/form-data，字段名 `files`，可重复多个，1≤数量≤9；单
 }
 ```
 
-说明：列表场景只用 coverUrl/thumbUrl；详情页 img 用返回的 url（默认缩略图展示，是否暴露原图由 `SCENARY_MINIO_EXPOSE_ORIGINAL_URL` 决定）。
+说明：列表场景只用 coverUrl/thumbUrl；详情页图片用 `url`，视频用 `url` 作封面并以 `playbackUrl/playbackLowUrl` 播放；原始视频 object key 不返回。`latitude/longitude` 仅对用户明确选择分享的地点返回，EXIF 来源不返回原始坐标。
 
 ### 5.3 DELETE /notes/{id} — 删除笔记 🔒 (仅 author)
 
@@ -494,3 +522,4 @@ Query：`cursor`（缺省取最新，传上一页 `nextCursor` 后取更小的 i
 | v1.1 | 2026-09-04 | P9：新增点赞、收藏、关注、我的收藏；详情/Feed/主页增加社交状态与计数；V4 关系表迁移 |
 | v1.2 | 2026-09-04 | P10：新增评论/回复、软删除、通知分页和批量已读；V5 评论/通知表迁移 |
 | v1.3 | 2026-09-04 | P11：新增公开笔记搜索、recent/relevance 排序、opaque cursor、纯文本 highlight；V6 搜索读路径索引 |
+| v1.4 | 2026-09-04 | P12：新增视频上传/状态/播放字段、独立转码队列约定和笔记坐标字段；V7 媒体/地点扩展 |

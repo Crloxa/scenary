@@ -20,10 +20,25 @@ public interface MediaMapper {
                             @Param("width") Integer width,
                             @Param("height") Integer height);
 
+    int updateVideoProcessResult(@Param("id") Long id,
+                                 @Param("thumbObjectKey") String thumbObjectKey,
+                                 @Param("thumbUrl") String thumbUrl,
+                                 @Param("width") Integer width,
+                                 @Param("height") Integer height,
+                                 @Param("durationMs") Long durationMs,
+                                 @Param("playbackObjectKey") String playbackObjectKey,
+                                 @Param("playbackUrl") String playbackUrl,
+                                 @Param("playbackLowObjectKey") String playbackLowObjectKey,
+                                 @Param("playbackLowUrl") String playbackLowUrl);
+
     /** 最终失败：写 status=2 并记录失败原因/时间，供轮询端立即展示失败态。 */
     int updateFailureResult(@Param("id") Long id,
                             @Param("failureReason") String failureReason,
                             @Param("failedAt") java.util.Date failedAt);
+
+    int updateVideoFailureResult(@Param("id") Long id,
+                                 @Param("failureReason") String failureReason,
+                                 @Param("failedAt") java.util.Date failedAt);
 
     /** 抢占一次 MQ 发布机会，避免定时重试与首发并发重复抢占。 */
     int claimPublish(@Param("id") Long id, @Param("attemptedAt") java.util.Date attemptedAt);

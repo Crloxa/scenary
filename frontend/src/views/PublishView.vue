@@ -12,8 +12,13 @@ const userStore = useUserStore()
 
 const MAX_FILES = 9
 const MAX_BYTES = 10 * 1024 * 1024
+const MAX_VIDEO_BYTES = 200 * 1024 * 1024
 const MAX_CONCURRENT = 3
-const ACCEPT = 'image/jpeg,image/png,image/gif'
+const ACCEPT = 'image/jpeg,image/png,image/gif,video/mp4,video/quicktime,video/webm'
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif']
+const VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/webm']
+const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif']
+const VIDEO_EXTENSIONS = ['mp4', 'mov', 'webm']
 let uid = 0
 let activeUploads = 0
 let disposed = false
@@ -25,19 +30,38 @@ const items = ref([])
 const title = ref('')
 const content = ref('')
 const placeName = ref('')
+const latitude = ref('')
+const longitude = ref('')
+const placeSource = ref('MAP')
+const placePrecision = ref('EXACT')
 const visibility = ref('1')
 const submitting = ref(false)
 const fileInput = ref(null)
 
+const coordinateError = computed(() => {
+  const hasLatitude = coordinateText(latitude.value) !== ''
+  const hasLongitude = coordinateText(longitude.value) !== ''
+  if (!hasLatitude && !hasLongitude) return ''
+  if (hasLatitude !== hasLongitude) return '纬度和经度必须同时填写'
+  const lat = Number(latitude.value)
+  const lng = Number(longitude.value)
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90) return '纬度范围为 -90~90'
+  if (!Number.isFinite(lng) || lng < -180 || lng > 180) return '经度范围为 -180~180'
+  return ''
+})
+const hasCoordinates = computed(() => coordinateText(latitude.value) !== ''
+  && coordinateText(longitude.value) !== '')
 const canSubmit = computed(
   () => title.value.trim().length > 0 &&
         items.value.length > 0 &&
         items.value.every(i => i.progress === 'ready') &&
+        !coordinateError.value &&
         !submitting.value,
 )
 const titleCount = computed(() => title.value.length)
 const hasDraft = computed(() => Boolean(
-  title.value.trim() || content.value.trim() || placeName.value.trim() || items.value.length,
+  title.value.trim() || content.value.trim() || placeName.value.trim()
+    || coordinateText(latitude.value) || coordinateText(longitude.value) || items.value.length,
 ))
 
 function handleBeforeUnload(event) {
@@ -68,8 +92,16 @@ function onPick(e) {
       toast(reason, 'error')
       continue
     }
+    if (isVideoFile(f) && items.value.length > 0) {
+      toast('视频不能与图片或其他视频混合发布', 'error')
+      continue
+    }
+    if (!isVideoFile(f) && items.value.some(item => item.kind === 'video')) {
+      toast('视频不能与图片混合发布', 'error')
+      continue
+    }
     if (items.value.length >= MAX_FILES) {
-      toast(`最多 ${MAX_FILES} 张图片`, 'error')
+      toast(`最多 ${MAX_FILES} 个媒体`, 'error')
       break
     }
     addItem(f)
@@ -80,10 +112,15 @@ function dragOver(e) { e.preventDefault() }
 function onDrop(e) {
   e.preventDefault()
   for (const f of e.dataTransfer.files) {
-    if (items.value.length >= MAX_FILES) return toast(`最多 ${MAX_FILES} 张图片`, 'error')
+    if (items.value.length >= MAX_FILES) return toast(`最多 ${MAX_FILES} 个媒体`, 'error')
     const reason = validateFile(f)
     if (reason) {
       toast(reason, 'error')
+      continue
+    }
+    if ((isVideoFile(f) && items.value.length > 0)
+      || (!isVideoFile(f) && items.value.some(item => item.kind === 'video'))) {
+      toast('视频不能与图片混合发布', 'error')
       continue
     }
     addItem(f)
@@ -91,14 +128,28 @@ function onDrop(e) {
 }
 
 function validateFile(file) {
-  const allowed = ['image/jpeg', 'image/png', 'image/gif']
   const extension = file?.name?.split('.').pop()?.toLowerCase()
   if (!file || !file.size) return '不能添加空文件'
-  if (file.size > MAX_BYTES) return '单张图片不能超过 10MB'
-  if (!allowed.includes(file.type) && !(file.type === '' && ['jpg', 'jpeg', 'png', 'gif'].includes(extension))) {
-    return '仅支持 jpg/png/gif 图片'
+  if (isVideoFile(file)) {
+    if (file.size > MAX_VIDEO_BYTES) return '单个视频不能超过 200MB'
+    return ''
   }
-  return ''
+  if (isImageFile(file)) {
+    if (file.size > MAX_BYTES) return '单张图片不能超过 10MB'
+    return ''
+  }
+  return '仅支持 jpg/png/gif 图片，或 mp4/mov/webm 视频'
+}
+
+function isVideoFile(file) {
+  const extension = file?.name?.split('.').pop()?.toLowerCase()
+  return VIDEO_TYPES.includes(file?.type) || (file?.type === '' && VIDEO_EXTENSIONS.includes(extension))
+}
+
+function isImageFile(file) {
+  const extension = file?.name?.split('.').pop()?.toLowerCase()
+  return IMAGE_TYPES.includes(file?.type)
+    || (file?.type === '' && IMAGE_EXTENSIONS.includes(extension))
 }
 
 function addItem(file) {
@@ -107,8 +158,12 @@ function addItem(file) {
     key,
     file,
     url: URL.createObjectURL(file),
+    kind: isVideoFile(file) ? 'video' : 'image',
     progress: 'queued',
     mediaId: null,
+    playbackUrl: null,
+    playbackLowUrl: null,
+    durationMs: null,
     controller: null,
     removed: false,
     error: '',
@@ -131,19 +186,27 @@ async function startUpload(item) {
   item.progress = 'uploading'
   item.controller = new AbortController()
   try {
-    // 立即上传拿 mediaId，再轮询消费者产出缩略图
-    const uploaded = await mediaApi.uploadOne(item.file, { signal: item.controller.signal })
+    // 立即上传拿 mediaId，再轮询消费者产出缩略图/视频转码产物
+    const uploaded = item.kind === 'video'
+      ? await mediaApi.uploadVideo(item.file, { signal: item.controller.signal })
+      : await mediaApi.uploadOne(item.file, { signal: item.controller.signal })
     if (item.removed || item.controller.signal.aborted || disposed) {
       if (uploaded?.mediaId && !published) await removeOrphan(uploaded.mediaId)
       return
     }
     item.mediaId = uploaded.mediaId
+    item.playbackUrl = uploaded.playbackUrl || null
+    item.playbackLowUrl = uploaded.playbackLowUrl || null
+    item.durationMs = uploaded.durationMs || null
     item.progress = 'processing'
-    await waitProcessed(item.mediaId, { signal: item.controller.signal })
+    const ready = await waitProcessed(item.mediaId, { signal: item.controller.signal })
     if (item.removed || item.controller.signal.aborted || disposed) {
       if (item.mediaId && !published) await removeOrphan(item.mediaId)
       return
     }
+    item.playbackUrl = ready.playbackUrl || item.playbackUrl
+    item.playbackLowUrl = ready.playbackLowUrl || item.playbackLowUrl
+    item.durationMs = ready.durationMs || item.durationMs
     item.progress = 'ready'
     item.error = ''
   } catch (err) {
@@ -154,7 +217,9 @@ async function startUpload(item) {
     }
     if (!isAbortError(err) && !item.removed && !disposed) {
       item.progress = 'fail'
-      item.error = getErrorText(err) || '这张图处理失败，可移除后重传'
+      item.error = getErrorText(err) || (item.kind === 'video'
+        ? '视频处理失败，可移除后重传'
+        : '这张图处理失败，可移除后重传')
       toast(item.error, 'error')
     }
   } finally {
@@ -220,6 +285,10 @@ async function submitNote() {
       title: title.value.trim(),
       content: content.value.trim(),
       placeName: placeName.value.trim(),
+      latitude: coordinateText(latitude.value) === '' ? null : Number(latitude.value),
+      longitude: coordinateText(longitude.value) === '' ? null : Number(longitude.value),
+      placeSource: coordinateText(latitude.value) === '' ? null : placeSource.value,
+      placePrecision: coordinateText(latitude.value) === '' ? null : placePrecision.value,
       mediaIds: ordered,
       visibility: Number(visibility.value),
       requestKey,
@@ -234,6 +303,10 @@ async function submitNote() {
   } finally {
     submitting.value = false
   }
+}
+
+function coordinateText(value) {
+  return value == null ? '' : String(value).trim()
 }
 
 onUnmounted(() => {
@@ -253,7 +326,7 @@ onUnmounted(() => {
   <section class="max-w-[640px] mx-auto pt-6">
     <h1 class="text-lg font-semibold mb-4">发布笔记</h1>
 
-    <!-- 图片选区：拖拽/点选，即时本地预览、可删可排序 -->
+    <!-- 媒体选区：图片可多选，视频单选且不可与图片混合 -->
     <div
       class="rounded-2xl border-2 border-dashed border-line hover:border-brand-300 transition p-3 bg-surface"
       @dragover="dragOver"
@@ -261,7 +334,15 @@ onUnmounted(() => {
     >
       <div class="flex flex-wrap gap-2.5">
         <div v-for="(it, idx) in items" :key="it.key" data-testid="upload-item" class="relative w-[104px]">
-          <img :src="it.url" alt="" class="w-[104px] h-[104px] object-cover rounded-xl" />
+          <img v-if="it.kind === 'image'" :src="it.url" alt="" class="w-[104px] h-[104px] object-cover rounded-xl" />
+          <video
+            v-else
+            :src="it.url"
+            class="w-[104px] h-[104px] object-cover rounded-xl"
+            muted
+            playsinline
+            preload="metadata"
+          ></video>
           <!-- 状态徽标 -->
           <span
             v-if="it.progress !== 'ready'"
@@ -280,7 +361,7 @@ onUnmounted(() => {
 
           <!-- 操作角标 -->
           <div class="absolute top-1 right-1 flex gap-1">
-            <button aria-label="移除图片" class="w-5 h-5 rounded-full bg-black/55 text-white text-xs leading-none grid place-items-center" title="移除" @click="removeItem(it.key)">×</button>
+            <button :aria-label="`移除${it.kind === 'video' ? '视频' : '图片'}`" class="w-5 h-5 rounded-full bg-black/55 text-white text-xs leading-none grid place-items-center" title="移除" @click="removeItem(it.key)">×</button>
           </div>
           <div class="absolute top-1 left-1 flex gap-0.5">
             <button v-if="idx > 0" aria-label="前移图片" class="w-5 h-5 rounded-full bg-black/45 text-white text-[10px]" title="前移" @click="moveItem(it.key, -1)">←</button>
@@ -304,8 +385,8 @@ onUnmounted(() => {
           +
         </button>
       </div>
-      <p class="mt-2 text-[11px] text-ink-soft">{{ items.length }}/{{ MAX_FILES }} 张 · 支持 jpg/png/gif · 可拖拽进来</p>
-      <input ref="fileInput" type="file" multiple :accept="ACCEPT" aria-label="选择图片" class="hidden" @change="onPick" />
+      <p class="mt-2 text-[11px] text-ink-soft">{{ items.length }}/{{ MAX_FILES }} 个媒体 · 支持 jpg/png/gif，或单个 mp4/mov/webm 视频 · 可拖拽进来</p>
+      <input ref="fileInput" type="file" multiple :accept="ACCEPT" aria-label="选择图片或视频" class="hidden" @change="onPick" />
     </div>
 
     <!-- 表单 -->
@@ -339,6 +420,45 @@ onUnmounted(() => {
         placeholder="📍 添加地点（选填）"
         class="w-full h-10 px-3 rounded-xl bg-mute border border-transparent outline-none focus:border-brand-300 text-sm"
       />
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label for="publish-latitude" class="sr-only">纬度</label>
+          <input
+            id="publish-latitude"
+            v-model="latitude"
+            data-testid="input-latitude"
+            type="number"
+            step="any"
+            placeholder="纬度（可选）"
+            class="w-full h-10 px-3 rounded-xl bg-mute border border-transparent outline-none focus:border-brand-300 text-sm"
+          />
+        </div>
+        <div>
+          <label for="publish-longitude" class="sr-only">经度</label>
+          <input
+            id="publish-longitude"
+            v-model="longitude"
+            data-testid="input-longitude"
+            type="number"
+            step="any"
+            placeholder="经度（可选）"
+            class="w-full h-10 px-3 rounded-xl bg-mute border border-transparent outline-none focus:border-brand-300 text-sm"
+          />
+        </div>
+      </div>
+      <p v-if="coordinateError" data-testid="location-error" class="text-xs text-red-500" role="alert">{{ coordinateError }}</p>
+      <div v-if="hasCoordinates" class="grid grid-cols-2 gap-2">
+        <label class="sr-only" for="publish-place-source">地点来源</label>
+        <select id="publish-place-source" v-model="placeSource" class="h-10 px-3 rounded-xl bg-mute border border-transparent text-sm">
+          <option value="MAP">地图选择</option>
+          <option value="MANUAL">手工填写</option>
+        </select>
+        <label class="sr-only" for="publish-place-precision">地点精度</label>
+        <select id="publish-place-precision" v-model="placePrecision" class="h-10 px-3 rounded-xl bg-mute border border-transparent text-sm">
+          <option value="EXACT">精确</option>
+          <option value="APPROXIMATE">大致位置</option>
+        </select>
+      </div>
       <fieldset class="flex items-center gap-4 text-sm text-ink-soft select-none">
         <legend class="sr-only">笔记可见范围</legend>
         <label class="inline-flex items-center gap-1.5 cursor-pointer">

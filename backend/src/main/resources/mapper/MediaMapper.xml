@@ -5,7 +5,9 @@
 
     <sql id="all_columns">
         id, user_id, note_id, order_no, bucket, object_key, url,
-        thumb_object_key, thumb_url, mime, size_bytes, width, height, status,
+        thumb_object_key, thumb_url, mime, media_type, size_bytes, width, height, duration_ms,
+        playback_object_key, playback_url, playback_low_object_key, playback_low_url,
+        exif_latitude, exif_longitude, status,
         failure_reason, failed_at, publish_status, publish_attempts, last_publish_at,
         created_at, updated_at
     </sql>
@@ -13,11 +15,15 @@
     <insert id="insert" parameterType="com.scenary.media.MediaEntity"
             useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO media
-            (user_id, note_id, order_no, bucket, object_key, url, mime, size_bytes, status,
+            (user_id, note_id, order_no, bucket, object_key, url, mime, media_type, size_bytes,
+             width, height, duration_ms, playback_object_key, playback_url,
+             playback_low_object_key, playback_low_url, exif_latitude, exif_longitude, status,
              publish_status, publish_attempts)
         VALUES
             (#{userId}, #{noteId}, #{orderNo}, #{bucket}, #{objectKey},
-             #{url}, #{mime}, #{sizeBytes}, #{status}, 0, 0)
+             #{url}, #{mime}, #{mediaType}, #{sizeBytes}, #{width}, #{height}, #{durationMs},
+             #{playbackObjectKey}, #{playbackUrl}, #{playbackLowObjectKey}, #{playbackLowUrl},
+             #{exifLatitude}, #{exifLongitude}, #{status}, 0, 0)
     </insert>
 
     <select id="findById" resultType="com.scenary.media.MediaEntity">
@@ -39,6 +45,23 @@
         WHERE id = #{id} AND status = 0
     </update>
 
+    <update id="updateVideoProcessResult">
+        UPDATE media
+        SET status = 12,
+            thumb_object_key = #{thumbObjectKey},
+            thumb_url = #{thumbUrl},
+            width = #{width},
+            height = #{height},
+            duration_ms = #{durationMs},
+            playback_object_key = #{playbackObjectKey},
+            playback_url = #{playbackUrl},
+            playback_low_object_key = #{playbackLowObjectKey},
+            playback_low_url = #{playbackLowUrl},
+            failure_reason = NULL,
+            failed_at = NULL
+        WHERE id = #{id} AND media_type = 1 AND status = 11
+    </update>
+
     <update id="updateFailureResult">
         UPDATE media
         SET status         = 2,
@@ -49,6 +72,23 @@
             failure_reason = #{failureReason},
             failed_at      = #{failedAt}
         WHERE id = #{id} AND status = 0
+    </update>
+
+    <update id="updateVideoFailureResult">
+        UPDATE media
+        SET status = 13,
+            thumb_object_key = NULL,
+            thumb_url = NULL,
+            width = NULL,
+            height = NULL,
+            duration_ms = NULL,
+            playback_object_key = NULL,
+            playback_url = NULL,
+            playback_low_object_key = NULL,
+            playback_low_url = NULL,
+            failure_reason = #{failureReason},
+            failed_at = #{failedAt}
+        WHERE id = #{id} AND media_type = 1 AND status = 11
     </update>
 
     <update id="claimPublish">
@@ -79,7 +119,7 @@
         SELECT <include refid="all_columns"/>
         FROM media
         WHERE note_id IS NULL
-          AND status = 0
+          AND status IN (0, 11)
           AND publish_status = 0
           AND publish_attempts &lt; 3
           AND (last_publish_at IS NULL OR last_publish_at &lt; #{before})
@@ -112,7 +152,7 @@
         SELECT <include refid="all_columns"/>
         FROM media
         WHERE note_id IS NULL
-          AND status IN (0, 2)
+          AND status IN (0, 2, 11, 13, 14)
           AND created_at &lt; #{before}
         ORDER BY id ASC
         LIMIT #{limit}

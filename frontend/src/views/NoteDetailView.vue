@@ -267,23 +267,34 @@ function fmt(ts) {
       </span>
     </div>
 
-    <!-- 大图纵向流 -->
+    <!-- 图片/视频纵向流；视频只使用转码产物，不请求原始对象 -->
     <div class="mt-4 space-y-3">
       <template v-for="(img, i) in detail.images" :key="img.mediaId">
         <img
-          v-if="!brokenImages.has(img.mediaId)"
+          v-if="img.mediaType !== 'VIDEO' && !brokenImages.has(img.mediaId)"
           :src="img.url"
           :alt="`${detail.title} 图 ${i + 1}`"
           loading="lazy"
           class="w-full max-h-[720px] object-contain bg-black/95 rounded-xl"
           @error="markImageFailed(img.mediaId)"
         />
+        <video
+          v-else-if="img.mediaType === 'VIDEO' && !brokenImages.has(img.mediaId)"
+          :src="img.playbackUrl || img.playbackLowUrl"
+          :poster="img.url"
+          :aria-label="`${detail.title} 视频 ${i + 1}`"
+          controls
+          playsinline
+          preload="metadata"
+          class="w-full max-h-[720px] object-contain bg-black rounded-xl"
+          @error="markImageFailed(img.mediaId)"
+        ></video>
         <div
           v-else
           role="img"
-          :aria-label="`${detail.title} 第 ${i + 1} 张图片暂时无法显示`"
+          :aria-label="`${detail.title} 第 ${i + 1} 个媒体暂时无法显示`"
           class="w-full min-h-56 grid place-items-center bg-mute rounded-xl text-sm text-ink-soft"
-        >图片暂时无法显示</div>
+        >{{ img.mediaType === 'VIDEO' ? '视频暂时无法播放' : '图片暂时无法显示' }}</div>
       </template>
     </div>
 
