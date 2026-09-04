@@ -23,6 +23,7 @@ import com.scenary.note.NoteService;
 import com.scenary.common.PageResult;
 import com.scenary.common.AuthorVO;
 import com.scenary.user.UserService;
+import com.scenary.notification.NotificationService;
 
 @ExtendWith(MockitoExtension.class)
 class SocialServiceTest {
@@ -33,12 +34,15 @@ class SocialServiceTest {
     private NoteService noteService;
     @Mock
     private UserService userService;
+    @Mock
+    private NotificationService notificationService;
 
     @Test
     void repeatedLikeIsIdempotentAndReturnsCurrentCounts() {
         SocialService service = new SocialService(socialMapper, noteService, userService);
         when(noteService.socialTarget(9L)).thenReturn(new NoteService.NoteTarget(9L, 11L));
         when(socialMapper.selectNoteSocial(List.of(9L), 7L)).thenReturn(List.of(row(true, false, 1, 2)));
+        when(socialMapper.insertLike(9L, 7L)).thenReturn(1);
 
         SocialVO first = service.like(7L, 9L, true);
         SocialVO second = service.like(7L, 9L, true);
@@ -75,6 +79,7 @@ class SocialServiceTest {
     void followReturnsFollowerCountAndState() {
         SocialService service = new SocialService(socialMapper, noteService, userService);
         when(socialMapper.selectUserSocial(11L, 7L)).thenReturn(userRow(true, 3, 4));
+        when(socialMapper.insertFollow(7L, 11L)).thenReturn(1);
 
         SocialVO result = service.follow(7L, 11L, true);
 

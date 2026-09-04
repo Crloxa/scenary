@@ -6,6 +6,8 @@ import com.scenary.common.ErrorCode;
 import com.scenary.common.PageResult;
 import com.scenary.common.SocialVO;
 import com.scenary.note.NoteService;
+import com.scenary.notification.NotificationService;
+import com.scenary.notification.NotificationType;
 import com.scenary.user.UserService;
 
 import org.springframework.stereotype.Service;
@@ -25,11 +27,19 @@ public class SocialService {
     private final SocialMapper socialMapper;
     private final NoteService noteService;
     private final UserService userService;
+    private final NotificationService notificationService;
 
     public SocialService(SocialMapper socialMapper, NoteService noteService, UserService userService) {
+        this(socialMapper, noteService, userService, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public SocialService(SocialMapper socialMapper, NoteService noteService, UserService userService,
+                         NotificationService notificationService) {
         this.socialMapper = socialMapper;
         this.noteService = noteService;
         this.userService = userService;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -38,7 +48,10 @@ public class SocialService {
         NoteService.NoteTarget target = noteService.socialTarget(noteId);
         userService.ensureActive(target.authorId());
         if (enabled) {
-            socialMapper.insertLike(noteId, userId);
+            int inserted = socialMapper.insertLike(noteId, userId);
+            if (inserted == 1 && notificationService != null && target.authorId() != userId) {
+                notificationService.create(target.authorId(), userId, NotificationType.LIKE, noteId, null);
+            }
         } else {
             socialMapper.deleteLike(noteId, userId);
         }
@@ -66,7 +79,10 @@ public class SocialService {
             throw new BizException(ErrorCode.VALIDATION, "不能关注自己");
         }
         if (enabled) {
-            socialMapper.insertFollow(followerId, followingId);
+            int inserted = socialMapper.insertFollow(followerId, followingId);
+            if (inserted == 1 && notificationService != null) {
+                notificationService.create(followingId, followerId, NotificationType.FOLLOW, null, null);
+            }
         } else {
             socialMapper.deleteFollow(followerId, followingId);
         }

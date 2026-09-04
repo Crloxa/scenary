@@ -157,6 +157,25 @@ public class NoteService {
         return new NoteTarget(n.getId(), n.getUserId());
     }
 
+    /** 评论允许作者查看自己的私密笔记；写入时使用行锁与软删竞态隔离。 */
+    public NoteTarget commentTarget(Long viewerId, long noteId) {
+        NoteEntity n = noteMapper.findById(noteId);
+        if (n == null || n.getVisibility() == null || n.getVisibility() == 2
+                || (n.getVisibility() == 0 && !Objects.equals(viewerId, n.getUserId()))) {
+            throw new BizException(ErrorCode.NOT_FOUND);
+        }
+        return new NoteTarget(n.getId(), n.getUserId());
+    }
+
+    public NoteTarget commentTargetForUpdate(long viewerId, long noteId) {
+        NoteEntity n = noteMapper.findByIdForUpdate(noteId);
+        if (n == null || n.getVisibility() == null || n.getVisibility() == 2
+                || (n.getVisibility() == 0 && viewerId != n.getUserId())) {
+            throw new BizException(ErrorCode.NOT_FOUND);
+        }
+        return new NoteTarget(n.getId(), n.getUserId());
+    }
+
     public record NoteTarget(long id, long authorId) {
     }
 

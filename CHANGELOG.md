@@ -1,5 +1,16 @@
 # Changelog · Scenary
 
+## [v2.29] · 2026-09-04 · P10 评论与通知验收与文档闭环
+
+- **功能完成**：新增一级评论/回复、同笔记复合外键、500/300 字限制、纯文本校验、20 条/分钟限流、作者软删除和已删除占位（影响 `backend/src/main/java/com/scenary/comment`、`V5__comments_notifications.sql`、`frontend/src/views/NoteDetailView.vue`）。
+- **通知闭环**：点赞、关注、评论、回复在同一 MySQL 事务中生成通知；新增倒序游标、未读数、指定/全部已读和通知页面，未引入 outbox、队列或第三方依赖（影响 `backend/src/main/java/com/scenary/notification`、`SocialService.java`、`frontend/src/views/NotificationsView.vue`、`TopNav.vue`）。
+- **验收闭环**：P10 黑盒 `17/17`、后端 JUnit `32/32`、前端 Vitest `21/21`、Vite `104 modules`、Playwright `1 passed`、Compose 重建/健康、Flyway V5 实查和浏览器只读流程通过；新增证据报告、学习笔记并同步 Checklist、HANDOVER、AGENTS、README 和路线图（影响 `docs/evidence/2026-09-04-P10评论与通知验收.md`、`docs/learning/16-P10评论通知事务与软删除.md` 及关联文档）。
+
+## [v2.28] · 2026-09-04 · P10 评论与通知立项
+
+- **契约先行**：固定评论按 `id ASC` 正序游标、通知按 `id DESC` 倒序游标；新增评论/回复、软删除、通知分页和批量已读接口，详情评论区与导航未读数进入 P10 范围（影响 `docs/02-API接口规范.md`、`docs/05-后续开发路线图与实施手册.md`）。
+- **数据与事务决策**：登记 Flyway V5 的 `comments`、`notifications` 设计；用复合外键限制回复只能落在同一笔记，评论/点赞/关注与通知先采用同库同步事务，不新增 outbox、队列或第三方依赖（影响 `docs/01-技术栈与总体架构.md`）。
+
 ## [v2.27] · 2026-09-04 · P9 社交最小闭环验收与文档闭环
 
 - **功能完成**：新增点赞/取消点赞、收藏/取消收藏、关注/取消关注及“我的收藏”游标列表；详情、Feed、公开主页返回统一社交状态，前端补齐详情/卡片/主页/收藏入口与匿名登录回跳（影响 `backend/src/main/java/com/scenary/social`、`frontend/src/api/social.js`、`frontend/src/views`、`frontend/src/components`）。

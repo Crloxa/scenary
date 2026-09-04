@@ -5,6 +5,7 @@ import { useUserStore } from '@/stores/user'
 import { isDark, toggleTheme } from '@/utils/theme'
 import { toast } from '@/utils/toast'
 import { authApi } from '@/api/auth'
+import { notificationApi } from '@/api/notification'
 
 const router = useRouter()
 const store = useUserStore()
@@ -13,6 +14,8 @@ const rootEl = ref(null)
 const darkMode = ref(isDark())
 const loggingOut = ref(false)
 const avatarImageFailed = ref(false)
+const unreadCount = ref(0)
+let notificationTimer = null
 
 watch(() => store.avatarUrl, () => { avatarImageFailed.value = false })
 
@@ -25,7 +28,38 @@ function closeOnOutside(e) {
   if (rootEl.value && !rootEl.value.contains(e.target)) menuOpen.value = false
 }
 onMounted(() => document.addEventListener('click', closeOnOutside))
-onUnmounted(() => document.removeEventListener('click', closeOnOutside))
+onMounted(() => {
+  startNotificationPolling()
+})
+onUnmounted(() => {
+  document.removeEventListener('click', closeOnOutside)
+  clearInterval(notificationTimer)
+})
+
+watch(() => store.isLoggedIn, loggedIn => {
+  if (loggedIn) startNotificationPolling()
+  else {
+    clearInterval(notificationTimer)
+    unreadCount.value = 0
+  }
+})
+
+async function refreshNotificationCount() {
+  if (!store.isLoggedIn) return
+  try {
+    const page = await notificationApi.list({ limit: 1 })
+    unreadCount.value = Number(page.unreadCount || 0)
+  } catch {
+    // 通知轮询降级，不阻塞导航和主页面
+  }
+}
+
+function startNotificationPolling() {
+  clearInterval(notificationTimer)
+  if (!store.isLoggedIn) return
+  refreshNotificationCount()
+  notificationTimer = window.setInterval(refreshNotificationCount, 30000)
+}
 
 function goPublish() {
   if (!store.isLoggedIn) {
@@ -78,6 +112,16 @@ async function logout() {
         </button>
 
         <template v-if="store.isLoggedIn">
+          <button
+            type="button"
+            data-testid="nav-notifications"
+            aria-label="通知"
+            class="relative w-9 h-9 shrink-0 rounded-full grid place-items-center text-base hover:bg-mute transition"
+            @click="router.push('/notifications')"
+          >
+            <span aria-hidden="true">♡</span>
+            <span v-if="unreadCount > 0" class="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] leading-4">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+          </button>
           <div ref="rootEl" class="relative">
             <button
               data-testid="nav-avatar"
@@ -103,6 +147,12 @@ async function logout() {
                 @click="router.push('/bookmarks'); menuOpen = false"
               >
                 我的收藏
+              </button>
+              <button
+                class="w-full text-left px-3 py-2 hover:bg-brand-50"
+                @click="router.push('/notifications'); menuOpen = false"
+              >
+                通知<span v-if="unreadCount" class="ml-1 text-xs text-red-500">({{ unreadCount }})</span>
               </button>
               <button :disabled="loggingOut" class="w-full text-left px-3 py-2 hover:bg-brand-50 text-red-500 disabled:opacity-60" data-testid="nav-logout" @click="logout">
                 {{ loggingOut ? '退出中…' : '退出登录' }}

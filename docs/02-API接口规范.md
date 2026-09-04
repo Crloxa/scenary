@@ -2,7 +2,7 @@
 
 > 本文档是前后端并行开发的**唯一契约**。实现以本文为准；不一致时改代码不改文档，改文档必须记录变更。
 > 配套：架构背景见 [01](01-技术栈与总体架构.md)，施工顺序见 [03](03-MVP实施与Docker部署.md)。
-> 版本 v1.1 · 2026-09-04
+> 版本 v1.2 · 2026-09-04
 
 ---
 
@@ -297,6 +297,64 @@ multipart/form-data，字段名 `files`，可重复多个，1≤数量≤9；单
 
 仅允许公开且未删除的笔记，幂等语义同点赞。匿名详情不返回用户私有关系状态，统一返回 `liked=false`、`bookmarked=false`、`following=false`，但公开计数仍返回。
 
+### 5.6 GET /notes/{id}/comments — 评论列表
+
+免认证可看公开笔记的评论；私密笔记仅作者可看，其他情况返回 40400。Query：`cursor`（缺省从最早评论开始，传上一页 `nextCursor` 后取更大的 id）、`limit`（默认 10，最大 20）。按 `id ASC` 固定正序，已删除评论保留为占位。
+
+响应 data：
+
+```json
+{
+  "list": [
+    {
+      "id": 701, "noteId": 901, "parentId": null,
+      "content": "云层打开的瞬间太美了", "status": 1,
+      "author": { "id": 10087, "nickname": "山间来客", "avatarUrl": null },
+      "createdAt": 1756261300000, "mine": false, "canDelete": false
+    }
+  ],
+  "nextCursor": 701, "hasMore": true
+}
+```
+
+`status=2` 时 `content` 固定为“该评论已删除”，前端保留评论位置；作者只能删除自己的评论，删除为软删且幂等。一级评论最多 500 字，回复最多 300 字；正文按纯文本处理，服务端拒绝 HTML/脚本片段、控制字符和超过 20 条/分钟的评论写入。
+
+### 5.7 POST /notes/{id}/comments — 创建评论或回复 🔒
+
+请求体：`{ "content": "评论内容", "parentId": null }`。`parentId` 缺省或为 null 创建一级评论；不为 null 时必须指向同一笔记下的未删除评论。成功返回上述评论条目。创建评论、点赞和关注会为目标用户生成站内通知；操作者对自己的笔记/账号执行动作不生成自通知。
+
+### 5.8 DELETE /comments/{id} — 软删除评论 🔒
+
+仅评论作者可操作（当前无管理员角色）；只能删除自己的评论，重复删除返回成功，其他作者返回 40300，不存在返回 40400。
+
+---
+
+## 5.9 通知模块 /notifications
+
+### GET /notifications — 当前用户通知 🔒
+
+Query：`cursor`（缺省取最新，传上一页 `nextCursor` 后取更小的 id）、`limit`（默认 10，最大 20），按 `id DESC` 固定倒序。响应在游标分页字段外增加 `unreadCount`；通知不因关联笔记/评论软删而消失。
+
+```json
+{
+  "list": [
+    {
+      "id": 801, "type": "COMMENT", "actor": { "id": 10087, "nickname": "山间来客", "avatarUrl": null },
+      "noteId": 901, "commentId": 701, "noteTitle": "雨后的四姑娘山",
+      "commentPreview": "云层打开的瞬间太美了", "readAt": null,
+      "createdAt": 1756261300000
+    }
+  ],
+  "nextCursor": 801, "hasMore": true, "unreadCount": 3
+}
+```
+
+`type` 当前取 `LIKE`、`FOLLOW`、`COMMENT`、`REPLY`。`readAt` 非 null 表示已读。
+
+### POST /notifications/read 🔒
+
+请求体：`{ "ids": [801, 802] }`；只更新当前用户拥有的通知，重复调用幂等。`ids` 为空数组表示将当前用户全部未读通知标记为已读，最多一次提交 100 个指定 id。成功返回 `data=null`。
+
 ---
 
 ## 6. Feed 模块 /feed
@@ -362,6 +420,7 @@ multipart/form-data，字段名 `files`，可重复多个，1≤数量≤9；单
 | /note/:id | 公开（私密会收到 404 展示） |
 | /publish | 必须登录（守卫重定向 login?redirect=/publish） |
 | /user/:id | 公开；id==me 时显示编辑入口 |
+| /notifications | 必须登录；通知轮询失败不阻塞其他页面 |
 
 ---
 
@@ -371,3 +430,4 @@ multipart/form-data，字段名 `files`，可重复多个，1≤数量≤9；单
 |---|---|---|
 | v1.0 | 2026-08-27 | 初版：18 个端点定稿 |
 | v1.1 | 2026-09-04 | P9：新增点赞、收藏、关注、我的收藏；详情/Feed/主页增加社交状态与计数；V4 关系表迁移 |
+| v1.2 | 2026-09-04 | P10：新增评论/回复、软删除、通知分页和批量已读；V5 评论/通知表迁移 |

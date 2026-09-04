@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.scenary.common.BizException;
+import com.scenary.common.AuthorVO;
 import com.scenary.common.ErrorCode;
 import com.scenary.common.GridCardVO;
 import com.scenary.common.PageResult;
@@ -63,6 +64,12 @@ public class UserService {
     /** 社交关系建立前的账号状态门面，避免 social 模块直接访问 UserMapper/Entity。 */
     public void ensureActive(long userId) {
         require(userId);
+    }
+
+    /** 跨模块需要作者展示信息时的窄门面。 */
+    public AuthorVO author(long userId) {
+        UserEntity u = require(userId);
+        return new AuthorVO(u.getId(), u.getNickname(), u.getAvatarUrl());
     }
 
     public UserVO updateProfile(long userId, ProfileUpdateRequest req) {

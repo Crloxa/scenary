@@ -37,7 +37,7 @@ public class AuthInterceptor implements HandlerInterceptor {
         // 必须同时限定 GET，否则会连 DELETE /notes/{id} 一起放行。
         String uri = request.getRequestURI();
         if (HttpMethod.GET.matches(request.getMethod())
-                && (uri.endsWith("/api/v1/notes") || uri.matches(".*/notes/\\d+"))) {
+                && (uri.endsWith("/api/v1/notes") || uri.matches(".*/notes/\\d+(/comments)?"))) {
             return true;
         }
         String header = request.getHeader("Authorization");

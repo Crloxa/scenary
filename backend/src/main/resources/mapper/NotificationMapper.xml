@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.scenary.notification.NotificationMapper">
+
+    <insert id="insert">
+        INSERT INTO notifications (recipient_id, actor_id, type, note_id, comment_id)
+        VALUES (#{recipientId}, #{actorId}, #{type}, #{noteId}, #{commentId})
+    </insert>
+
+    <select id="selectPage" resultType="com.scenary.notification.NotificationRow">
+        SELECT n.id, n.recipient_id, n.actor_id, n.type, n.note_id, n.comment_id,
+               n.read_at, n.created_at,
+               u.nickname AS actor_nickname, u.avatar_url AS actor_avatar_url,
+               no.title AS note_title,
+               c.content AS comment_content, c.status AS comment_status
+        FROM notifications n
+        LEFT JOIN users u ON u.id = n.actor_id AND u.status = 1
+        LEFT JOIN notes no ON no.id = n.note_id
+        LEFT JOIN comments c ON c.id = n.comment_id
+        WHERE n.recipient_id = #{recipientId} AND n.id &lt; #{cursor}
+        ORDER BY n.id DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="countUnread" resultType="long">
+        SELECT COUNT(*) FROM notifications
+        WHERE recipient_id = #{recipientId} AND read_at IS NULL
+    </select>
+
+    <update id="markRead">
+        UPDATE notifications
+        SET read_at = CURRENT_TIMESTAMP(3)
+        WHERE recipient_id = #{recipientId} AND read_at IS NULL
+          AND id IN
+          <foreach collection="ids" item="id" open="(" separator="," close=")">
+              #{id}
+          </foreach>
+    </update>
+
+    <update id="markAllRead">
+        UPDATE notifications
+        SET read_at = CURRENT_TIMESTAMP(3)
+        WHERE recipient_id = #{recipientId} AND read_at IS NULL
+    </update>
+
+</mapper>

@@ -29,7 +29,11 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/v1/notes/*",
                         "/api/v1/notes/*/like",
                         "/api/v1/notes/*/bookmark",
+                        "/api/v1/notes/*/comments",
+                        "/api/v1/comments/*",
                         "/api/v1/users/*/follow",
-                        "/api/v1/users/me/bookmarks");
+                        "/api/v1/users/me/bookmarks",
+                        "/api/v1/notifications",
+                        "/api/v1/notifications/**");
     }
 }

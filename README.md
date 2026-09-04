@@ -1,7 +1,7 @@
 # Scenary · 极简风景图文社区（MVP 立项）
 
 > 工作代号 **Scenary**，源自 [../思绪.txt](../思绪.txt) 的产品设想第 1 条：以纯风景图片/视频为内容的小红书式分享社区。
-> 本仓库已完成 Phase 7 运维基线、P8 全量验收与 P9 社交最小闭环；当前 MVP 可通过 Docker Compose 一键部署，下一步为 P10 评论与通知。
+> 本仓库已完成 Phase 7 运维基线、P8 全量验收、P9 社交最小闭环与 P10 评论通知；MVP 可通过 Docker Compose 一键部署，下一步为 P11 搜索与发现。
 
 ## MVP 范围（用户已确认）
 
@@ -25,6 +25,7 @@
 | [docs/05-后续开发路线图与实施手册.md](docs/05-后续开发路线图与实施手册.md) | P9 社交、P10 评论通知、P11 搜索、P12 视频地点、P13 审核、P14 规模化的分阶段设计与出口条件 | P8 完成后按阶段开工 |
 | [docs/evidence/2026-09-03-P8改进验收.md](docs/evidence/2026-09-03-P8改进验收.md) | P8 全量验收的环境、命令、断言、浏览器回归、备份恢复与边界 | P8 完成证据 |
 | [docs/evidence/2026-09-04-P9社交最小闭环验收.md](docs/evidence/2026-09-04-P9社交最小闭环验收.md) | P9 社交关系、并发幂等、权限矩阵、前后端回归与浏览器只读主流程 | P9 完成证据 |
+| [docs/evidence/2026-09-04-P10评论与通知验收.md](docs/evidence/2026-09-04-P10评论与通知验收.md) | P10 评论/回复、软删、通知、限流、前后端回归与 Compose 验收 | P10 完成证据 |
 | [docs/frontend-audit-2026-09-02.md](docs/frontend-audit-2026-09-02.md) | 前端实测审计与复现依据（路由、登出、错误态、上传、响应式、无障碍、测试缺口） | 前端 agent 施工前对照 |
 | [CHANGELOG.md](CHANGELOG.md) | 变更日志：一切产出物落盘/契约变更/决策变更的唯一记录处（追加制） | 每次变更后更新 |
 | [docs/HANDOVER.md](docs/HANDOVER.md) | **持续维护的交接文档**：当前状态、怎么跑、验证证据、待办与坑位速查 | 新会话接管 / 每次阶段或验收变化后更新 |
@@ -45,4 +46,4 @@ Java 21 + Spring Boot 3.5 + MyBatis(+PageHelper/Flyway) + MySQL(InnoDB) + Redis 
 
 ## 状态与变更记录
 
-变更的唯一记录处是 [CHANGELOG.md](CHANGELOG.md)（追加制，当前 v2.27）；进度唯一真相源是 [docs/03](docs/03-MVP实施与Docker部署.md) 末尾的交付 Checklist；agent 会话入口固定为 [AGENTS.md](AGENTS.md)。三者分工不重复维护。
+变更的唯一记录处是 [CHANGELOG.md](CHANGELOG.md)（追加制，当前 v2.29）；进度唯一真相源是 [docs/03](docs/03-MVP实施与Docker部署.md) 末尾的交付 Checklist；agent 会话入口固定为 [AGENTS.md](AGENTS.md)。三者分工不重复维护。

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.scenary.comment.CommentMapper">
+
+    <sql id="entity_columns">
+        id, note_id, user_id, parent_id, content, status,
+        created_at, updated_at, deleted_at
+    </sql>
+
+    <insert id="insert" parameterType="com.scenary.comment.CommentEntity"
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO comments (note_id, user_id, parent_id, content, status)
+        VALUES (#{noteId}, #{userId}, #{parentId}, #{content}, 1)
+    </insert>
+
+    <select id="findById" resultType="com.scenary.comment.CommentEntity">
+        SELECT <include refid="entity_columns"/>
+        FROM comments WHERE id = #{id} LIMIT 1
+    </select>
+
+    <select id="findByIdForUpdate" resultType="com.scenary.comment.CommentEntity">
+        SELECT <include refid="entity_columns"/>
+        FROM comments WHERE id = #{id} LIMIT 1 FOR UPDATE
+    </select>
+
+    <select id="selectPage" resultType="com.scenary.comment.CommentRow">
+        SELECT c.id, c.note_id, c.user_id, c.parent_id, c.content, c.status,
+               c.created_at, c.updated_at, c.deleted_at,
+               u.nickname AS author_nickname, u.avatar_url AS author_avatar_url
+        FROM comments c
+        LEFT JOIN users u ON u.id = c.user_id AND u.status = 1
+        WHERE c.note_id = #{noteId} AND c.id &gt; #{cursor}
+        ORDER BY c.id ASC
+        LIMIT #{limit}
+    </select>
+
+    <update id="softDelete">
+        UPDATE comments
+        SET status = 2, deleted_at = CURRENT_TIMESTAMP(3)
+        WHERE id = #{id} AND user_id = #{userId} AND status = 1
+    </update>
+
+</mapper>
