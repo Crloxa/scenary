@@ -5,8 +5,12 @@ import { feedApi } from '@/api/feed'
 import { getErrorText } from '@/utils/request'
 import NoteCard from '@/components/NoteCard.vue'
 import SkeletonCard from '@/components/SkeletonCard.vue'
+import { socialApi } from '@/api/social'
+import { useUserStore } from '@/stores/user'
+import { toast } from '@/utils/toast'
 
 const router = useRouter()
+const store = useUserStore()
 const cards = ref([])
 const firstLoading = ref(true)
 const loadingMore = ref(false)
@@ -63,6 +67,25 @@ function open(noteId) {
 function openUser(userId) {
   if (userId != null) router.push(`/user/${userId}`)
 }
+async function socialAction({ type, id, enabled }) {
+  if (!store.isLoggedIn) {
+    router.push({ path: '/login', query: { redirect: `/note/${id}` } })
+    return
+  }
+  const card = cards.value.find(item => item.id === id)
+  if (!card || card.socialPending) return
+  card.socialPending = true
+  try {
+    const social = type === 'like'
+      ? await socialApi.like(id, enabled)
+      : await socialApi.bookmark(id, enabled)
+    card.social = social
+  } catch (e) {
+    toast(getErrorText(e), 'error')
+  } finally {
+    card.socialPending = false
+  }
+}
 </script>
 
 <template>
@@ -89,6 +112,7 @@ function openUser(userId) {
           :card="c"
           @open="open"
           @open-user="openUser"
+          @social-action="socialAction"
         />
       </div>
 

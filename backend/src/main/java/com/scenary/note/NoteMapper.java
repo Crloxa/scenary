@@ -12,6 +12,9 @@ public interface NoteMapper {
 
     NoteEntity findById(@Param("id") Long id);
 
+    /** 社交写事务内锁定目标笔记，避免检查公开状态后与软删竞态。 */
+    NoteEntity findByIdForUpdate(@Param("id") Long id);
+
     NoteEntity findByUserAndRequestKey(@Param("userId") Long userId,
                                        @Param("requestKey") String requestKey);
 

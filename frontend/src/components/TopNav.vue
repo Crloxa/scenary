@@ -98,6 +98,12 @@ async function logout() {
               >
                 我的主页
               </button>
+              <button
+                class="w-full text-left px-3 py-2 hover:bg-brand-50"
+                @click="router.push('/bookmarks'); menuOpen = false"
+              >
+                我的收藏
+              </button>
               <button :disabled="loggingOut" class="w-full text-left px-3 py-2 hover:bg-brand-50 text-red-500 disabled:opacity-60" data-testid="nav-logout" @click="logout">
                 {{ loggingOut ? '退出中…' : '退出登录' }}
               </button>

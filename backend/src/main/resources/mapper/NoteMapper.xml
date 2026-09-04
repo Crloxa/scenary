@@ -19,6 +19,11 @@
         FROM notes WHERE id = #{id} LIMIT 1
     </select>
 
+    <select id="findByIdForUpdate" resultType="com.scenary.note.NoteEntity">
+        SELECT <include refid="all_columns"/>
+        FROM notes WHERE id = #{id} LIMIT 1 FOR UPDATE
+    </select>
+
     <select id="findByUserAndRequestKey" resultType="com.scenary.note.NoteEntity">
         SELECT <include refid="all_columns"/>
         FROM notes

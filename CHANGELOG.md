@@ -1,5 +1,16 @@
 # Changelog · Scenary
 
+## [v2.27] · 2026-09-04 · P9 社交最小闭环验收与文档闭环
+
+- **功能完成**：新增点赞/取消点赞、收藏/取消收藏、关注/取消关注及“我的收藏”游标列表；详情、Feed、公开主页返回统一社交状态，前端补齐详情/卡片/主页/收藏入口与匿名登录回跳（影响 `backend/src/main/java/com/scenary/social`、`frontend/src/api/social.js`、`frontend/src/views`、`frontend/src/components`）。
+- **数据与并发**：Flyway V4 新增三张关系表，以唯一键、外键和自关注 CHECK 兜底；关系表聚合计数，P9 黑盒 20 并发点赞/关注和权限矩阵通过（影响 `backend/src/main/resources/db/migration/V4__social_relations.sql`、`SocialMapper.xml`、`docs/dev/test-p9-social.mjs`）。
+- **验收闭环**：P9 黑盒 `13/13`、后端 JUnit `26/26`、前端 Vitest `15/15`、Vite `101 modules`、Compose 配置/健康和浏览器只读主流程通过；新增 P9 证据、学习笔记并同步 03 Checklist、HANDOVER、AGENTS、README 和路线图（影响 `docs/evidence/2026-09-04-P9社交最小闭环验收.md`、`docs/learning/15-P9社交关系表与幂等写入.md` 及关联文档）。
+
+## [v2.26] · 2026-09-04 · P9 社交最小闭环立项
+
+- **契约先行**：确认 P8 已通过全部出口门禁，P9 进入实现；02 新增点赞、收藏、关注、“我的收藏”接口及详情/Feed/主页社交状态契约（影响 `docs/02-API接口规范.md`、`docs/05-后续开发路线图与实施手册.md`）。
+- **数据方案**：登记 V4 三张关系表，使用唯一键/外键/CHECK 保证幂等、引用完整性和禁止自关注；计数以关系表聚合，不依赖预留 `notes.like_count`（影响 `docs/01-技术栈与总体架构.md`）。
+
 > 维护规约见 [AGENTS.md §4.1](AGENTS.md)：满足触发条件必须追加条目；历史条目不改写，错误用勘误行修正。
 
 ## [v2.25] · 2026-09-03 · P8 验收数字校正与文档闭环

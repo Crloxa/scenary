@@ -18,6 +18,12 @@ const router = createRouter({
       component: () => import('@/views/PublishView.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/bookmarks',
+      name: 'bookmarks',
+      component: () => import('@/views/BookmarksView.vue'),
+      meta: { requiresAuth: true },
+    },
     { path: '/note/:id', name: 'note', component: () => import('@/views/NoteDetailView.vue') },
     { path: '/user/:id(\\d+)', name: 'user', component: () => import('@/views/ProfileView.vue') },
     {

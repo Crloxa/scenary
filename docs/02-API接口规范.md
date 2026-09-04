@@ -2,7 +2,7 @@
 
 > 本文档是前后端并行开发的**唯一契约**。实现以本文为准；不一致时改代码不改文档，改文档必须记录变更。
 > 配套：架构背景见 [01](01-技术栈与总体架构.md)，施工顺序见 [03](03-MVP实施与Docker部署.md)。
-> 版本 v1.0 · 2026-08-27
+> 版本 v1.1 · 2026-09-04
 
 ---
 
@@ -137,7 +137,7 @@ Content-Type: multipart/form-data，字段名 `file`，单张 image/jpeg|png ≤
 
 ### 3.4 GET /users/{userId} — 用户公开主页
 
-免认证可看。响应 data = 3.1 结构去掉 username/email 类敏感字段，保留 id/nickname/avatarUrl/bio/noteCount/createdAt。
+免认证可看。响应 data = 3.1 结构去掉 username/email 类敏感字段，保留 id/nickname/avatarUrl/bio/noteCount/createdAt，并增加 P9 `social` 社交状态；匿名视角的 `following` 为 false，但关注/被关注计数仍公开返回。
 （访问自己时可通过 3.1 判断身份。）
 
 ### 3.5 GET /users/{userId}/notes — TA 的笔记网格
@@ -152,6 +152,26 @@ Content-Type: multipart/form-data，字段名 `file`，单张 image/jpeg|png ≤
   "mediaCount": 5, "visibility": 1, "createdAt": 1756261200000
 }
 ```
+
+### 3.6 PUT/DELETE /users/{userId}/follow — 关注/取消关注 🔒
+
+PUT 和 DELETE 均幂等。不能关注自己；不存在、已删除或已禁用的用户统一返回 40400。响应返回统一社交状态：
+
+```json
+{
+  "following": true,
+  "followerCount": 18,
+  "followingCount": 6,
+  "liked": false,
+  "bookmarked": false,
+  "likeCount": 0,
+  "bookmarkCount": 0
+}
+```
+
+### 3.7 GET /users/me/bookmarks — 我的收藏 🔒
+
+游标分页，参数为 `cursor` 和 `limit`（默认 10，最大 20），按收藏时间倒序。仅返回当前仍公开且未删除的笔记；取消收藏或笔记删除后不再出现在列表中。
 
 ---
 
@@ -217,7 +237,7 @@ multipart/form-data，字段名 `files`，可重复多个，1≤数量≤9；单
 ```
 
 校验：title 1~64 必填；content ≤2000 可空串；mediaIds 1~9 个、全部属于本人、全部 status=1（否则 40901）；placeName ≤128 可空；requestKey 可选，建议 UUID，同一 user+requestKey 重试返回同一篇笔记。
-事务动作：insert notes → 批量 update media SET note_id, order_no(1..n) → 回填 notes.cover_url=首图 thumb_url、media_count → 推进 Redis `feed:first:v1:version`（提交后再次推进，隔离并发旧查询回写）。
+事务动作：insert notes → 批量 update media SET note_id, order_no(1..n) → 回填 notes.cover_url=首图 thumb_url、media_count → 事务提交后由 Controller 推进 Redis `feed:first:v1:version`，避免发布响应前的旧查询回写为当前首页快照。
 
 响应 data：
 
@@ -248,6 +268,15 @@ multipart/form-data，字段名 `files`，可重复多个，1≤数量≤9；单
       "thumbUrl": "http://.../thumb/202608/a1_t.jpg", "width": 1080, "height": 1440 },
     { "mediaId": 502, "url": "...", "thumbUrl": "...", "width": 1080, "height": 810 }
   ],
+  "social": {
+    "liked": false,
+    "bookmarked": false,
+    "following": false,
+    "likeCount": 12,
+    "bookmarkCount": 5,
+    "followerCount": 18,
+    "followingCount": 6
+  },
   "mine": false
 }
 ```
@@ -260,6 +289,14 @@ multipart/form-data，字段名 `files`，可重复多个，1≤数量≤9；单
 
 不做编辑接口（MVP 边界）：想改内容=删除重发。
 
+### 5.4 PUT/DELETE /notes/{id}/like — 点赞/取消点赞 🔒
+
+仅允许公开且未删除的笔记。两次 PUT 不增加计数，两次 DELETE 不报错。响应为详情中的 `social` 对象。
+
+### 5.5 PUT/DELETE /notes/{id}/bookmark — 收藏/取消收藏 🔒
+
+仅允许公开且未删除的笔记，幂等语义同点赞。匿名详情不返回用户私有关系状态，统一返回 `liked=false`、`bookmarked=false`、`following=false`，但公开计数仍返回。
+
 ---
 
 ## 6. Feed 模块 /feed
@@ -268,7 +305,7 @@ multipart/form-data，字段名 `files`，可重复多个，1≤数量≤9；单
 
 免认证。Query：`cursor`(long，首页缺省)、`limit`(默认 10 ≤20)。
 
-语义：全站 visibility=1，按 id DESC。第一页结果整页缓存 Redis(TTL 300s)，任何发布/删除操作会使缓存失效。
+语义：全站 visibility=1，按 id DESC。第一页公共卡片结果整页缓存 Redis(TTL 300s)，任何发布/删除操作会使缓存版本失效；登录视角的 `social` 状态在返回前按当前用户重新聚合，不写入共享缓存。发布后首页允许极短的缓存/请求调度最终一致窗口，详情接口可立即读取已提交笔记。
 
 响应 data：
 
@@ -282,7 +319,12 @@ multipart/form-data，字段名 `files`，可重复多个，1≤数量≤9；单
       "coverWidth": 1080, "coverHeight": 1440,
       "mediaCount": 5,
       "author": { "id": 10086, "nickname": "山野行人", "avatarUrl": "http://..." },
-      "createdAt": 1756261200000
+      "createdAt": 1756261200000,
+      "social": {
+        "liked": false, "bookmarked": false, "following": false,
+        "likeCount": 12, "bookmarkCount": 5,
+        "followerCount": 18, "followingCount": 6
+      }
     }
   ],
   "nextCursor": 901,
@@ -328,3 +370,4 @@ multipart/form-data，字段名 `files`，可重复多个，1≤数量≤9；单
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v1.0 | 2026-08-27 | 初版：18 个端点定稿 |
+| v1.1 | 2026-09-04 | P9：新增点赞、收藏、关注、我的收藏；详情/Feed/主页增加社交状态与计数；V4 关系表迁移 |

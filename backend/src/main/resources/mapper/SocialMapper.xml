@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.scenary.social.SocialMapper">
+
+    <insert id="insertLike">
+        INSERT IGNORE INTO note_likes (note_id, user_id)
+        VALUES (#{noteId}, #{userId})
+    </insert>
+
+    <delete id="deleteLike">
+        DELETE FROM note_likes WHERE note_id = #{noteId} AND user_id = #{userId}
+    </delete>
+
+    <insert id="insertBookmark">
+        INSERT IGNORE INTO note_bookmarks (note_id, user_id)
+        VALUES (#{noteId}, #{userId})
+    </insert>
+
+    <delete id="deleteBookmark">
+        DELETE FROM note_bookmarks WHERE note_id = #{noteId} AND user_id = #{userId}
+    </delete>
+
+    <insert id="insertFollow">
+        INSERT IGNORE INTO follows (follower_id, following_id)
+        VALUES (#{followerId}, #{followingId})
+    </insert>
+
+    <delete id="deleteFollow">
+        DELETE FROM follows
+        WHERE follower_id = #{followerId} AND following_id = #{followingId}
+    </delete>
+
+    <select id="selectNoteSocial" resultType="com.scenary.social.SocialRow">
+        SELECT n.id AS note_id,
+               <choose>
+                   <when test="viewerId != null">
+                       EXISTS (SELECT 1 FROM note_likes l
+                               WHERE l.note_id = n.id AND l.user_id = #{viewerId})
+                   </when>
+                   <otherwise>FALSE</otherwise>
+               </choose> AS liked,
+               <choose>
+                   <when test="viewerId != null">
+                       EXISTS (SELECT 1 FROM note_bookmarks b
+                               WHERE b.note_id = n.id AND b.user_id = #{viewerId})
+                   </when>
+                   <otherwise>FALSE</otherwise>
+               </choose> AS bookmarked,
+               <choose>
+                   <when test="viewerId != null">
+                       EXISTS (SELECT 1 FROM follows f
+                               WHERE f.follower_id = #{viewerId} AND f.following_id = n.user_id)
+                   </when>
+                   <otherwise>FALSE</otherwise>
+               </choose> AS following,
+               (SELECT COUNT(*) FROM note_likes l2 WHERE l2.note_id = n.id) AS like_count,
+               (SELECT COUNT(*) FROM note_bookmarks b2 WHERE b2.note_id = n.id) AS bookmark_count,
+               (SELECT COUNT(*) FROM follows f2 WHERE f2.following_id = n.user_id) AS follower_count,
+               (SELECT COUNT(*) FROM follows f3 WHERE f3.follower_id = n.user_id) AS following_count
+        FROM notes n
+        WHERE n.id IN
+        <foreach collection="noteIds" item="noteId" open="(" separator="," close=")">
+            #{noteId}
+        </foreach>
+    </select>
+
+    <select id="selectUserSocial" resultType="com.scenary.social.SocialRow">
+        SELECT #{targetUserId} AS note_id,
+               <choose>
+                   <when test="viewerId != null">
+                       EXISTS (SELECT 1 FROM follows f
+                               WHERE f.follower_id = #{viewerId} AND f.following_id = #{targetUserId})
+                   </when>
+                   <otherwise>FALSE</otherwise>
+               </choose> AS following,
+               0 AS liked,
+               0 AS bookmarked,
+               0 AS like_count,
+               0 AS bookmark_count,
+               (SELECT COUNT(*) FROM follows f2 WHERE f2.following_id = #{targetUserId}) AS follower_count,
+               (SELECT COUNT(*) FROM follows f3 WHERE f3.follower_id = #{targetUserId}) AS following_count
+    </select>
+
+    <select id="selectBookmarks" resultType="com.scenary.social.BookmarkRow">
+        SELECT b.id AS bookmark_id,
+               n.id AS note_id,
+               n.title,
+               n.content,
+               n.cover_url,
+               n.media_count,
+               u.id AS author_id,
+               u.nickname AS author_nickname,
+               u.avatar_url AS author_avatar_url,
+               n.created_at
+        FROM note_bookmarks b
+        INNER JOIN notes n ON n.id = b.note_id
+        INNER JOIN users u ON u.id = n.user_id AND u.status = 1
+        WHERE b.user_id = #{userId}
+          AND n.visibility = 1
+          AND b.id &lt; #{cursor}
+        ORDER BY b.id DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>

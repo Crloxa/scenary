@@ -16,6 +16,7 @@ import com.scenary.auth.UserContext;
 import com.scenary.common.PageResult;
 import com.scenary.common.GridCardVO;
 import com.scenary.common.Result;
+import com.scenary.social.SocialService;
 
 import jakarta.validation.Valid;
 
@@ -29,10 +30,13 @@ public class UserController {
 
     private final UserService userService;
     private final com.scenary.auth.JwtUtil jwtUtil;
+    private final SocialService socialService;
 
-    public UserController(UserService userService, com.scenary.auth.JwtUtil jwtUtil) {
+    public UserController(UserService userService, com.scenary.auth.JwtUtil jwtUtil,
+                          SocialService socialService) {
         this.userService = userService;
         this.jwtUtil = jwtUtil;
+        this.socialService = socialService;
     }
 
     @GetMapping("/me")
@@ -56,8 +60,12 @@ public class UserController {
     }
 
     @GetMapping("/{userId}")
-    public Result<PublicUserVO> profile(@PathVariable long userId) {
-        return Result.ok(userService.publicProfile(userId));
+    public Result<PublicUserVO> profile(
+            @PathVariable long userId,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        Long viewer = jwtUtil.peekUserId(authorization);
+        return Result.ok(userService.publicProfile(userId)
+                .withSocial(socialService.userSocial(userId, viewer)));
     }
 
     @GetMapping("/{userId}/notes")

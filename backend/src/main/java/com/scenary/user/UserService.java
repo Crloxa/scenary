@@ -60,6 +60,11 @@ public class UserService {
                 u.getBio(), userMapper.countNotes(userId, false), u.getCreatedAt().getTime());
     }
 
+    /** 社交关系建立前的账号状态门面，避免 social 模块直接访问 UserMapper/Entity。 */
+    public void ensureActive(long userId) {
+        require(userId);
+    }
+
     public UserVO updateProfile(long userId, ProfileUpdateRequest req) {
         if ((req.nickname() == null || req.nickname().isBlank())
                 && (req.bio() == null || req.bio().isBlank())) {

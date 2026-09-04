@@ -4,9 +4,12 @@ import { useRoute, useRouter } from 'vue-router'
 import { noteApi } from '@/api/note'
 import { getErrorText } from '@/utils/request'
 import { toast } from '@/utils/toast'
+import { socialApi } from '@/api/social'
+import { useUserStore } from '@/stores/user'
 
 const route = useRoute()
 const router = useRouter()
+const store = useUserStore()
 
 const detail = ref(null)
 const notFound = ref(false)
@@ -18,6 +21,7 @@ const deleting = ref(false)
 const armDelete = ref(false)
 let disarmTimer = null
 let loadSeq = 0
+const socialPending = ref('')
 
 async function loadDetail(targetId = route.params.id, seq = loadSeq) {
   detail.value = null
@@ -81,6 +85,26 @@ async function removeNote() {
     armDelete.value = false
   }
 }
+async function toggleSocial(type) {
+  if (!detail.value) return
+  if (!store.isLoggedIn) {
+    router.push({ path: '/login', query: { redirect: route.fullPath } })
+    return
+  }
+  const enabled = type === 'like' ? !detail.value.social?.liked : !detail.value.social?.bookmarked
+  if (socialPending.value) return
+  socialPending.value = type
+  try {
+    const social = type === 'like'
+      ? await socialApi.like(detail.value.id, enabled)
+      : await socialApi.bookmark(detail.value.id, enabled)
+    detail.value = { ...detail.value, social }
+  } catch (e) {
+    toast(getErrorText(e), 'error')
+  } finally {
+    socialPending.value = ''
+  }
+}
 function fmt(ts) {
   return new Date(Number(ts)).toLocaleString()
 }
@@ -123,6 +147,30 @@ function fmt(ts) {
       >
         {{ armDelete ? '再点一次确认删除' : '删除' }}
       </button>
+    </div>
+
+    <div class="mt-4 flex flex-wrap items-center gap-2 border-y border-line py-3">
+      <button
+        type="button"
+        data-testid="btn-like-note"
+        :disabled="Boolean(socialPending)"
+        :aria-pressed="Boolean(detail.social?.liked)"
+        class="h-9 px-4 rounded-full border transition text-sm"
+        :class="detail.social?.liked ? 'border-brand-400 bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-300' : 'border-line hover:bg-mute'"
+        @click="toggleSocial('like')"
+      >♥ {{ detail.social?.liked ? '已赞' : '点赞' }} {{ detail.social?.likeCount || 0 }}</button>
+      <button
+        type="button"
+        data-testid="btn-bookmark-note"
+        :disabled="Boolean(socialPending)"
+        :aria-pressed="Boolean(detail.social?.bookmarked)"
+        class="h-9 px-4 rounded-full border transition text-sm"
+        :class="detail.social?.bookmarked ? 'border-brand-400 bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-300' : 'border-line hover:bg-mute'"
+        @click="toggleSocial('bookmark')"
+      >▮ {{ detail.social?.bookmarked ? '已收藏' : '收藏' }} {{ detail.social?.bookmarkCount || 0 }}</button>
+      <span class="text-xs text-ink-soft ml-auto">
+        {{ detail.social?.followerCount || 0 }} 位关注作者 · 作者关注 {{ detail.social?.followingCount || 0 }} 人
+      </span>
     </div>
 
     <!-- 大图纵向流 -->

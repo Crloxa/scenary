@@ -6,6 +6,7 @@ import { useUserStore } from '@/stores/user'
 import { getErrorText } from '@/utils/request'
 import { toast } from '@/utils/toast'
 import { authApi } from '@/api/auth'
+import { socialApi } from '@/api/social'
 
 const route = useRoute()
 const router = useRouter()
@@ -31,6 +32,7 @@ const editing = ref(false)
 const editForm = reactive({ nickname: '', bio: '' })
 const avatarFile = ref(null)
 const loggingOut = ref(false)
+const followingPending = ref(false)
 let loadSeq = 0
 
 async function loadProfile(targetId = userId.value, seq = loadSeq) {
@@ -165,6 +167,22 @@ async function logout() {
 function fmt(ts) {
   return new Date(Number(ts)).toLocaleDateString()
 }
+async function toggleFollow() {
+  if (!profile.value || isSelf.value) return
+  if (!store.isLoggedIn) {
+    router.push({ path: '/login', query: { redirect: route.fullPath } })
+    return
+  }
+  followingPending.value = true
+  try {
+    const social = await socialApi.follow(userId.value, !profile.value.social?.following)
+    profile.value = { ...profile.value, social }
+  } catch (e) {
+    toast(getErrorText(e), 'error')
+  } finally {
+    followingPending.value = false
+  }
+}
 </script>
 
 <template>
@@ -217,6 +235,16 @@ function fmt(ts) {
           {{ loggingOut ? '退出中…' : '退出登录' }}
         </button>
       </div>
+      <button
+        v-else
+        type="button"
+        data-testid="btn-follow-user"
+        :disabled="followingPending"
+        :aria-pressed="Boolean(profile.social?.following)"
+        class="self-start h-9 px-4 rounded-full border text-sm transition"
+        :class="profile.social?.following ? 'border-brand-400 bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-300' : 'border-brand-200 text-brand-600 hover:bg-brand-50 dark:text-brand-300'"
+        @click="toggleFollow"
+      >{{ profile.social?.following ? '已关注' : '关注' }} · {{ profile.social?.followerCount || 0 }}</button>
     </header>
 
     <!-- 编辑弹层 -->

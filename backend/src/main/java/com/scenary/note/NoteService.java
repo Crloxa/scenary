@@ -8,8 +8,6 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.scenary.common.AuthorVO;
 import com.scenary.common.BizException;
@@ -105,12 +103,10 @@ public class NoteService {
             }
             throw new BizException(ErrorCode.INTERNAL_ERROR, "笔记发布失败，请重试");
         }
-        // 先推进版本，再在事务提交后推进一次，隔离提交窗口内启动的旧查询。
-        invalidateFirstPageCache();
-        invalidateFirstPageAfterCommit();
         return toCreated(note);
     }
 
+    @Transactional
     public void delete(long userId, long noteId) {
         NoteEntity note = noteMapper.findById(noteId);
         if (note == null) {
@@ -121,7 +117,6 @@ public class NoteService {
         }
         // 幂等：重复删除仍走同一条 UPDATE，code=0
         noteMapper.softDelete(noteId);
-        invalidateFirstPageCache();
         redis.delete(KEY_NOTE_CARD + noteId);
     }
 
@@ -138,19 +133,6 @@ public class NoteService {
         redis.opsForValue().increment(KEY_FEED_FIRST_VERSION);
     }
 
-    /** 事务真正提交后推进版本，确保提交前快照不会成为当前首页缓存。 */
-    private void invalidateFirstPageAfterCommit() {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                invalidateFirstPageCache();
-            }
-        });
-    }
-
     // ---------- 聚合查询（详情/网格门面） ----------
 
     public NoteDetailVO detail(Long viewerId, long noteId) {
@@ -164,6 +146,18 @@ public class NoteService {
         boolean mine = Objects.equals(viewerId, n.getUserId());
         return new NoteDetailVO(n.getId(), n.getTitle(), n.getContent(), n.getPlaceName(),
                 n.getVisibility(), n.getCreatedAt().getTime(), author, images, mine);
+    }
+
+    /** P9 社交模块只可对公开且未删除笔记建立关系。 */
+    public NoteTarget socialTarget(long noteId) {
+        NoteEntity n = noteMapper.findByIdForUpdate(noteId);
+        if (n == null || n.getVisibility() == null || n.getVisibility() != 1) {
+            throw new BizException(ErrorCode.NOT_FOUND);
+        }
+        return new NoteTarget(n.getId(), n.getUserId());
+    }
+
+    public record NoteTarget(long id, long authorId) {
     }
 
     public PageResult<GridCardVO> gridNotes(long targetUserId, Long viewerId,

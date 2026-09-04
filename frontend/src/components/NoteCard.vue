@@ -1,10 +1,10 @@
 <script setup>
 import { ref } from 'vue'
 
-defineProps({
+const props = defineProps({
   card: { type: Object, required: true },
 })
-const emit = defineEmits(['open', 'open-user'])
+const emit = defineEmits(['open', 'open-user', 'social-action'])
 const imageFailed = ref(false)
 const authorImageFailed = ref(false)
 function openCard(id) { emit('open', id) }
@@ -13,6 +13,10 @@ function onKeydown(event, id) {
     event.preventDefault()
     openCard(id)
   }
+}
+function socialAction(type) {
+  const stateKey = type === 'like' ? 'liked' : 'bookmarked'
+  emit('social-action', { type, id: props.card.id, enabled: !props.card.social?.[stateKey] })
 }
 </script>
 
@@ -72,6 +76,30 @@ function onKeydown(event, id) {
         @click.stop="$emit('open-user', card.author?.id)"
       >{{ card.author?.nickname }}</span>
       <span class="ml-auto text-xs text-ink-soft">📄 {{ card.mediaCount }}</span>
+    </div>
+    <div class="mt-2 flex items-center gap-3 text-xs text-ink-soft" @click.stop>
+      <button
+        type="button"
+        :disabled="card.socialPending"
+        class="inline-flex items-center gap-1 hover:text-brand-600"
+        :aria-label="`${card.social?.liked ? '取消点赞' : '点赞'} ${card.title || '这篇笔记'}`"
+        :aria-pressed="Boolean(card.social?.liked)"
+        @click="socialAction('like')"
+      >
+        <span aria-hidden="true">♥</span>
+        <span>{{ card.social?.likeCount || 0 }}</span>
+      </button>
+      <button
+        type="button"
+        :disabled="card.socialPending"
+        class="inline-flex items-center gap-1 hover:text-brand-600"
+        :aria-label="`${card.social?.bookmarked ? '取消收藏' : '收藏'} ${card.title || '这篇笔记'}`"
+        :aria-pressed="Boolean(card.social?.bookmarked)"
+        @click="socialAction('bookmark')"
+      >
+        <span aria-hidden="true">▮</span>
+        <span>{{ card.social?.bookmarkCount || 0 }}</span>
+      </button>
     </div>
   </article>
 </template>

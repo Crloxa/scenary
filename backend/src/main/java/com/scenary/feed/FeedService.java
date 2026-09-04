@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scenary.common.AuthorVO;
 import com.scenary.common.PageResult;
+import com.scenary.common.SocialVO;
+import com.scenary.social.SocialService;
 import com.scenary.note.NoteEntity;
 import com.scenary.note.NoteMapper;
 import com.scenary.note.NoteService;
@@ -39,18 +41,32 @@ public class FeedService {
     private final UserMapper userMapper;
     private final com.scenary.media.MediaMapper mediaMapper;
     private final StringRedisTemplate redis;
+    private final SocialService socialService;
 
+    /** 保留给不需要社交视角的单元测试/旧调用方；生产由 Spring 使用完整构造器。 */
     public FeedService(NoteMapper noteMapper, NoteService noteService,
                        UserMapper userMapper, com.scenary.media.MediaMapper mediaMapper,
                        StringRedisTemplate redis) {
+        this(noteMapper, noteService, userMapper, mediaMapper, redis, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public FeedService(NoteMapper noteMapper, NoteService noteService,
+                       UserMapper userMapper, com.scenary.media.MediaMapper mediaMapper,
+                       StringRedisTemplate redis, SocialService socialService) {
         this.noteMapper = noteMapper;
         this.noteService = noteService;
         this.userMapper = userMapper;
         this.mediaMapper = mediaMapper;
         this.redis = redis;
+        this.socialService = socialService;
     }
 
     public PageResult<NoteCardVO> page(Long cursorParam, Integer limitParam) {
+        return page(null, cursorParam, limitParam);
+    }
+
+    public PageResult<NoteCardVO> page(Long viewerId, Long cursorParam, Integer limitParam) {
         boolean firstPage = cursorParam == null;
         int limit = clampLimit(limitParam);
         long cursor = cursorParam == null ? Long.MAX_VALUE : cursorParam;
@@ -61,7 +77,7 @@ public class FeedService {
         if (cacheVersion != null) {
             PageResult<NoteCardVO> cached = readFirstPageCache(cacheVersion);
             if (cached != null && matchesCurrentFirstPage(cached)) {
-                return cached;
+                return enrich(cached, viewerId);
             }
             if (cached != null) {
                 redis.delete(firstPageCacheKey(cacheVersion));
@@ -78,7 +94,18 @@ public class FeedService {
         if (cacheVersion != null) {
             writeFirstPageCache(result, cacheVersion);
         }
-        return result;
+        return enrich(result, viewerId);
+    }
+
+    private PageResult<NoteCardVO> enrich(PageResult<NoteCardVO> page, Long viewerId) {
+        if (socialService == null || page.getList().isEmpty()) {
+            return page;
+        }
+        var statuses = socialService.noteStatuses(page.getList().stream().map(NoteCardVO::id).toList(), viewerId);
+        var cards = page.getList().stream()
+                .map(card -> card.withSocial(statuses.getOrDefault(card.id(), SocialVO.empty())))
+                .toList();
+        return PageResult.of(cards, page.getNextCursor(), page.isHasMore());
     }
 
     private List<NoteCardVO> assembleCards(List<NoteEntity> rows) {
