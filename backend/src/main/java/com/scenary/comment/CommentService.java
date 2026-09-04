@@ -31,15 +31,17 @@ public class CommentService {
     private final UserService userService;
     private final NotificationService notificationService;
     private final StringRedisTemplate redis;
+    private final SensitiveWordFilter sensitiveWordFilter;
 
     public CommentService(CommentMapper commentMapper, NoteService noteService,
                           UserService userService, NotificationService notificationService,
-                          StringRedisTemplate redis) {
+                          StringRedisTemplate redis, SensitiveWordFilter sensitiveWordFilter) {
         this.commentMapper = commentMapper;
         this.noteService = noteService;
         this.userService = userService;
         this.notificationService = notificationService;
         this.redis = redis;
+        this.sensitiveWordFilter = sensitiveWordFilter;
     }
 
     public PageResult<CommentVO> page(Long viewerId, long noteId,
@@ -65,6 +67,9 @@ public class CommentService {
         if (content.codePointCount(0, content.length()) > maxLength) {
             throw new BizException(ErrorCode.VALIDATION,
                     (parentId == null ? "一级评论" : "回复") + "最长 " + maxLength + " 字");
+        }
+        if (sensitiveWordFilter.contains(content)) {
+            throw new BizException(ErrorCode.VALIDATION, "评论包含不适宜内容");
         }
         CommentEntity parent = null;
         if (parentId != null) {

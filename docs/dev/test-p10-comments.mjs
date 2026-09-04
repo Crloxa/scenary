@@ -100,6 +100,8 @@ try {
   ok('跨笔记 parentId 被服务端拒绝', crossNote.code === 40000);
   const html = await comment(noteId, reader.accessToken, '<script>alert(1)</script>');
   ok('HTML 评论被拒绝', html.code === 40000);
+  const sensitive = await comment(noteId, reader.accessToken, '这是诈骗信息');
+  ok('敏感词评论被拒绝且不回显词项', sensitive.code === 40000 && !String(sensitive.message ?? '').includes('诈骗'));
   const tooLong = await comment(noteId, reader.accessToken, '一'.repeat(501));
   ok('一级评论超过 500 字被拒绝', tooLong.code === 40000);
 

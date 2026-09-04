@@ -2,6 +2,7 @@ package com.scenary.notification;
 
 import java.util.List;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,10 +19,13 @@ public class NotificationService {
 
     private final NotificationMapper notificationMapper;
     private final UserService userService;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public NotificationService(NotificationMapper notificationMapper, UserService userService) {
+    public NotificationService(NotificationMapper notificationMapper, UserService userService,
+                               ApplicationEventPublisher eventPublisher) {
         this.notificationMapper = notificationMapper;
         this.userService = userService;
+        this.eventPublisher = eventPublisher;
     }
 
     public void create(long recipientId, long actorId, NotificationType type,
@@ -30,6 +34,7 @@ public class NotificationService {
             return;
         }
         notificationMapper.insert(recipientId, actorId, type.name(), noteId, commentId);
+        eventPublisher.publishEvent(new NotificationCreatedEvent(recipientId));
     }
 
     public NotificationPage page(long userId, Long cursorParam, Integer limitParam) {

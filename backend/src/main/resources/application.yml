@@ -8,3 +8,9 @@ spring:
 logging:
   pattern:
     console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} [trace=%X{traceId},user=%X{userId}] - %msg%n"
+
+scenary:
+  comment:
+    sensitive-words: "${SCENARY_COMMENT_SENSITIVE_WORDS:诈骗,赌博,色情}"
+  websocket:
+    allowed-origins: "${SCENARY_WEBSOCKET_ALLOWED_ORIGINS:http://localhost:8081,http://127.0.0.1:8081,http://localhost:5173,http://127.0.0.1:5173}"

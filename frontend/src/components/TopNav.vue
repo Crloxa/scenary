@@ -6,6 +6,7 @@ import { isDark, toggleTheme } from '@/utils/theme'
 import { toast } from '@/utils/toast'
 import { authApi } from '@/api/auth'
 import { notificationApi } from '@/api/notification'
+import { connectNotificationRealtime } from '@/utils/notificationRealtime'
 
 const router = useRouter()
 const store = useUserStore()
@@ -16,6 +17,7 @@ const loggingOut = ref(false)
 const avatarImageFailed = ref(false)
 const unreadCount = ref(0)
 let notificationTimer = null
+let stopNotificationRealtime = null
 
 watch(() => store.avatarUrl, () => { avatarImageFailed.value = false })
 
@@ -30,17 +32,24 @@ function closeOnOutside(e) {
 onMounted(() => document.addEventListener('click', closeOnOutside))
 onMounted(() => {
   startNotificationPolling()
+  startNotificationRealtime()
 })
 onUnmounted(() => {
   document.removeEventListener('click', closeOnOutside)
   clearInterval(notificationTimer)
+  stopNotificationRealtime?.()
 })
 
-watch(() => store.isLoggedIn, loggedIn => {
-  if (loggedIn) startNotificationPolling()
+watch(() => [store.isLoggedIn, store.accessToken], ([loggedIn]) => {
+  if (loggedIn) {
+    startNotificationPolling()
+    startNotificationRealtime()
+  }
   else {
     clearInterval(notificationTimer)
     unreadCount.value = 0
+    stopNotificationRealtime?.()
+    stopNotificationRealtime = null
   }
 })
 
@@ -59,6 +68,14 @@ function startNotificationPolling() {
   if (!store.isLoggedIn) return
   refreshNotificationCount()
   notificationTimer = window.setInterval(refreshNotificationCount, 30000)
+}
+
+function startNotificationRealtime() {
+  stopNotificationRealtime?.()
+  stopNotificationRealtime = connectNotificationRealtime({
+    accessToken: store.accessToken,
+    onNotification: refreshNotificationCount,
+  })
 }
 
 function goPublish() {
@@ -115,16 +132,20 @@ async function logout() {
           <button
             type="button"
             data-testid="nav-notifications"
-            aria-label="通知"
+            :aria-label="unreadCount > 0 ? `通知，未读 ${unreadCount} 条` : '通知'"
             class="relative w-9 h-9 shrink-0 rounded-full grid place-items-center text-base hover:bg-mute transition"
             @click="router.push('/notifications')"
           >
             <span aria-hidden="true">♡</span>
-            <span v-if="unreadCount > 0" class="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] leading-4">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+            <span v-if="unreadCount > 0" aria-live="polite" class="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[10px] leading-4">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
           </button>
           <div ref="rootEl" class="relative">
             <button
               data-testid="nav-avatar"
+              type="button"
+              aria-label="打开用户菜单"
+              :aria-expanded="menuOpen"
+              aria-controls="user-menu"
               class="w-9 h-9 rounded-full overflow-hidden ring-2 ring-brand-100 hover:ring-brand-300 transition"
               @click="menuOpen = !menuOpen"
             >
@@ -133,28 +154,33 @@ async function logout() {
             </button>
             <div
               v-if="menuOpen"
+              id="user-menu"
+              role="menu"
               class="absolute right-0 mt-2 w-40 bg-surface rounded-xl shadow-lg border border-line py-1.5 text-sm"
             >
               <div class="px-3 py-1.5 text-xs text-ink-soft truncate">{{ store.nickname }}</div>
               <button
+                role="menuitem"
                 class="w-full text-left px-3 py-2 hover:bg-brand-50"
                 @click="router.push(`/user/${store.userId}`); menuOpen = false"
               >
                 我的主页
               </button>
               <button
+                role="menuitem"
                 class="w-full text-left px-3 py-2 hover:bg-brand-50"
                 @click="router.push('/bookmarks'); menuOpen = false"
               >
                 我的收藏
               </button>
               <button
+                role="menuitem"
                 class="w-full text-left px-3 py-2 hover:bg-brand-50"
                 @click="router.push('/notifications'); menuOpen = false"
               >
                 通知<span v-if="unreadCount" class="ml-1 text-xs text-red-500">({{ unreadCount }})</span>
               </button>
-              <button :disabled="loggingOut" class="w-full text-left px-3 py-2 hover:bg-brand-50 text-red-500 disabled:opacity-60" data-testid="nav-logout" @click="logout">
+              <button role="menuitem" :disabled="loggingOut" class="w-full text-left px-3 py-2 hover:bg-brand-50 text-red-500 disabled:opacity-60" data-testid="nav-logout" @click="logout">
                 {{ loggingOut ? '退出中…' : '退出登录' }}
               </button>
             </div>

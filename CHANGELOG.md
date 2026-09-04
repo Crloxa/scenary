@@ -1,5 +1,20 @@
 # Changelog · Scenary
 
+## [v2.32] · 2026-09-04 · P10 未覆盖项补充验收闭环
+
+- **验收完成**：补充敏感词黑盒 `18/18`、真实 WebSocket 黑盒 `4/4`、Chromium/Firefox/WebKit Playwright `6/6`、键盘/读屏语义专项和正式压力基线（10 并发/10 秒、`15561` 请求、错误率 `0`、p50/p95/p99 `5.75/11.49/16.64ms`）；Compose 重建、服务健康与 WebSocket 升级链路通过（影响 `docs/evidence/2026-09-04-P10未覆盖项补充验收.md`、`docs/dev/test-p10-realtime.mjs`、`docs/dev/test-p10-load.mjs`）。
+- **状态闭环**：勾选 P10-S01~S05 与补充出口，同步 HANDOVER、README、AGENTS、路线图和学习索引；保留 P10 v2.29 原始证据不回改（影响 `docs/03-MVP实施与Docker部署.md`、`docs/HANDOVER.md`、`README.md`、`AGENTS.md`、`docs/05-后续开发路线图与实施手册.md`、`docs/learning/17-P10补充验收与实时通道.md`）。
+
+## [v2.31] · 2026-09-04 · P13/P14 延后至长期 TODO
+
+- **路线调整**：将 P13 内容审核、P14 规模化运维从当前施工顺序移入长期 TODO；近期路线收敛为 P11 搜索与发现、P12 视频与地点，保留 P13/P14 的设计草案和重新立项出口条件（影响 `docs/01-技术栈与总体架构.md`、`docs/05-后续开发路线图与实施手册.md`）。
+- **状态同步**：同步 README、AGENTS 和 HANDOVER 的当前路线、版本与待办说明；未修改 API 契约、实现代码和历史变更记录（影响 `README.md`、`AGENTS.md`、`docs/HANDOVER.md`）。
+
+## [v2.30] · 2026-09-04 · P10 未覆盖项补充范围登记
+
+- **补充范围**：登记基础敏感词拦截、事务提交后原生 WebSocket 通知、Chromium/Firefox/WebKit 跨浏览器回归、读屏/键盘专项验收和正式压力基线；补充 Checklist 与证据报告不回改 v2.29 历史结果（影响 `docs/01-技术栈与总体架构.md`、`docs/02-API接口规范.md`、`docs/03-MVP实施与Docker部署.md`、`docs/05-后续开发路线图与实施手册.md`）。
+- **依赖评估**：补充登记 `spring-boot-starter-websocket`，采用原生 WebSocket handler，不引入 STOMP broker；前端沿用浏览器原生 WebSocket，压测和浏览器验收复用现有 Node/Playwright 工具链。
+
 ## [v2.29] · 2026-09-04 · P10 评论与通知验收与文档闭环
 
 - **功能完成**：新增一级评论/回复、同笔记复合外键、500/300 字限制、纯文本校验、20 条/分钟限流、作者软删除和已删除占位（影响 `backend/src/main/java/com/scenary/comment`、`V5__comments_notifications.sql`、`frontend/src/views/NoteDetailView.vue`）。

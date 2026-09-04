@@ -9,8 +9,12 @@ export default defineConfig({
   use: {
     baseURL: externalUrl || 'http://127.0.0.1:5173',
     trace: 'retain-on-failure',
-    ...devices['Desktop Chrome'],
   },
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+  ],
   webServer: externalUrl ? undefined : {
     command: 'npm run dev -- --host 127.0.0.1',
     url: 'http://127.0.0.1:5173',

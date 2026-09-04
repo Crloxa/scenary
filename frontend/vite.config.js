@@ -19,7 +19,7 @@ export default defineConfig({
     port: 5173,
     // 开发期同源策略：/api 反代到本地 Spring Boot，生产由 nginx 承担同样角色
     proxy: {
-      '/api': 'http://localhost:8080',
+      '/api': { target: 'http://localhost:8080', ws: true },
     },
   },
 })

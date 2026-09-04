@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import java.util.Date;
 import java.util.List;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -20,10 +21,11 @@ class NotificationServiceTest {
 
     @Mock private NotificationMapper notificationMapper;
     @Mock private UserService userService;
+    @Mock private ApplicationEventPublisher eventPublisher;
 
     @Test
     void pageUsesDescendingCursorAndReturnsUnreadCount() {
-        NotificationService service = new NotificationService(notificationMapper, userService);
+        NotificationService service = new NotificationService(notificationMapper, userService, eventPublisher);
         NotificationRow row = new NotificationRow();
         row.setId(8L);
         row.setActorId(7L);
@@ -46,7 +48,7 @@ class NotificationServiceTest {
 
     @Test
     void emptyIdsMarkAllAndSpecificIdsOnlyTouchCurrentUser() {
-        NotificationService service = new NotificationService(notificationMapper, userService);
+        NotificationService service = new NotificationService(notificationMapper, userService, eventPublisher);
 
         service.markRead(11L, new NotificationReadRequest(List.of()));
         service.markRead(11L, new NotificationReadRequest(List.of(8L, 9L)));

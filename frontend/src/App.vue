@@ -38,7 +38,7 @@ onUnmounted(() => {
     </main>
 
     <!-- 轻量全局提示栈 -->
-    <div class="fixed left-1/2 -translate-x-1/2 bottom-8 z-50 space-y-2 pointer-events-none">
+    <div class="fixed left-1/2 -translate-x-1/2 bottom-8 z-50 space-y-2 pointer-events-none" role="region" aria-label="操作提示" aria-live="polite">
       <TransitionGroup name="toast">
         <div
           v-for="t in toasts"

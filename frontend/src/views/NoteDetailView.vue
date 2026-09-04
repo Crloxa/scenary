@@ -296,38 +296,42 @@ function fmt(ts) {
       </div>
 
       <div class="mt-4 rounded-xl border border-line bg-surface p-3">
-        <p v-if="commentParent" class="mb-2 flex items-center justify-between text-xs text-ink-soft">
+        <p v-if="commentParent" class="mb-2 flex items-center justify-between text-xs text-ink-soft" role="status" aria-live="polite">
           <span>回复 {{ commentParent.author?.nickname || '这条评论' }}</span>
           <button type="button" class="underline" @click="cancelReply">取消回复</button>
         </p>
+        <label for="comment-input" class="sr-only">评论内容</label>
         <textarea
           id="comment-input"
           v-model="commentContent"
           :maxlength="commentParent ? 300 : 500"
           rows="3"
+          aria-describedby="comment-help"
+          :aria-busy="commentSubmitting"
           :placeholder="store.isLoggedIn ? (commentParent ? '写下回复…' : '说说你的感受…') : '登录后参与评论'"
           class="w-full resize-none bg-transparent text-sm outline-none placeholder:text-ink-soft"
           @click="!store.isLoggedIn && router.push({ path: '/login', query: { redirect: route.fullPath } })"
         ></textarea>
         <div class="mt-2 flex items-center justify-between">
-          <span class="text-xs text-ink-soft">{{ [...commentContent].length }}/{{ commentParent ? 300 : 500 }}</span>
+          <span id="comment-help" class="text-xs text-ink-soft" aria-live="polite">{{ [...commentContent].length }}/{{ commentParent ? 300 : 500 }}</span>
           <button
             type="button"
             :disabled="commentSubmitting || !commentContent.trim()"
+            :aria-busy="commentSubmitting"
             class="h-8 px-4 rounded-full bg-brand-500 text-white text-xs disabled:opacity-50"
             @click="submitComment"
           >{{ commentSubmitting ? '发送中…' : '发送' }}</button>
         </div>
       </div>
 
-      <div v-if="commentsError && comments.length === 0" class="py-8 text-center text-sm text-ink-soft">
+      <div v-if="commentsError && comments.length === 0" role="alert" class="py-8 text-center text-sm text-ink-soft">
         <p class="mb-3">评论加载失败：{{ commentsError }}</p>
         <button type="button" class="underline" @click="loadComments(route.params.id, loadSeq)">重试</button>
       </div>
       <div v-else-if="comments.length === 0 && !commentsLoading" class="py-8 text-center text-sm text-ink-soft">
         还没有评论，来留下第一句吧。
       </div>
-      <div v-else class="mt-4 space-y-4">
+      <div v-else class="mt-4 space-y-4" aria-label="评论列表">
         <article v-for="comment in comments" :key="comment.id" class="flex gap-3">
           <span class="w-8 h-8 shrink-0 rounded-full bg-brand-50 grid place-items-center text-brand-500 text-xs">
             {{ (comment.author?.nickname || '山').slice(0, 1) }}
@@ -336,8 +340,8 @@ function fmt(ts) {
             <div class="flex items-center gap-2 text-xs">
               <span class="font-medium">{{ comment.author?.nickname || '已注销' }}</span>
               <span class="text-ink-soft">{{ fmt(comment.createdAt) }}</span>
-              <button v-if="comment.status === 1" type="button" class="ml-auto text-ink-soft hover:text-brand-600" @click="startReply(comment)">回复</button>
-              <button v-if="comment.canDelete" type="button" class="text-ink-soft hover:text-red-500" @click="removeComment(comment)">
+              <button v-if="comment.status === 1" type="button" class="ml-auto text-ink-soft hover:text-brand-600" :aria-label="`回复 ${comment.author?.nickname || '这条评论'}`" @click="startReply(comment)">回复</button>
+              <button v-if="comment.canDelete" type="button" class="text-ink-soft hover:text-red-500" :aria-label="`删除 ${comment.author?.nickname || '这条评论'} 的评论`" @click="removeComment(comment)">
                 {{ commentDeletePending === comment.id ? '再点一次删除' : '删除' }}
               </button>
             </div>
@@ -346,7 +350,7 @@ function fmt(ts) {
           </div>
         </article>
       </div>
-      <div v-if="comments.length && commentsError" class="mt-4 text-center text-sm text-red-500">
+      <div v-if="comments.length && commentsError" role="alert" class="mt-4 text-center text-sm text-red-500">
         <span>加载更多失败：{{ commentsError }}</span>
         <button type="button" class="ml-2 underline" @click="loadComments(route.params.id, loadSeq)">重试</button>
       </div>

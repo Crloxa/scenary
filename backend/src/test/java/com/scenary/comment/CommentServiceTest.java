@@ -36,6 +36,7 @@ class CommentServiceTest {
     @Mock private NotificationService notificationService;
     @Mock private StringRedisTemplate redis;
     @Mock private ValueOperations<String, String> valueOperations;
+    @Mock private SensitiveWordFilter sensitiveWordFilter;
 
     @Test
     void pageKeepsDeletedPlaceholderAndUsesAscendingCursor() {
@@ -100,6 +101,22 @@ class CommentServiceTest {
     }
 
     @Test
+    void sensitiveCommentIsRejectedWithoutEchoingMatchedWord() {
+        CommentService service = service();
+        when(noteService.commentTargetForUpdate(7L, 9L))
+                .thenReturn(new NoteService.NoteTarget(9L, 11L));
+        when(sensitiveWordFilter.contains("不适宜内容")).thenReturn(true);
+
+        BizException ex = assertThrows(BizException.class,
+                () -> service.create(7L, 9L, new CommentCreateRequest("不适宜内容", null)));
+
+        assertEquals(ErrorCode.VALIDATION, ex.getErrorCode());
+        assertEquals("评论包含不适宜内容", ex.getMessage());
+        verify(commentMapper, never()).insert(any(CommentEntity.class));
+        verify(redis, never()).opsForValue();
+    }
+
+    @Test
     void deleteIsOwnerOnlyAndRepeatedDeleteIsIdempotent() {
         CommentService service = service();
         CommentEntity comment = new CommentEntity();
@@ -117,7 +134,8 @@ class CommentServiceTest {
     }
 
     private CommentService service() {
-        return new CommentService(commentMapper, noteService, userService, notificationService, redis);
+        return new CommentService(commentMapper, noteService, userService, notificationService, redis,
+                sensitiveWordFilter);
     }
 
     private CommentRow row(long id, long userId, int status, String content, long createdAt) {

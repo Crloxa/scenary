@@ -317,7 +317,7 @@ multipart/form-data，字段名 `files`，可重复多个，1≤数量≤9；单
 }
 ```
 
-`status=2` 时 `content` 固定为“该评论已删除”，前端保留评论位置；作者只能删除自己的评论，删除为软删且幂等。一级评论最多 500 字，回复最多 300 字；正文按纯文本处理，服务端拒绝 HTML/脚本片段、控制字符和超过 20 条/分钟的评论写入。
+`status=2` 时 `content` 固定为“该评论已删除”，前端保留评论位置；作者只能删除自己的评论，删除为软删且幂等。一级评论最多 500 字，回复最多 300 字；正文按纯文本处理，服务端拒绝 HTML/脚本片段、控制字符、配置的敏感词和超过 20 条/分钟的评论写入。敏感词命中统一返回 `40000`，不回显具体命中词；词表由部署环境变量 `SCENARY_COMMENT_SENSITIVE_WORDS` 以逗号分隔提供。
 
 ### 5.7 POST /notes/{id}/comments — 创建评论或回复 🔒
 
@@ -354,6 +354,22 @@ Query：`cursor`（缺省取最新，传上一页 `nextCursor` 后取更小的 i
 ### POST /notifications/read 🔒
 
 请求体：`{ "ids": [801, 802] }`；只更新当前用户拥有的通知，重复调用幂等。`ids` 为空数组表示将当前用户全部未读通知标记为已读，最多一次提交 100 个指定 id。成功返回 `data=null`。
+
+### 5.10 WebSocket /api/v1/ws/notifications
+
+🔒 通知实时推送为增强通道，HTTP 分页接口仍是唯一可靠数据源。客户端连接后必须先发送认证帧，服务端不接受 URL query 中的令牌：
+
+```json
+{ "type": "AUTH", "accessToken": "<ACCESS_TOKEN>" }
+```
+
+认证成功返回 `{ "type": "READY" }`。评论、点赞或关注事务提交后，若当前用户在线，服务端发送：
+
+```json
+{ "type": "NOTIFICATION", "unreadCount": 3 }
+```
+
+客户端收到后重新请求 `GET /notifications?limit=1` 获取最新通知和准确未读数。令牌无效、账号禁用或首帧不是 `AUTH` 时关闭连接；连接失败、断线或服务端不支持 WebSocket 时，前端继续使用 30 秒轮询，不阻塞主页面。
 
 ---
 

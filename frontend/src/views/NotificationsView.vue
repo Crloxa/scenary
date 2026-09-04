@@ -82,16 +82,16 @@ onUnmounted(() => observer?.disconnect())
 </script>
 
 <template>
-  <section class="max-w-[720px] mx-auto pt-6">
+  <section class="max-w-[720px] mx-auto pt-6" aria-labelledby="notifications-title">
     <div class="flex items-baseline justify-between">
       <div>
-        <h1 class="text-2xl font-semibold">通知</h1>
+        <h1 id="notifications-title" class="text-2xl font-semibold">通知</h1>
         <p class="mt-1 text-sm text-ink-soft">评论、点赞和关注都会留在这里</p>
       </div>
       <button type="button" class="text-sm text-brand-600 disabled:text-ink-soft" :disabled="!unreadCount" @click="markAllRead">全部已读<span v-if="unreadCount">（{{ unreadCount }}）</span></button>
     </div>
 
-    <div v-if="errorMessage && items.length === 0" class="py-24 text-center text-ink-soft">
+    <div v-if="errorMessage && items.length === 0" role="alert" class="py-24 text-center text-ink-soft">
       <p class="mb-4">通知加载失败：{{ errorMessage }}</p>
       <button type="button" class="h-10 px-5 rounded-full border border-line hover:bg-mute" @click="loadMore">重试</button>
     </div>
@@ -118,8 +118,8 @@ onUnmounted(() => observer?.disconnect())
       </button>
     </div>
     <div id="notification-sentinel" class="h-10"></div>
-    <p v-if="loading" class="text-center text-xs text-ink-soft py-2">加载中…</p>
-    <div v-if="errorMessage && items.length > 0" class="text-center text-sm text-red-500 py-2">
+    <p v-if="loading" role="status" aria-live="polite" class="text-center text-xs text-ink-soft py-2">加载中…</p>
+    <div v-if="errorMessage && items.length > 0" role="alert" class="text-center text-sm text-red-500 py-2">
       <span>加载更多失败：{{ errorMessage }}</span>
       <button type="button" class="ml-2 underline" @click="loadMore">重试</button>
     </div>

@@ -89,6 +89,8 @@ services:
       SCENARY_JWT_ACCESS_TTL: ${JWT_ACCESS_TTL_SECONDS}
       SCENARY_JWT_REFRESH_TTL: ${JWT_REFRESH_TTL_SECONDS}
       SCENARY_JWT_ISSUER: scenary
+      SCENARY_COMMENT_SENSITIVE_WORDS: ${SCENARY_COMMENT_SENSITIVE_WORDS:-诈骗,赌博,色情}
+      SCENARY_WEBSOCKET_ALLOWED_ORIGINS: ${SCENARY_WEBSOCKET_ALLOWED_ORIGINS:-http://localhost:8081,http://127.0.0.1:8081}
       TZ: Asia/Shanghai
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q UP"]
