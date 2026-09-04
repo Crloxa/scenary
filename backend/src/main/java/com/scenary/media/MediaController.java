@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -22,9 +23,11 @@ import com.scenary.common.Result;
 public class MediaController {
 
     private final MediaService mediaService;
+    private final VideoUploadService videoUploadService;
 
-    public MediaController(MediaService mediaService) {
+    public MediaController(MediaService mediaService, VideoUploadService videoUploadService) {
         this.mediaService = mediaService;
+        this.videoUploadService = videoUploadService;
     }
 
     /** multipart 字段名固定 files，可重复多个（docs/02 §4.1） */
@@ -38,6 +41,33 @@ public class MediaController {
     public Result<MediaUploadVO> uploadVideo(
             @RequestPart(value = "file", required = false) MultipartFile file) {
         return Result.ok(mediaService.uploadVideo(UserContext.require(), file));
+    }
+
+    @PostMapping("/video-uploads")
+    public Result<VideoUploadSessionVO> createVideoUpload(@RequestBody VideoUploadCreateRequest request) {
+        return Result.ok(videoUploadService.create(UserContext.require(), request));
+    }
+
+    @GetMapping("/video-uploads/{uploadId}")
+    public Result<VideoUploadSessionVO> videoUploadStatus(@PathVariable String uploadId) {
+        return Result.ok(videoUploadService.get(UserContext.require(), uploadId));
+    }
+
+    @PostMapping("/video-uploads/{uploadId}/parts/{partNumber}/url")
+    public Result<VideoUploadPartUrlVO> videoUploadPartUrl(@PathVariable String uploadId,
+                                                            @PathVariable int partNumber) {
+        return Result.ok(videoUploadService.presignPart(UserContext.require(), uploadId, partNumber));
+    }
+
+    @PostMapping("/video-uploads/{uploadId}/complete")
+    public Result<MediaUploadVO> completeVideoUpload(@PathVariable String uploadId) {
+        return Result.ok(videoUploadService.complete(UserContext.require(), uploadId));
+    }
+
+    @DeleteMapping("/video-uploads/{uploadId}")
+    public Result<Void> cancelVideoUpload(@PathVariable String uploadId) {
+        videoUploadService.cancel(UserContext.require(), uploadId);
+        return Result.ok();
     }
 
     @GetMapping("/{mediaId}")

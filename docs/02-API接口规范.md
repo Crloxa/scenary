@@ -2,7 +2,7 @@
 
 > 本文档是前后端并行开发的**唯一契约**。实现以本文为准；不一致时改代码不改文档，改文档必须记录变更。
 > 配套：架构背景见 [01](01-技术栈与总体架构.md)，施工顺序见 [03](03-MVP实施与Docker部署.md)。
-> 版本 v1.4 · 2026-09-04
+> 版本 v1.5 · 2026-09-04
 
 ---
 
@@ -42,7 +42,9 @@
 | 40300 | 403 | 无权操作该资源 | 删除别人的笔记 |
 | 40301 | 403 | 账号已被禁用 | users.status=0 登录 |
 | 40400 | 404 | 资源不存在 | 笔记已删除/私密被他人访问 |
-| 40901 | 409 | 媒体尚未处理完成 | 提交笔记时含 status≠1 的图 |
+| 40901 | 409 | 媒体尚未处理完成 | 提交笔记时含 status≠1 的图或视频 |
+| 40902 | 409 | 上传会话已过期 | 分片会话超过有效期后继续取片或合并 |
+| 40903 | 409 | 上传分片不完整 | 合并时缺少分片、分片大小或总大小不符 |
 | 41001 | 422 | 用户名已存在 | 注册重名 |
 | 42001 | 429 | 请求过于频繁 | 触发登录锁/注册限流，message 含剩余秒数 |
 | 50000 | 500 | 服务器内部错误 | 兜底，message 固定"服务开小差了"不泄内部信息 |
@@ -236,6 +238,45 @@ multipart/form-data，字段名固定 `file`，一次一个视频；上限 200MB
 ### 4.4 DELETE /media/{mediaId} — 删除未使用的媒体 🔒 (仅 owner)
 
 仅允许 note_id IS NULL 的游离媒体删除（发布绑定后走删笔记通道）。删除接口保留兼容的异步清理语义；后台定时任务会在保留期后删除对象并清理数据库行。响应 data=null。
+
+### 4.5 POST /media/video-uploads — 创建视频分片上传会话 🔒
+
+请求体：
+
+```json
+{ "fileName": "valley.mp4", "sizeBytes": 52428800, "mime": "video/mp4" }
+```
+
+服务端固定使用 8MiB 分片，按 `sizeBytes` 计算 `totalParts`，总大小仍不得超过 200MB；`fileName` 和客户端 MIME 只用于展示/提示，不参与容器信任。会话有效期 2 小时，状态为 `0 UPLOADING`、`1 MERGING`、`2 COMPLETED`、`3 EXPIRED`。响应不包含原始对象 key：
+
+```json
+{
+  "uploadId": "uuid",
+  "chunkSize": 8388608,
+  "totalParts": 7,
+  "status": 0,
+  "expiresAt": 1788500000000,
+  "uploadedParts": [{ "partNumber": 1, "sizeBytes": 8388608 }]
+}
+```
+
+### 4.6 GET /media/video-uploads/{uploadId} — 查询会话与已上传分片 🔒 (仅 owner)
+
+返回 4.5 同形态。服务端逐片核对对象存储中的实际大小，前端刷新后重新选择同一 `fileName + sizeBytes + lastModified` 的文件即可跳过已完成分片；浏览器不持久化文件内容。
+
+### 4.7 POST /media/video-uploads/{uploadId}/parts/{partNumber}/url — 获取分片预签名 PUT 🔒
+
+`partNumber` 为 1~`totalParts`。服务端仅为当前 owner、未过期且未完成会话签发短时（15 分钟）PUT URL，对象 key 仅落在会话专属前缀。浏览器直接向 URL PUT 分片，不携带 access token；URL 过期后重新调用本接口即可。
+
+### 4.8 POST /media/video-uploads/{uploadId}/complete — 合并并校验视频 🔒
+
+无请求体。服务端核对所有分片存在、前 `n-1` 片为 8MiB、末片为期望大小且总大小等于会话声明值，随后在 MinIO 服务端 compose/copy 为原始对象，重新按 MP4/MOV 的 ISO-BMFF `ftyp` 或 WebM EBML 魔数识别容器，创建 `media(status=11)` 并投递独立转码队列。响应为 4.3 的 `MediaItemVO`；重复 complete 返回同一 `mediaId`，不会重复发布。
+
+合并前校验不通过返回 40903；会话过期返回 40902。合并失败不会丢弃已上传分片，仍可补片后重试；定时任务清理过期会话及其分片对象。
+
+### 4.9 DELETE /media/video-uploads/{uploadId} — 取消分片上传会话 🔒
+
+仅允许 owner 取消未完成会话；服务端删除分片对象和会话记录，响应 data=null。发布页离开时默认保留会话供刷新恢复，不自动调用取消。
 
 ---
 
@@ -499,7 +540,7 @@ Query：`cursor`（缺省取最新，传上一页 `nextCursor` 后取更小的 i
 **令牌过期自愈**：任意请求收 401 → axios 拦截器用 Pinia 里 refreshToken 调 `/auth/refresh` → 成功则替换双令牌并**重放原请求**；失败（40101）→ 清空本地态跳 `/login?redirect=`。
 
 **发布页上传循环**：
-选文件(客户端先行校验张数/大小/mime) → 并发度 3 逐张 POST /media/images → 全部拿到 mediaId 后每 800ms 轮询状态聚合（全 1→可提交；任一 2→标记失败卡片允许移除重传）→ 提交 POST /notes → router.push('/')。
+选文件(客户端先行校验张数/大小/mime) → 视频创建/恢复会话 → 逐片取预签名 URL 并直传（每片成功后持久化会话进度）→ complete 合并校验 → 拿到 mediaId 后每 800ms 轮询状态聚合（全 1/12→可提交；任一失败→标记失败卡片允许重传）→ 提交 POST /notes → router.push('/')。图片仍走原有代理上传。
 
 **访问控制路由表**：
 
@@ -523,3 +564,4 @@ Query：`cursor`（缺省取最新，传上一页 `nextCursor` 后取更小的 i
 | v1.2 | 2026-09-04 | P10：新增评论/回复、软删除、通知分页和批量已读；V5 评论/通知表迁移 |
 | v1.3 | 2026-09-04 | P11：新增公开笔记搜索、recent/relevance 排序、opaque cursor、纯文本 highlight；V6 搜索读路径索引 |
 | v1.4 | 2026-09-04 | P12：新增视频上传/状态/播放字段、独立转码队列约定和笔记坐标字段；V7 媒体/地点扩展 |
+| v1.5 | 2026-09-04 | P12-E1：新增视频分片上传会话、预签名 PUT、断点恢复、合并校验、取消与过期清理；V8 会话/分片表 |

@@ -1,5 +1,12 @@
 # Changelog · Scenary
 
+## [v2.38] · 2026-09-04 · P12-E1 分片上传验收闭环
+
+- **功能落地**：新增 V8 视频上传会话/分片表、8MiB 预签名 PUT、MinIO 服务端 compose/copy、服务端分片实际大小/总大小/魔数校验、owner 隔离、幂等 complete、取消和过期清理；图片代理上传与 P12 视频转码链路保持不变（影响 `backend/src/main/java/com/scenary/media/`、`backend/src/main/resources/db/migration/V8__video_upload_sessions.sql`、`backend/src/main/resources/mapper/VideoUploadSessionMapper.xml`、`docker-compose.yml`）。
+- **前端体验**：视频上传改为会话元数据+已完成片号恢复，补充进度展示、同文件刷新恢复、上传中离开保护、失败重试和同一次 complete；Nginx 增加预签名同源反代配置（影响 `frontend/src/api/media.js`、`frontend/src/views/PublishView.vue`、`frontend/e2e/p12-video.spec.js`、`frontend/nginx.conf`）。
+- **验收闭环**：P12-E1 黑盒 `11/11`、后端 JUnit `50/50`、前端 Vitest `33/33`、构建 `107 modules`、三浏览器 Playwright `3/3`、Compose 重建/健康和 V8 实查通过；证据与学习笔记已归档并同步 Checklist、HANDOVER、README、AGENTS（影响 `docs/evidence/2026-09-04-P12-E1分片上传验收.md`、`docs/learning/20-P12-E1预签名与断点续传.md`）。
+- **边界**：私有桶/短时播放签名、外部逆地理编码和地图 UI 仍属于后续增强；本轮不执行 schema 回滚、`docker compose down -v` 或未核对的历史 DLQ/业务数据清理。
+
 ## [v2.36] · 2026-09-04 · P12 视频与地点基础链路完成
 
 - **功能落地**：完成 V7 视频媒体字段与笔记坐标、MP4/MOV/WEBM 魔数校验、200MB/120秒/3840长边限制、独立 `video.transcode` 队列与 `video.dlq`，容器内 ffprobe/ffmpeg 生成封面和 480p/720p MP4；原始视频只保留 object key，不进入响应（影响 `backend/src/main/java/com/scenary/media/`、`backend/src/main/java/com/scenary/mq/VideoTranscodeConsumer.java`、`backend/src/main/resources/db/migration/V7__video_location.sql`、`backend/Dockerfile`、`docker-compose.yml`）。
@@ -313,3 +320,7 @@
 - 完成四份基础文档：README、01 技术栈与总体架构、02 API 接口规范（18 端点）、03 实施与 Docker 部署手册（P0~P7 + Checklist）。
 - 技术底座决策：JDK21/SpringBoot3.5/MyBatis/Flyway/JJWT/Thumbnailator/MinIO/RabbitMQ/Vue3+Vite+TailwindCSS/Nginx/Docker Compose。
 - 背景：曾评估基于 Pixelfed（PHP/Laravel）二次开发同一产品设想，因技术栈不匹配弃用，勘察结论存档于 `../docs/pixelfed/`（其中改造可行性分析对二期演进仍有参考价值）。
+## [v2.37] · 2026-09-04 · P12-E1 分片上传契约立项
+
+- **契约先行**：API v1.5 新增视频上传会话、8MiB 预签名 PUT、断点恢复、合并校验、取消和过期清理；新增 40902/40903，影响 `docs/02-API接口规范.md`。
+- **施工边界**：新增 P12-E1 Checklist 与 V8 会话/分片表设计，图片代理上传、V7 视频转码和播放隐私边界保持不变，影响 `docs/03-MVP实施与Docker部署.md`、`docs/05-后续开发路线图与实施手册.md`。

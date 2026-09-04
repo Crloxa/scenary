@@ -8,13 +8,16 @@ import org.springframework.stereotype.Component;
 public class MediaCleanupScheduler {
 
     private final MediaService mediaService;
+    private final VideoUploadService videoUploadService;
 
-    public MediaCleanupScheduler(MediaService mediaService) {
+    public MediaCleanupScheduler(MediaService mediaService, VideoUploadService videoUploadService) {
         this.mediaService = mediaService;
+        this.videoUploadService = videoUploadService;
     }
 
     @Scheduled(fixedDelay = 60 * 60 * 1000L, initialDelay = 60 * 60 * 1000L)
     public void cleanupStaleUnbound() {
         mediaService.cleanupStaleUnbound();
+        videoUploadService.cleanupExpired();
     }
 }

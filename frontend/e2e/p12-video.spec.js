@@ -29,7 +29,16 @@ async function mockP12Apis(page) {
   await page.route('**/api/v1/feed*', route => route.fulfill(envelope({
     list: [], nextCursor: null, hasMore: false,
   })))
-  await page.route('**/api/v1/media/videos', route => route.fulfill(envelope({
+  await page.route('**/api/v1/media/video-uploads', route => route.fulfill(envelope({
+    uploadId: 'p12-e1-upload', chunkSize: 8388608, totalParts: 1, status: 0,
+    expiresAt: Date.now() + 7200000, uploadedParts: [],
+  })))
+  await page.route('**/api/v1/media/video-uploads/p12-e1-upload/parts/1/url',
+    route => route.fulfill(envelope({
+      partNumber: 1, url: '/signed/p12-e1-upload/1', expiresAt: Date.now() + 900000,
+    })))
+  await page.route('**/signed/p12-e1-upload/1', route => route.fulfill({ status: 200 }))
+  await page.route('**/api/v1/media/video-uploads/p12-e1-upload/complete', route => route.fulfill(envelope({
     items: [{ mediaId: 701, mediaType: 'VIDEO', status: 11, url: null, thumbUrl: null,
       width: null, height: null, durationMs: null, playbackUrl: null, playbackLowUrl: null }],
   })))
@@ -116,13 +125,12 @@ test('P12 发布视频、等待转码并在详情页播放', async ({ page }) =>
 
   await page.goto('/publish')
   await expect(page.getByRole('heading', { name: '发布笔记' })).toBeVisible()
-  await page.locator('input[type="file"]').setInputFiles('..\\docs\\dev\\fixtures\\p12-short.mp4')
-  await expect(page.getByTestId('upload-item')).toBeVisible()
-
   await page.getByTestId('input-title').fill('山谷短片')
   await page.getByTestId('input-latitude').fill('30.9785')
   await page.getByTestId('input-longitude').fill('102.7591')
-  await expect(page.getByTestId('btn-publish-submit')).toBeEnabled()
+  await page.locator('input[type="file"]').setInputFiles('..\\docs\\dev\\fixtures\\p12-short.mp4')
+  await expect(page.getByTestId('upload-item')).toBeVisible()
+  await expect(page.getByTestId('btn-publish-submit')).toBeEnabled({ timeout: 15000 })
   await page.getByTestId('btn-publish-submit').click()
   await expect.poll(() => api.getCreatePayload()).toMatchObject({
     mediaIds: [701], latitude: 30.9785, longitude: 102.7591,

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
   uploadOne: vi.fn(),
-  uploadVideo: vi.fn(),
+  uploadVideoResumable: vi.fn(),
   remove: vi.fn(),
   waitProcessed: vi.fn(),
   push: vi.fn(),
@@ -14,7 +14,7 @@ const state = vi.hoisted(() => ({
 vi.mock('@/api/media', () => ({
   mediaApi: {
     uploadOne: state.uploadOne,
-    uploadVideo: state.uploadVideo,
+    uploadVideoResumable: state.uploadVideoResumable,
     remove: state.remove,
   },
   waitProcessed: state.waitProcessed,
@@ -34,7 +34,7 @@ import PublishView from '@/views/PublishView.vue'
 
 beforeEach(() => {
   state.uploadOne.mockReset()
-  state.uploadVideo.mockReset()
+  state.uploadVideoResumable.mockReset()
   state.remove.mockReset().mockResolvedValue(undefined)
   state.waitProcessed.mockReset().mockResolvedValue({ status: 1 })
   state.push.mockReset()
@@ -106,7 +106,7 @@ describe('PublishView upload queue', () => {
   })
 
   it('uploads one video, waits for video readiness, and submits coordinates', async () => {
-    state.uploadVideo.mockResolvedValue({
+    state.uploadVideoResumable.mockResolvedValue({
       mediaId: 701, mediaType: 'VIDEO', status: 11,
     })
     state.waitProcessed.mockResolvedValue({
@@ -126,7 +126,7 @@ describe('PublishView upload queue', () => {
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
-    expect(state.uploadVideo).toHaveBeenCalledTimes(1)
+    expect(state.uploadVideoResumable).toHaveBeenCalledTimes(1)
     expect(state.uploadOne).not.toHaveBeenCalled()
     expect(state.waitProcessed).toHaveBeenCalledWith(701, expect.objectContaining({ signal: expect.any(AbortSignal) }))
     expect(state.create).toHaveBeenCalledWith(expect.objectContaining({

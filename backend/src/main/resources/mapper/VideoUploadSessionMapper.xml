@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.scenary.media.VideoUploadSessionMapper">
+
+    <sql id="session_columns">
+        upload_id, user_id, original_name, declared_mime, size_bytes, total_parts, status,
+        completed_media_id, expires_at, created_at, updated_at
+    </sql>
+
+    <insert id="insertSession" parameterType="com.scenary.media.VideoUploadSessionEntity">
+        INSERT INTO video_upload_sessions
+            (upload_id, user_id, original_name, declared_mime, size_bytes, total_parts, status, expires_at)
+        VALUES
+            (#{uploadId}, #{userId}, #{originalName}, #{declaredMime}, #{sizeBytes}, #{totalParts}, #{status}, #{expiresAt})
+    </insert>
+
+    <insert id="insertParts">
+        INSERT INTO video_upload_parts (upload_id, part_number, object_key)
+        VALUES
+        <foreach collection="parts" item="part" separator=",">
+            (#{part.uploadId}, #{part.partNumber}, #{part.objectKey})
+        </foreach>
+    </insert>
+
+    <select id="findById" resultType="com.scenary.media.VideoUploadSessionEntity">
+        SELECT <include refid="session_columns"/>
+        FROM video_upload_sessions
+        WHERE upload_id = #{uploadId}
+        LIMIT 1
+    </select>
+
+    <select id="findParts" resultType="com.scenary.media.VideoUploadPartEntity">
+        SELECT upload_id, part_number, object_key, size_bytes, etag, created_at, updated_at
+        FROM video_upload_parts
+        WHERE upload_id = #{uploadId}
+        ORDER BY part_number ASC
+    </select>
+
+    <update id="updatePartObservation">
+        UPDATE video_upload_parts
+        SET size_bytes = #{sizeBytes}
+        WHERE upload_id = #{uploadId} AND part_number = #{partNumber}
+    </update>
+
+    <update id="claimMerging">
+        UPDATE video_upload_sessions
+        SET status = 1
+        WHERE upload_id = #{uploadId} AND status = 0 AND expires_at &gt; #{now}
+    </update>
+
+    <update id="releaseMerging">
+        UPDATE video_upload_sessions
+        SET status = 0
+        WHERE upload_id = #{uploadId} AND status = 1
+    </update>
+
+    <update id="markCompleted">
+        UPDATE video_upload_sessions
+        SET status = 2, completed_media_id = #{mediaId}
+        WHERE upload_id = #{uploadId} AND status = 1
+    </update>
+
+    <update id="markExpired">
+        UPDATE video_upload_sessions
+        SET status = 3
+        WHERE upload_id = #{uploadId} AND status = 0 AND expires_at &lt;= #{now}
+    </update>
+
+    <select id="selectExpired" resultType="com.scenary.media.VideoUploadSessionEntity">
+        SELECT <include refid="session_columns"/>
+        FROM video_upload_sessions
+        WHERE status IN (0, 3) AND expires_at &lt;= #{now}
+        ORDER BY expires_at ASC
+        LIMIT #{limit}
+    </select>
+
+    <delete id="deleteSession">
+        DELETE FROM video_upload_sessions WHERE upload_id = #{uploadId}
+    </delete>
+</mapper>

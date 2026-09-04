@@ -45,6 +45,8 @@ scenary:
     secret-key: ${MINIO_ROOT_PASSWORD}
     bucket: ${MINIO_BUCKET}
     public-host: http://localhost:9000
+    presign-endpoint: ${SCENARY_MINIO_PRESIGN_ENDPOINT:http://localhost:9000}
+    presign-path-prefix: ${SCENARY_MINIO_PRESIGN_PATH_PREFIX:}
     expose-original-url: false
   comment:
     sensitive-words: "${SCENARY_COMMENT_SENSITIVE_WORDS:诈骗,赌博,色情}"

@@ -15,6 +15,8 @@ public enum ErrorCode {
     ACCOUNT_DISABLED(40301, HttpStatus.FORBIDDEN, "账号已被禁用"),
     NOT_FOUND(40400, HttpStatus.NOT_FOUND, "资源不存在"),
     MEDIA_NOT_READY(40901, HttpStatus.CONFLICT, "媒体仍在处理中，请稍后重试"),
+    UPLOAD_SESSION_EXPIRED(40902, HttpStatus.CONFLICT, "上传会话已过期，请重新选择视频"),
+    UPLOAD_INCOMPLETE(40903, HttpStatus.CONFLICT, "上传分片不完整，请继续上传"),
     USERNAME_EXISTS(41001, HttpStatus.UNPROCESSABLE_ENTITY, "用户名已存在"),
     TOO_MANY_REQUESTS(42001, HttpStatus.TOO_MANY_REQUESTS, "请求过于频繁"),
     INTERNAL_ERROR(50000, HttpStatus.INTERNAL_SERVER_ERROR, "服务开小差了");

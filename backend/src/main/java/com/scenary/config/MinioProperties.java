@@ -27,5 +27,9 @@ public class MinioProperties {
     private String bucket;
     @NotBlank
     private String publicHost;
+    /** 预签名 URL 的浏览器可达根 endpoint；容器部署通常是 nginx 的同源根地址。 */
+    private String presignEndpoint;
+    /** 预签名根路径由 nginx 反代剥离，例如 /minio。 */
+    private String presignPathPrefix = "";
     private boolean exposeOriginalUrl;
 }

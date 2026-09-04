@@ -25,7 +25,7 @@ let disposed = false
 let published = false
 let requestKey = crypto.randomUUID()
 
-/** items: {key,file,url,progress:'uploading'|'processing'|'ready'|'fail', mediaId?} */
+/** items: {key,file,url,progress:'uploading'|'processing'|'ready'|'fail', mediaId?, uploadedBytes?} */
 const items = ref([])
 const title = ref('')
 const content = ref('')
@@ -164,6 +164,8 @@ function addItem(file) {
     playbackUrl: null,
     playbackLowUrl: null,
     durationMs: null,
+    uploadedBytes: 0,
+    totalBytes: file.size,
     controller: null,
     removed: false,
     error: '',
@@ -186,9 +188,15 @@ async function startUpload(item) {
   item.progress = 'uploading'
   item.controller = new AbortController()
   try {
-    // 立即上传拿 mediaId，再轮询消费者产出缩略图/视频转码产物
+    // 图片仍走代理；视频走 E1 分片预签名直传，再轮询消费者产出转码产物。
     const uploaded = item.kind === 'video'
-      ? await mediaApi.uploadVideo(item.file, { signal: item.controller.signal })
+      ? await mediaApi.uploadVideoResumable(item.file, {
+        signal: item.controller.signal,
+        onProgress: (done, total) => {
+          item.uploadedBytes = done
+          item.totalBytes = total
+        },
+      })
       : await mediaApi.uploadOne(item.file, { signal: item.controller.signal })
     if (item.removed || item.controller.signal.aborted || disposed) {
       if (uploaded?.mediaId && !published) await removeOrphan(uploaded.mediaId)
@@ -199,6 +207,7 @@ async function startUpload(item) {
     item.playbackLowUrl = uploaded.playbackLowUrl || null
     item.durationMs = uploaded.durationMs || null
     item.progress = 'processing'
+    item.uploadedBytes = item.totalBytes
     const ready = await waitProcessed(item.mediaId, { signal: item.controller.signal })
     if (item.removed || item.controller.signal.aborted || disposed) {
       if (item.mediaId && !published) await removeOrphan(item.mediaId)
@@ -271,6 +280,7 @@ async function retryItem(key) {
     await removeOrphan(id)
   }
   it.error = ''
+  it.uploadedBytes = 0
   it.removed = false
   it.progress = 'queued'
   processQueue()
@@ -351,7 +361,7 @@ onUnmounted(() => {
             :class="it.progress === 'fail' ? 'bg-red-500/90' : 'bg-black/50'"
           >
             <template v-if="it.progress === 'queued'">等待上传…</template>
-            <template v-else-if="it.progress === 'uploading'">上传中…</template>
+            <template v-else-if="it.progress === 'uploading'">上传中 {{ it.totalBytes ? Math.floor(it.uploadedBytes / it.totalBytes * 100) : 0 }}%</template>
             <template v-else-if="it.progress === 'processing'">
               <svg class="animate-spin -ml-0.5 mr-1 h-3 w-3" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity=".25"/><path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
               处理中
