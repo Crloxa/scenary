@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.scenary.search.SearchMapper">
+
+    <!-- keyword 已在 SearchService 转义；此处始终使用 #{keyword}，禁止 ${}。 -->
+    <sql id="title_match">
+        LOWER(n.title) LIKE CONCAT('%', LOWER(#{keyword}), '%') ESCAPE '\\'
+    </sql>
+    <sql id="content_match">
+        LOWER(n.content) LIKE CONCAT('%', LOWER(#{keyword}), '%') ESCAPE '\\'
+    </sql>
+    <sql id="place_match">
+        LOWER(COALESCE(n.place_name, '')) LIKE CONCAT('%', LOWER(#{keyword}), '%') ESCAPE '\\'
+    </sql>
+    <sql id="author_match">
+        LOWER(u.nickname) LIKE CONCAT('%', LOWER(#{keyword}), '%') ESCAPE '\\'
+    </sql>
+    <sql id="any_match">
+        (<include refid="title_match"/>
+         OR <include refid="content_match"/>
+         OR <include refid="place_match"/>
+         OR <include refid="author_match"/>)
+    </sql>
+    <sql id="relevance_score">
+        (CASE WHEN <include refid="title_match"/> THEN 4 ELSE 0 END
+         + CASE WHEN <include refid="place_match"/> THEN 3 ELSE 0 END
+         + CASE WHEN <include refid="author_match"/> THEN 2 ELSE 0 END
+         + CASE WHEN <include refid="content_match"/> THEN 1 ELSE 0 END)
+    </sql>
+
+    <select id="selectNotes" resultType="com.scenary.search.SearchRow">
+        SELECT n.id,
+               n.user_id,
+               n.title,
+               n.content,
+               n.cover_url,
+               cover.width AS cover_width,
+               cover.height AS cover_height,
+               n.media_count,
+               n.place_name,
+               n.created_at,
+               u.nickname AS author_nickname,
+               u.avatar_url AS author_avatar_url,
+               <include refid="relevance_score"/> AS relevance_score
+        FROM notes n
+        INNER JOIN users u ON u.id = n.user_id AND u.status = 1
+        LEFT JOIN media cover ON cover.note_id = n.id AND cover.order_no = 1
+        WHERE n.visibility = 1
+          AND <include refid="any_match"/>
+        <if test="cursorId != null">
+          <choose>
+            <when test="sort == 'relevance'">
+              AND (
+                <include refid="relevance_score"/> &lt; #{cursorScore}
+                OR (<include refid="relevance_score"/> = #{cursorScore}
+                    AND (n.created_at &lt; #{cursorCreatedAt}
+                         OR (n.created_at = #{cursorCreatedAt} AND n.id &lt; #{cursorId})))
+              )
+            </when>
+            <otherwise>
+              AND (n.created_at &lt; #{cursorCreatedAt}
+                   OR (n.created_at = #{cursorCreatedAt} AND n.id &lt; #{cursorId}))
+            </otherwise>
+          </choose>
+        </if>
+        <choose>
+          <when test="sort == 'relevance'">
+            ORDER BY relevance_score DESC, n.created_at DESC, n.id DESC
+          </when>
+          <otherwise>
+            ORDER BY n.created_at DESC, n.id DESC
+          </otherwise>
+        </choose>
+        LIMIT #{limit}
+    </select>
+
+</mapper>

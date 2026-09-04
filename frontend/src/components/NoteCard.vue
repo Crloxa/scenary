@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 const props = defineProps({
   card: { type: Object, required: true },
@@ -7,6 +7,11 @@ const props = defineProps({
 const emit = defineEmits(['open', 'open-user', 'social-action'])
 const imageFailed = ref(false)
 const authorImageFailed = ref(false)
+const highlightText = computed(() => {
+  const highlight = props.card.highlight || {}
+  return [highlight.title, highlight.placeName, highlight.author, highlight.content]
+    .find(value => value) || ''
+})
 function openCard(id) { emit('open', id) }
 function onKeydown(event, id) {
   if (event.key === 'Enter' || event.key === ' ') {
@@ -57,6 +62,9 @@ function socialAction(type) {
 
     <p v-if="card.contentPreview" class="mt-0.5 text-xs text-ink-soft line-clamp-1">
       {{ card.contentPreview }}
+    </p>
+    <p v-if="highlightText" data-testid="note-highlight" class="mt-1 text-xs text-brand-700 dark:text-brand-300 line-clamp-1">
+      {{ highlightText }}
     </p>
 
     <div class="mt-1.5 flex items-center gap-2">

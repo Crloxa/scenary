@@ -2,7 +2,7 @@
 
 > 本文档是前后端并行开发的**唯一契约**。实现以本文为准；不一致时改代码不改文档，改文档必须记录变更。
 > 配套：架构背景见 [01](01-技术栈与总体架构.md)，施工顺序见 [03](03-MVP实施与Docker部署.md)。
-> 版本 v1.2 · 2026-09-04
+> 版本 v1.3 · 2026-09-04
 
 ---
 
@@ -373,7 +373,53 @@ Query：`cursor`（缺省取最新，传上一页 `nextCursor` 后取更小的 i
 
 ---
 
-## 6. Feed 模块 /feed
+## 6. 搜索模块 /search
+
+### 6.1 GET /search/notes — 搜索公开笔记
+
+免认证。Query：`q` 必填；`cursor` 可选 opaque 字符串；`limit` 默认 10、最大 20；`sort` 可选 `recent`（默认）或 `relevance`。
+
+服务端先对 `q` 去除首尾空白；空值或长度不足 2（按 Java 字符数）返回 `40000`，超过 64 返回 `40000`。搜索词按字面匹配，`%`、`_` 和反斜杠不会获得 LIKE 通配语义。搜索范围为标题、正文、地点名和作者昵称。
+
+只返回 `notes.visibility=1`、`users.status=1` 的结果；已删除笔记、私密笔记和禁用作者的笔记均不可见。`recent` 按 `createdAt DESC, id DESC`；`relevance` 按标题命中 4 分、地点名命中 3 分、作者昵称命中 2 分、正文命中 1 分，再按 `createdAt DESC, id DESC`。排序稳定键由服务端 opaque cursor 携带，cursor 绑定原始规范化 query 与 sort，不得跨 query/sort 复用；非法 cursor 返回 `40000`。
+
+响应 data：
+
+```json
+{
+  "list": [
+    {
+      "id": 901,
+      "title": "月下宫墙",
+      "contentPreview": "夜色落在旧城墙上……",
+      "coverUrl": "http://.../thumb/202609/wall_t.jpg",
+      "coverWidth": 1080,
+      "coverHeight": 1440,
+      "mediaCount": 1,
+      "author": { "id": 10086, "nickname": "山野行人", "avatarUrl": null },
+      "createdAt": 1756261200000,
+      "social": {
+        "liked": false, "bookmarked": false, "following": false,
+        "likeCount": 0, "bookmarkCount": 0, "followerCount": 0, "followingCount": 0
+      },
+      "highlight": {
+        "title": "月下宫墙",
+        "content": null,
+        "placeName": "四川·旧城墙",
+        "author": null
+      }
+    }
+  ],
+  "nextCursor": "eyJ...",
+  "hasMore": false
+}
+```
+
+`highlight` 为可选纯文本摘录对象，字段未命中时为 null，不包含 HTML 标签；前端必须按文本渲染。搜索结果与 Feed 卡片字段同构，但不复用 Feed 首页缓存。
+
+---
+
+## 7. Feed 模块 /feed
 
 ### 6.1 GET /feed — 双列瀑布流数据源
 
@@ -411,7 +457,7 @@ Query：`cursor`（缺省取最新，传上一页 `nextCursor` 后取更小的 i
 
 ---
 
-## 7. 系统
+## 8. 系统
 
 | 端点 | 说明 |
 |---|---|
@@ -420,7 +466,7 @@ Query：`cursor`（缺省取最新，传上一页 `nextCursor` 后取更小的 i
 
 ---
 
-## 8. 关键交互时序（前端实现对照）
+## 9. 关键交互时序（前端实现对照）
 
 **令牌过期自愈**：任意请求收 401 → axios 拦截器用 Pinia 里 refreshToken 调 `/auth/refresh` → 成功则替换双令牌并**重放原请求**；失败（40101）→ 清空本地态跳 `/login?redirect=`。
 
@@ -447,3 +493,4 @@ Query：`cursor`（缺省取最新，传上一页 `nextCursor` 后取更小的 i
 | v1.0 | 2026-08-27 | 初版：18 个端点定稿 |
 | v1.1 | 2026-09-04 | P9：新增点赞、收藏、关注、我的收藏；详情/Feed/主页增加社交状态与计数；V4 关系表迁移 |
 | v1.2 | 2026-09-04 | P10：新增评论/回复、软删除、通知分页和批量已读；V5 评论/通知表迁移 |
+| v1.3 | 2026-09-04 | P11：新增公开笔记搜索、recent/relevance 排序、opaque cursor、纯文本 highlight；V6 搜索读路径索引 |

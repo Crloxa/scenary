@@ -85,6 +85,11 @@ function goPublish() {
   }
   return router.push('/publish')
 }
+const searchText = ref('')
+function submitSearch() {
+  const q = searchText.value.trim()
+  router.push({ path: '/search', query: q ? { q } : {} })
+}
 async function logout() {
   if (loggingOut.value) return
   loggingOut.value = true
@@ -103,13 +108,21 @@ async function logout() {
 
 <template>
   <header class="sticky top-0 z-40 backdrop-blur bg-paper/85 border-b border-line">
-    <div class="max-w-[1100px] mx-auto px-4 max-[360px]:px-2 h-14 flex items-center justify-between">
+    <div class="max-w-[1100px] mx-auto px-4 max-[360px]:px-2 h-14 flex items-center gap-4">
       <RouterLink to="/" class="flex items-center gap-2 select-none shrink-0 whitespace-nowrap">
         <span class="text-xl leading-none">🏔</span>
         <span class="font-semibold tracking-wide text-brand-500">Scenary</span>
       </RouterLink>
 
-      <div class="flex items-center gap-3 max-[360px]:gap-1 shrink-0">
+      <form data-testid="nav-search" class="hidden md:flex flex-1 max-w-[360px]" @submit.prevent="submitSearch">
+        <label class="sr-only" for="nav-search-input">搜索风景</label>
+        <div class="relative w-full">
+          <svg aria-hidden="true" class="absolute left-3 top-1/2 -translate-y-1/2 text-ink-soft" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+          <input id="nav-search-input" v-model="searchText" type="search" placeholder="搜索风景、地点或作者" class="w-full h-9 pl-9 pr-3 rounded-full border border-line bg-surface text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100" />
+        </div>
+      </form>
+
+      <div class="ml-auto flex items-center gap-3 max-[360px]:gap-1 shrink-0">
         <button
           data-testid="nav-theme"
           :aria-label="darkMode ? '切换到日间模式' : '切换到夜间模式'"

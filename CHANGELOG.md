@@ -1,5 +1,17 @@
 # Changelog · Scenary
 
+## [v2.34] · 2026-09-04 · P11 搜索与发现完成
+
+- **功能落地**：新增公开笔记搜索后端与 `GET /api/v1/search/notes`，覆盖标题/正文/地点/作者昵称，采用受控 LIKE、公开/软删/禁用作者过滤、`recent`/`relevance` 排序、opaque cursor 和纯文本 highlight（影响 `backend/src/main/java/com/scenary/search/`、`backend/src/main/resources/mapper/SearchMapper.xml`、`docs/02-API接口规范.md`）。
+- **数据与前端**：应用 Flyway V6 搜索读路径索引；新增导航搜索入口、`/search` 路由、结果加载更多/空态/失败重试和可分享 URL；不引入 Elasticsearch、标签字段、推荐算法或搜索缓存（影响 `backend/src/main/resources/db/migration/V6__search_indexes.sql`、`frontend/src/api/search.js`、`frontend/src/views/SearchView.vue`、`frontend/src/components/TopNav.vue`、`frontend/src/components/NoteCard.vue`）。
+- **验收闭环**：空 schema Flyway V1~V6 前向迁移、已有 V5 数据升级、黑盒 `13/13`、搜索 p95 `17.14ms`、索引 `ANALYZE/EXPLAIN`、后端 JUnit `37/37`、前端 Vitest `27/27`、构建 `107 modules`、Chromium/Firefox/WebKit `3/3` 均通过；证据与学习笔记已归档并同步 Checklist、HANDOVER、README、AGENTS（影响 `docs/evidence/2026-09-04-P11搜索与发现验收.md`、`docs/learning/18-P11搜索与发现.md`）。
+
+## [v2.33] · 2026-09-04 · P11 搜索与发现立项
+
+- **契约先行**：将 P11 首期收敛为公开笔记搜索，覆盖标题/正文/地点/作者昵称，支持 `recent`/`relevance`、opaque cursor 和纯文本 `highlight`；明确 q/sort/cursor 边界以及不实现标签、推荐和 Elasticsearch（影响 `docs/02-API接口规范.md`、`docs/05-后续开发路线图与实施手册.md`）。
+- **数据与依赖决策**：登记 Flyway V6 搜索读路径索引与 `ANALYZE TABLE`/`EXPLAIN` 重建入口；采用受控 LIKE，不新增第三方依赖，不复用 Feed 搜索缓存（影响 `docs/01-技术栈与总体架构.md`、`docs/03-MVP实施与Docker部署.md`）。
+- **进度登记**：新增 P11 Checklist，P8/P9/P10 完成状态保持不变；实现与验收待本阶段后续提交补齐（影响 `docs/03-MVP实施与Docker部署.md`）。
+
 ## [v2.32] · 2026-09-04 · P10 未覆盖项补充验收闭环
 
 - **验收完成**：补充敏感词黑盒 `18/18`、真实 WebSocket 黑盒 `4/4`、Chromium/Firefox/WebKit Playwright `6/6`、键盘/读屏语义专项和正式压力基线（10 并发/10 秒、`15561` 请求、错误率 `0`、p50/p95/p99 `5.75/11.49/16.64ms`）；Compose 重建、服务健康与 WebSocket 升级链路通过（影响 `docs/evidence/2026-09-04-P10未覆盖项补充验收.md`、`docs/dev/test-p10-realtime.mjs`、`docs/dev/test-p10-load.mjs`）。
