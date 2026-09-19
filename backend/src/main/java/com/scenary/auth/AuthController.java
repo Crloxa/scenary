@@ -46,13 +46,19 @@ public class AuthController {
     }
 
     /**
-     * 取真实客户端 IP：信任层只有 nginx 一个反代，取 XFF 第一段即可；
-     * 直连开发环境走 remoteAddr。
+     * 取真实客户端 IP：信任层只有 nginx 一个反代。XFF 取最后一段——该段由本方 nginx
+     * 追加（$proxy_add_x_forwarded_for），客户端伪造的段只会落在前面；
+     * 直连开发环境（无 XFF/X-Real-IP）走 remoteAddr。
      */
     static String clientIp(HttpServletRequest http) {
         String xff = http.getHeader("X-Forwarded-For");
         if (xff != null && !xff.isBlank()) {
-            return xff.split(",")[0].trim();
+            String[] segments = xff.split(",");
+            return segments[segments.length - 1].trim();
+        }
+        String realIp = http.getHeader("X-Real-IP");
+        if (realIp != null && !realIp.isBlank()) {
+            return realIp.trim();
         }
         return http.getRemoteAddr();
     }

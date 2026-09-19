@@ -13,6 +13,10 @@ export const userApi = {
     fd.append('file', file)
     return unwrap(await instance.post('/users/me/avatar', fd))
   },
+  /** 注销账号（docs/02 §3.8）：密码二次确认，成功后令牌即时吊销 */
+  async deactivateAccount(password) {
+    return unwrap(await instance.delete('/users/me', { data: { password } }))
+  },
   async profile(userId) {
     return unwrap(await instance.get(`/users/${userId}`))
   },

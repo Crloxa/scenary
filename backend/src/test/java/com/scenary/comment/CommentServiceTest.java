@@ -134,8 +134,8 @@ class CommentServiceTest {
     }
 
     private CommentService service() {
-        return new CommentService(commentMapper, noteService, userService, notificationService, redis,
-                sensitiveWordFilter);
+        return new CommentService(commentMapper, noteService, userService, notificationService,
+                new com.scenary.common.RateLimitService(redis), sensitiveWordFilter);
     }
 
     private CommentRow row(long id, long userId, int status, String content, long createdAt) {

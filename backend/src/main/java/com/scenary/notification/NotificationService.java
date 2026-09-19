@@ -37,6 +37,25 @@ public class NotificationService {
         eventPublisher.publishEvent(new NotificationCreatedEvent(recipientId));
     }
 
+    /** 保留策略（P15-05）：分批删除已读且超过保留期(天)的通知，返回清理总数。 */
+    @Transactional
+    public long purgeOldReadNotifications(int retentionDays) {
+        long cutoff = System.currentTimeMillis() - retentionDays * 24L * 3600 * 1000;
+        long total = 0;
+        int batch;
+        do {
+            batch = notificationMapper.deleteReadOlderThan(cutoff, 500);
+            total += batch;
+        } while (batch == 500);
+        return total;
+    }
+
+    /** dry-run 统计：当前将命中保留策略的通知量。 */
+    public long countOldReadNotifications(int retentionDays) {
+        long cutoff = System.currentTimeMillis() - retentionDays * 24L * 3600 * 1000;
+        return notificationMapper.countReadOlderThan(cutoff);
+    }
+
     public NotificationPage page(long userId, Long cursorParam, Integer limitParam) {
         userService.ensureActive(userId);
         int limit = clampLimit(limitParam);
@@ -76,7 +95,8 @@ public class NotificationService {
         Long readAt = row.getReadAt() == null ? null : row.getReadAt().getTime();
         long createdAt = row.getCreatedAt() == null ? 0L : row.getCreatedAt().getTime();
         return new NotificationVO(row.getId(), type,
-                new AuthorVO(row.getActorId() == null ? 0L : row.getActorId(), nickname, row.getActorAvatarUrl()),
+                new AuthorVO(row.getActorId() == null ? 0L : row.getActorId(), nickname,
+                        userService.viewUrl(row.getActorAvatarUrl())),
                 row.getNoteId(), row.getCommentId(), row.getNoteTitle(), preview,
                 readAt, createdAt);
     }

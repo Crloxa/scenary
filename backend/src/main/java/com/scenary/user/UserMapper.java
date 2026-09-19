@@ -24,6 +24,9 @@ public interface UserMapper {
 
     int updateAvatar(@Param("id") Long id, @Param("avatarUrl") String avatarUrl);
 
+    /** 账号注销：status=2 注销态 + 昵称匿名化 + 清空 bio/头像（docs/02 §3.8）；用户名保留占用 */
+    int deactivate(@Param("id") long id);
+
     /** 笔记计数：本人视角含私密(0,1)，他人视角仅公开=1；均已删(2)恒不计 */
     long countNotes(@Param("userId") Long userId, @Param("includePrivate") boolean includePrivate);
 

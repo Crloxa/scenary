@@ -2,9 +2,7 @@ package com.scenary.comment;
 
 import java.util.List;
 import java.util.Date;
-import java.util.concurrent.TimeUnit;
 
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,6 +10,7 @@ import com.scenary.common.AuthorVO;
 import com.scenary.common.BizException;
 import com.scenary.common.ErrorCode;
 import com.scenary.common.PageResult;
+import com.scenary.common.RateLimitService;
 import com.scenary.note.NoteService;
 import com.scenary.notification.NotificationService;
 import com.scenary.notification.NotificationType;
@@ -21,26 +20,24 @@ import com.scenary.user.UserService;
 @Service
 public class CommentService {
 
-    private static final String KEY_RATE_LIMIT = "rl:comment:";
-    private static final int RATE_LIMIT = 20;
-    private static final long RATE_WINDOW_SECONDS = 60;
     private static final String DELETED_CONTENT = "该评论已删除";
 
     private final CommentMapper commentMapper;
     private final NoteService noteService;
     private final UserService userService;
     private final NotificationService notificationService;
-    private final StringRedisTemplate redis;
+    private final RateLimitService rateLimitService;
     private final SensitiveWordFilter sensitiveWordFilter;
 
     public CommentService(CommentMapper commentMapper, NoteService noteService,
                           UserService userService, NotificationService notificationService,
-                          StringRedisTemplate redis, SensitiveWordFilter sensitiveWordFilter) {
+                          RateLimitService rateLimitService,
+                          SensitiveWordFilter sensitiveWordFilter) {
         this.commentMapper = commentMapper;
         this.noteService = noteService;
         this.userService = userService;
         this.notificationService = notificationService;
-        this.redis = redis;
+        this.rateLimitService = rateLimitService;
         this.sensitiveWordFilter = sensitiveWordFilter;
     }
 
@@ -116,6 +113,12 @@ public class CommentService {
         commentMapper.softDelete(commentId, userId);
     }
 
+    /** 账号注销：作者名下全部未删评论软删，展示侧按既有"已删除"占位渲染（docs/02 §3.8）。 */
+    @Transactional
+    public int deactivateAuthorComments(long userId) {
+        return commentMapper.softDeleteAllByAuthor(userId);
+    }
+
     private CommentRow rowForCreated(CommentEntity comment, long userId) {
         CommentRow row = new CommentRow();
         row.setId(comment.getId());
@@ -142,8 +145,8 @@ public class CommentService {
         long createdAt = row.getCreatedAt() == null ? 0L : row.getCreatedAt().getTime();
         Long updatedAt = row.getUpdatedAt() == null ? null : row.getUpdatedAt().getTime();
         return new CommentVO(row.getId(), row.getNoteId(), row.getParentId(), content, status,
-                new AuthorVO(authorId, nickname, row.getAuthorAvatarUrl()), createdAt,
-                updatedAt, mine, mine && status == 1);
+                new AuthorVO(authorId, nickname, noteService.viewUrl(row.getAuthorAvatarUrl())),
+                createdAt, updatedAt, mine, mine && status == 1);
     }
 
     private String normalizeContent(String raw) {
@@ -165,16 +168,7 @@ public class CommentService {
     }
 
     private void enforceRateLimit(long userId) {
-        String key = KEY_RATE_LIMIT + userId;
-        Long count = redis.opsForValue().increment(key);
-        if (count != null && count == 1L) {
-            redis.expire(key, RATE_WINDOW_SECONDS, TimeUnit.SECONDS);
-        }
-        if (count != null && count > RATE_LIMIT) {
-            Long ttl = redis.getExpire(key);
-            throw new BizException(ErrorCode.TOO_MANY_REQUESTS,
-                    "评论过于频繁，请 " + (ttl == null || ttl < 0 ? RATE_WINDOW_SECONDS : ttl) + " 秒后再试");
-        }
+        rateLimitService.comments(userId);
     }
 
     static int clampLimit(Integer limitParam) {

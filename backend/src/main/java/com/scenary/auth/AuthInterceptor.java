@@ -52,6 +52,10 @@ public class AuthInterceptor implements HandlerInterceptor {
             throw new BizException(ErrorCode.TOKEN_INVALID, "令牌已登出");
         }
         long userId = Long.parseLong(claims.getSubject());
+        // 禁用/注销账号的存量令牌即时失效（缓存判定，docs/02 §3.8）
+        if (!authService.isUserActive(userId)) {
+            throw new BizException(ErrorCode.TOKEN_INVALID);
+        }
         UserContext.set(userId);
         MDC.put("userId", String.valueOf(userId));
         return true;

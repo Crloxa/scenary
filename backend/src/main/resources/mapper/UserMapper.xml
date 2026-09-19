@@ -44,6 +44,12 @@
         UPDATE users SET avatar_url = #{avatarUrl} WHERE id = #{id}
     </update>
 
+    <update id="deactivate">
+        UPDATE users
+        SET status = 2, nickname = '已注销用户', bio = '', avatar_url = NULL
+        WHERE id = #{id} AND status = 1
+    </update>
+
     <select id="countNotes" resultType="long">
         SELECT COUNT(*) FROM notes
         WHERE user_id = #{userId}

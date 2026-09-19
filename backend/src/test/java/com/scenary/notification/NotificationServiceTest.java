@@ -56,4 +56,19 @@ class NotificationServiceTest {
         verify(notificationMapper).markAllRead(11L);
         verify(notificationMapper).markRead(11L, List.of(8L, 9L));
     }
+
+    @Test
+    void purgeBatchesUntilExhaustedAndDryRunCountsOnly() {
+        NotificationService service = new NotificationService(notificationMapper, userService, eventPublisher);
+        when(notificationMapper.deleteReadOlderThan(org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.eq(500))).thenReturn(500, 120, 0);
+        when(notificationMapper.countReadOlderThan(org.mockito.ArgumentMatchers.anyLong())).thenReturn(620L);
+
+        long purged = service.purgeOldReadNotifications(90);
+
+        assertEquals(620L, purged);
+        verify(notificationMapper, org.mockito.Mockito.times(2))
+                .deleteReadOlderThan(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.eq(500));
+        assertEquals(620L, service.countOldReadNotifications(90));
+    }
 }

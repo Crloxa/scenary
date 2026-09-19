@@ -1,5 +1,8 @@
 package com.scenary.user;
 
+import java.util.Map;
+
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -12,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.scenary.auth.AuthService;
 import com.scenary.auth.UserContext;
 import com.scenary.common.PageResult;
 import com.scenary.common.GridCardVO;
@@ -31,12 +35,17 @@ public class UserController {
     private final UserService userService;
     private final com.scenary.auth.JwtUtil jwtUtil;
     private final SocialService socialService;
+    private final AuthService authService;
+    private final AccountDeactivationService deactivationService;
 
     public UserController(UserService userService, com.scenary.auth.JwtUtil jwtUtil,
-                          SocialService socialService) {
+                          SocialService socialService, AuthService authService,
+                          AccountDeactivationService deactivationService) {
         this.userService = userService;
         this.jwtUtil = jwtUtil;
         this.socialService = socialService;
+        this.authService = authService;
+        this.deactivationService = deactivationService;
     }
 
     @GetMapping("/me")
@@ -57,6 +66,15 @@ public class UserController {
     }
 
     public record AvatarVO(String avatarUrl) {
+    }
+
+    /** 注销账号（docs/02 §3.8）：数据库事务提交后再吊销令牌，避免 Redis 操作混入事务。 */
+    @DeleteMapping("/me")
+    public Result<Map<String, Object>> deactivateMe(@Valid @RequestBody DeactivateRequest req) {
+        long userId = UserContext.require();
+        deactivationService.deactivate(userId, req.password());
+        authService.deactivateSessions(userId);
+        return Result.ok(Map.of("deactivated", true));
     }
 
     @GetMapping("/{userId}")

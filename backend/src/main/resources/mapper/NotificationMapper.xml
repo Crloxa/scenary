@@ -44,4 +44,15 @@
         WHERE recipient_id = #{recipientId} AND read_at IS NULL
     </update>
 
+    <select id="countReadOlderThan" resultType="long">
+        SELECT COUNT(*) FROM notifications
+        WHERE read_at IS NOT NULL AND created_at &lt; FROM_UNIXTIME(#{cutoff} / 1000)
+    </select>
+
+    <delete id="deleteReadOlderThan">
+        DELETE FROM notifications
+        WHERE read_at IS NOT NULL AND created_at &lt; FROM_UNIXTIME(#{cutoff} / 1000)
+        LIMIT #{limit}
+    </delete>
+
 </mapper>

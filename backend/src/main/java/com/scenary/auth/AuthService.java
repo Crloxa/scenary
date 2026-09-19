@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import com.scenary.common.BizException;
 import com.scenary.common.ErrorCode;
+import com.scenary.common.RateLimitService;
 import com.scenary.config.JwtProperties;
 import com.scenary.user.UserEntity;
 import com.scenary.user.UserMapper;
@@ -20,7 +21,8 @@ import io.jsonwebtoken.Claims;
  * 认证域服务。Redis 键清单（docs/01 §6）：
  * auth:refresh:{userId}:{jti}          刷新令牌白名单（旋转=删旧签新）
  * auth:access:bl:{jti}                 登出后 access jti 黑名单，TTL=剩余寿命
- * rl:register:{ip}                     注册限流 20 次/IP/小时
+ * auth:ustatus:{userId}                用户状态缓存（1 正常，其余非 1 短 TTL），拦截器每请求判定
+ * rl:register:{ip}                     注册限流（默认 20 次/IP/小时，docs/02 §1.4）
  * rl:loginfail:{username}:{ip}         登录连错计数；满 5 次 -> rl:loginlock 同键名空间锁 15 分钟
  */
 @Service
@@ -28,11 +30,10 @@ public class AuthService {
 
     private static final String KEY_REFRESH = "auth:refresh:";
     private static final String KEY_ACCESS_BL = "auth:access:bl:";
-    private static final String KEY_REG_RL = "rl:register:";
+    private static final String KEY_USER_STATUS = "auth:ustatus:";
     private static final String KEY_LOGIN_FAIL = "rl:loginfail:";
     private static final String KEY_LOGIN_LOCK = "rl:loginlock:";
 
-    private static final int REGISTER_LIMIT_PER_HOUR = 20;
     private static final int LOGIN_MAX_FAILS = 5;
     private static final long LOGIN_LOCK_SECONDS = TimeUnit.MINUTES.toSeconds(15);
 
@@ -41,18 +42,21 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final JwtProperties jwtProps;
     private final StringRedisTemplate redis;
+    private final RateLimitService rateLimitService;
 
     public AuthService(UserMapper userMapper, BCryptPasswordEncoder passwordEncoder,
-                       JwtUtil jwtUtil, JwtProperties jwtProps, StringRedisTemplate redis) {
+                       JwtUtil jwtUtil, JwtProperties jwtProps, StringRedisTemplate redis,
+                       RateLimitService rateLimitService) {
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
         this.jwtProps = jwtProps;
         this.redis = redis;
+        this.rateLimitService = rateLimitService;
     }
 
     public AuthVO register(RegisterRequest req, String ip) {
-        enforceRegisterRateLimit(ip);
+        rateLimitService.register(ip);
         if (userMapper.findByUsername(req.username()) != null) {
             throw new BizException(ErrorCode.USERNAME_EXISTS);
         }
@@ -95,7 +99,8 @@ public class AuthService {
             }
             throw new BizException(ErrorCode.VALIDATION, "用户名或密码错误");
         }
-        if (user.getStatus() != null && user.getStatus() == 0) {
+        // 注销态(2)与禁用态(0)同码同文案，防账号状态枚举（docs/02 §3.8）
+        if (user.getStatus() == null || user.getStatus() != 1) {
             throw new BizException(ErrorCode.ACCOUNT_DISABLED);
         }
         redis.delete(failKey);
@@ -116,7 +121,7 @@ public class AuthService {
         redis.delete(oldKey);
 
         UserEntity user = userMapper.findById(userId);
-        if (user == null || (user.getStatus() != null && user.getStatus() == 0)) {
+        if (user == null || user.getStatus() == null || user.getStatus() != 1) {
             throw new BizException(ErrorCode.TOKEN_INVALID);
         }
         return issuePair(user);
@@ -147,17 +152,34 @@ public class AuthService {
         return Boolean.TRUE.equals(redis.hasKey(KEY_ACCESS_BL + accessClaims.getId()));
     }
 
-    public boolean isRefreshWhitelisted(long userId, String jti) {
-        return Boolean.TRUE.equals(redis.hasKey(KEY_REFRESH + userId + ":" + jti));
+    /**
+     * 拦截器每请求的用户状态判定：缓存命中直接判定；未命中回源 DB 并回填。
+     * 正常态缓存随刷新令牌寿命，非正常态只缓存 60 秒——注销误写缓存可自愈，
+     * 且注销由 deactivateSessions 主动落键即时生效。
+     */
+    public boolean isUserActive(long userId) {
+        String cached = redis.opsForValue().get(KEY_USER_STATUS + userId);
+        if (cached != null) {
+            return "1".equals(cached);
+        }
+        UserEntity user = userMapper.findById(userId);
+        int status = (user == null || user.getStatus() == null) ? 0 : user.getStatus();
+        redis.opsForValue().set(KEY_USER_STATUS + userId, String.valueOf(status),
+                status == 1 ? jwtProps.getRefreshTtl() : 60, TimeUnit.SECONDS);
+        return status == 1;
     }
 
-    private void enforceRegisterRateLimit(String ip) {
-        long count = requireIncrease(KEY_REG_RL + ip, TimeUnit.HOURS.toSeconds(1));
-        if (count > REGISTER_LIMIT_PER_HOUR) {
-            Long ttl = redis.getExpire(KEY_REG_RL + ip);
-            throw new BizException(ErrorCode.TOO_MANY_REQUESTS,
-                    "注册过于频繁，请 " + (ttl == null ? 3600 : ttl) + " 秒后再试");
+    /** 用户模块注销账号的窄门面：吊销全部刷新白名单并即时落注销态缓存（docs/02 §3.8）。 */
+    public void deactivateSessions(long userId) {
+        Set<String> refreshKeys = redis.keys(KEY_REFRESH + userId + ":*");
+        if (refreshKeys != null && !refreshKeys.isEmpty()) {
+            redis.delete(refreshKeys);
         }
+        redis.opsForValue().set(KEY_USER_STATUS + userId, "2", 60, TimeUnit.SECONDS);
+    }
+
+    public boolean isRefreshWhitelisted(long userId, String jti) {
+        return Boolean.TRUE.equals(redis.hasKey(KEY_REFRESH + userId + ":" + jti));
     }
 
     private long requireIncrease(String key, long windowSeconds) {

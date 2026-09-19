@@ -35,6 +35,30 @@ const loggingOut = ref(false)
 const followingPending = ref(false)
 let loadSeq = 0
 
+// 注销账号弹层（docs/02 §3.8）
+const showDeactivate = ref(false)
+const deactivatePassword = ref('')
+const deactivatingBusy = ref(false)
+function openDeactivate() {
+  deactivatePassword.value = ''
+  showDeactivate.value = true
+}
+async function confirmDeactivate() {
+  if (deactivatingBusy.value) return
+  deactivatingBusy.value = true
+  try {
+    await userApi.deactivateAccount(deactivatePassword.value)
+    store.forceLogout()
+    showDeactivate.value = false
+    toast('账号已注销')
+    router.push('/')
+  } catch (e) {
+    toast(getErrorText(e), 'error')
+  } finally {
+    deactivatingBusy.value = false
+  }
+}
+
 async function loadProfile(targetId = userId.value, seq = loadSeq) {
   try {
     const nextProfile = await userApi.profile(targetId)
@@ -234,6 +258,9 @@ async function toggleFollow() {
         <button data-testid="btn-logout" :disabled="loggingOut" class="h-9 px-4 rounded-full border border-line text-ink-soft hover:bg-mute text-sm disabled:opacity-60" @click="logout">
           {{ loggingOut ? '退出中…' : '退出登录' }}
         </button>
+        <button data-testid="btn-deactivate" class="h-9 px-4 rounded-full border border-transparent text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm" @click="openDeactivate">
+          注销账号
+        </button>
       </div>
       <button
         v-else
@@ -264,6 +291,25 @@ async function toggleFollow() {
       </div>
     </div>
     <input ref="avatarFile" type="file" accept="image/jpeg,image/png" aria-label="上传头像" class="hidden" @change="onAvatarPicked" />
+
+    <!-- 注销账号弹层 -->
+    <div v-if="showDeactivate" class="fixed inset-0 z-50 bg-black/40 grid place-items-center px-4" @click.self="showDeactivate=false">
+      <div class="w-full max-w-sm bg-surface rounded-2xl p-5 space-y-3" role="dialog" aria-modal="true" aria-labelledby="deactivate-title">
+        <h2 id="deactivate-title" class="font-medium">注销账号</h2>
+        <p class="text-sm text-ink-soft">注销后你的笔记与评论将不可见，账号无法自行恢复。请输入当前密码确认。</p>
+        <label for="deactivate-password" class="sr-only">当前密码</label>
+        <input id="deactivate-password" v-model="deactivatePassword" type="password" data-testid="input-deactivate-password"
+               placeholder="当前密码" autocomplete="current-password"
+               class="w-full h-11 px-3 rounded-xl bg-mute border border-transparent outline-none focus:border-brand-300 text-sm" />
+        <div class="flex justify-end gap-2 pt-1">
+          <button data-testid="btn-cancel-deactivate" class="h-9 px-4 rounded-full text-sm text-ink-soft hover:bg-neutral-50" @click="showDeactivate=false">取消</button>
+          <button data-testid="btn-confirm-deactivate" :disabled="deactivatingBusy || !deactivatePassword"
+                  class="h-9 px-5 rounded-full bg-red-500 text-white text-sm hover:bg-red-600 disabled:opacity-60" @click="confirmDeactivate">
+            {{ deactivatingBusy ? '注销中…' : '确认注销' }}
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- 九宫格 -->
     <div v-if="notesError && cards.length === 0 && !loading" class="py-20 text-center text-ink-soft">
