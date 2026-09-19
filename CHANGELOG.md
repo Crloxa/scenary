@@ -1,5 +1,16 @@
 # Changelog · Scenary
 
+## [v2.46] · 2026-09-19 · P12-E3 逆地理编码完成（契约 v1.9）
+
+- **契约 v1.9**：02 新增 §7B 地点模块——`GET /places/reverse-geocode?latitude=&longitude=`（仅登录用户），响应 `{placeName, provider, cached}`；§1.4 限流表新增 30 次/分钟/用户行；错误面 40100/40000/42001，provider 侧任何失败不产生 5xx（影响 `docs/02-API接口规范.md`）。
+- **后端 place 包**：`PlaceProvider` SPI（实现必须自托管、失败空候选）+ `NominatimProvider`（Spring 内置 RestClient 零新 Java 依赖，连接/读超时同用 2s，jsonv2 解析优先 name 退 display_name 截断 128 列宽）+ `PlaceService`（限流→校验→geohash-5 缓存 `place:rg:*` TTL 30 天→provider；provider 抛错折叠空候选）+ `PlaceController`；`RateLimitService.places()` 键 `rl:place:{userId}`；WebConfig 登记 `/api/v1/places/reverse-geocode` 防匿名可达（P18 学习 24 教训）；无新迁移（影响 `backend/src/main/java/com/scenary/place/`、`common/RateLimitService.java`、`config/WebConfig.java`）。
+- **设计修正**：只缓存成功地名——超时/失败的空结果若落缓存会把整个 geohash 网格污染 30 天；SPI 约定"实现不抛错"之上 Service 仍兜底 try/catch（影响 `place/PlaceService.java`）。
+- **容器编排**：docker-compose 新增 `nominatim` 服务（mediagis/nominatim:4.5，挂 `geo` profile 默认不启动，无 ports 映射坐标不出内网，独立数据卷 `scenary-nominatim-data`）；backend environment 新增 `SCENARY_PLACE_*`（ENABLED 默认 false / URL / TIMEOUT_MS 默认 2000 / CACHE_TTL_DAYS 默认 30）与 `SCENARY_RATELIMIT_PLACE_PER_MIN` 默认 30（影响 `docker-compose.yml`、`application.yml`）。
+- **前端联动（E3-03）**：`src/api/place.js`；PublishView 坐标齐备后防抖 600ms 查候选——placeName 为空自动回填（仍可编辑）、已填不静默覆盖改为候选条"使用候选"按钮确认、空候选/失败静默降级不阻塞发布；卸载清理定时器与在途请求（影响 `frontend/src/views/PublishView.vue`、`frontend/src/api/place.js`）。
+- **测试与证据**：JUnit 新增 17 例（Geohash 权威向量 ezs42/u4pru、PlaceService 7 例、NominatimProvider 解析 7 例）全量 94/94；Vitest 新增 PublishPlaceFlow 4 例全量 49/49、构建 112 modules；黑盒 `test-p12-e3-places.mjs` 两模式（关闭态 8/8；启用态 11/11——缓存命中上游仅调 1 次、超时 elapsed=2031ms 降级、限流 429）+ 内网 mock provider `mock-nominatim.mjs`；隐私断言 mock 容器无发布端口；Playwright 新增 `p12-e3-place.spec.js` 三浏览器 12/12、既有 4 spec 12/12 无回归；证据 [evidence/2026-09-19-P12-E3逆地理编码验收](docs/evidence/2026-09-19-P12-E3逆地理编码验收.md)（影响 `docs/dev/`、`frontend/e2e/`、`frontend/tests/`）。
+- **测试夹具修正**：p12-video.spec 补 geocode 路由 mock（空候选）——发布页新增该调用后，不 mock 会以假令牌打到真实后端 401 触发全局刷新/登出流程卡死发布页（影响 `frontend/e2e/p12-video.spec.js`）。
+- **文档同步**：03 附 8 全勾；01 §3.1 两行更新（provider/Leaflet 登记状态）；05 §11 执行状态；HANDOVER 现状/矩阵/待办；docs/README 时间线；学习沉淀 `learning/25-WebKit路由拦截与E2E时序.md`（WebKit 多路由 LIFO+expect 轮询偶发 XHR 无响应的排查与根治）。
+
 ## [v2.45] · 2026-09-19 · 文档结构重整（文档地图 / 缺口评估 / 历史归档）
 
 - **文档地图**：新增 [docs/README.md](docs/README.md) 导航中枢——四层渐进披露（根入口→导航→正文→证据/学习/归档）、全部文档清单（含生命周期标注）、7 个场景阅读路径、里程碑×Checklist×证据×学习沉淀的时间线索引表、目录树注释；文档集合变化或新里程碑验收落盘时更新（影响 `docs/README.md`）。

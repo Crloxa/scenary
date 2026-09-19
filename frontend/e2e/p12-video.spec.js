@@ -29,6 +29,11 @@ async function mockP12Apis(page) {
   await page.route('**/api/v1/notifications*', route => route.fulfill(envelope({
     list: [], nextCursor: null, hasMore: false, unreadCount: 0,
   })))
+  // P12-E3 逆地理联动：发布页填坐标后会查候选地名；空候选=不回填，保持本 spec 行为不变。
+  // 不 mock 会以假令牌打到真实后端，401 触发全局刷新/登出流程卡死发布页
+  await page.route('**/api/v1/places/reverse-geocode*', route => route.fulfill(envelope({
+    placeName: null, provider: 'none', cached: false,
+  })))
   await page.route('**/api/v1/feed*', route => route.fulfill(envelope({
     list: [], nextCursor: null, hasMore: false,
   })))

@@ -2,7 +2,7 @@
 
 > 本文档是前后端并行开发的**唯一契约**。实现以本文为准；不一致时改代码不改文档，改文档必须记录变更。
 > 配套：架构背景见 [01](01-技术栈与总体架构.md)，施工顺序见 [03](03-MVP实施与Docker部署.md)。
-> 版本 v1.8 · 2026-09-19
+> 版本 v1.9 · 2026-09-19
 
 ---
 
@@ -70,6 +70,7 @@
 | PUT/DELETE /notes/{id}/like、/bookmark、/users/{id}/follow | 120 次/分钟 | 用户 |
 | POST /media/images | 60 次/10 分钟 | 用户 |
 | POST /notes/{id}/comments | 20 次/分钟（既有 P10 契约不变） | 用户 |
+| GET /places/reverse-geocode | 30 次/分钟（v1.9，P12-E3） | 用户 |
 
 ### 1.5 媒体 URL 生命周期（P12-E2）
 
@@ -623,6 +624,27 @@ feed/搜索/公开网格只取 visibility=1；V11 放开 CHECK 约束至 (0,1,2,
 
 ---
 
+## 7B. 地点模块 /places（v1.9，P12-E3）
+
+### 10.4 GET /places/reverse-geocode — 逆地理编码候选 🔒
+
+查询参数：`latitude`（必填，-90~90）、`longitude`（必填，-180~180）。仅登录用户可用。
+
+响应：
+
+```json
+{ "code": 0, "data": { "placeName": "外滩", "provider": "nominatim", "cached": false } }
+```
+
+- `placeName`：人类可读地名候选；**null 表示空候选**（provider 关闭/超时/失败/无结果），调用方保留手工输入，不得因空候选阻塞或报错。
+- `provider`：供应商标识（自托管实现为 `nominatim`）；provider 关闭时固定 `none`。
+- `cached`：true 表示命中 geohash-5 网格缓存（≈4.9km 网格，TTL 30 天）。
+- 隐私边界：坐标只在服务端与自托管 provider 容器间流转，**禁止外发第三方公有 API**（docs/05 §6.5）；结果仅作为发布页 `place_name` 候选值，必须经用户确认，不静默覆盖已填地名。
+- 限流：30 次/分钟/用户（§1.4，42001/429）。
+- 错误：40100 未登录；40000 参数缺失/非数值/越界；42001 限流。provider 侧任何失败不产生 5xx。
+
+---
+
 ## 8. 系统
 
 | 端点 | 说明 |
@@ -665,3 +687,4 @@ feed/搜索/公开网格只取 visibility=1；V11 放开 CHECK 约束至 (0,1,2,
 | v1.6 | 2026-09-11 | P15：新增 DELETE /users/me 注销账号；新增 §1.4 写接口限流约定（注册按 IP、写接口按用户，42001/429）；users.status 增加 2=注销态语义，注销登录并入 40301，注销用户主页 40400；通知保留策略（已读超期定时清理） |
 | v1.7 | 2026-09-19 | P16 夹缝任务包：新增 §5.11 PUT /notes/{id} 编辑笔记（媒体全量替换语义，复用发笔记限流场景）；新增 §3.9/§3.10 GET /users/{userId}/followers、/following 关注者与正在关注列表 |
 | v1.8 | 2026-09-19 | P18 治理：新增 §7A 举报（POST /reports，42001 限流、唯一去重、阈值 5 自动隐藏）与屏蔽（PUT/DELETE /users/{id}/block，双向可见性过滤）；visibility 新增 3=举报隐藏，V11 放开 CHECK 约束 |
+| v1.9 | 2026-09-19 | P12-E3：新增 §7B GET /places/reverse-geocode 逆地理编码候选（登录用户；§1.4 增加 30 次/分钟限流行；geohash-5 缓存 30 天；provider 关闭/超时/失败一律空候选，坐标不外发第三方） |

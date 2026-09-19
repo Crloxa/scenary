@@ -37,7 +37,15 @@ scenary:
     media-per-10min: "${SCENARY_RATELIMIT_MEDIA_PER_10MIN:60}"
     comment-per-min: "${SCENARY_RATELIMIT_COMMENT_PER_MIN:20}"
     report-per-10min: "${SCENARY_RATELIMIT_REPORT_PER_10MIN:20}"
+    place-per-min: "${SCENARY_RATELIMIT_PLACE_PER_MIN:30}"
     exempt-loopback: "${SCENARY_RATELIMIT_EXEMPT_LOOPBACK:true}"
+  # P12-E3 逆地理编码（docs/05 §6.5）：自托管 provider 坐标不出内网；
+  # provider-enabled=false 时接口稳定返回空候选（provider=none），前端保留手工输入
+  place:
+    provider-enabled: "${SCENARY_PLACE_PROVIDER_ENABLED:false}"
+    provider-url: "${SCENARY_PLACE_PROVIDER_URL:http://nominatim:8080}"
+    provider-timeout-ms: "${SCENARY_PLACE_PROVIDER_TIMEOUT_MS:2000}"
+    cache-ttl-days: "${SCENARY_PLACE_CACHE_TTL_DAYS:30}"
   notification:
     cleanup-enabled: "${SCENARY_NOTIFICATION_CLEANUP_ENABLED:true}"
     retention-days: "${SCENARY_NOTIFICATION_RETENTION_DAYS:90}"

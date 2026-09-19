@@ -1,8 +1,9 @@
 <script setup>
-import { ref, computed, reactive, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
+import { ref, computed, reactive, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { mediaApi, waitProcessed, isAbortError } from '@/api/media'
 import { noteApi } from '@/api/note'
+import { placeApi } from '@/api/place'
 import { useUserStore } from '@/stores/user'
 import { getErrorText } from '@/utils/request'
 import { toast } from '@/utils/toast'
@@ -71,6 +72,48 @@ const canSubmit = computed(
         !submitting.value,
 )
 const titleCount = computed(() => title.value.length)
+
+// P12-E3 逆地理联动（docs/05 §6.5 E3-03）：坐标齐备后防抖取候选地名。
+// 候选只作建议——地名非空时不静默覆盖，展示"使用候选"按钮由用户确认；
+// provider 关闭/超时/失败返回空候选，静默降级，绝不阻塞发布。
+const placeSuggestion = ref('')
+const placeFetching = ref(false)
+let placeRequestId = 0
+let placeDebounceTimer = null
+
+watch([latitude, longitude], () => {
+  if (placeDebounceTimer) clearTimeout(placeDebounceTimer)
+  placeSuggestion.value = ''
+  if (!hasCoordinates.value || coordinateError.value) return
+  placeDebounceTimer = setTimeout(() => {
+    const requestId = ++placeRequestId
+    placeFetching.value = true
+    placeApi.reverseGeocode({
+      latitude: Number(latitude.value),
+      longitude: Number(longitude.value),
+    }).then(data => {
+      if (requestId !== placeRequestId) return // 只采纳最新一次查询
+      if (!data?.placeName) return
+      if (placeName.value.trim() === '') {
+        placeName.value = data.placeName // 空字段自动回填，仍可手改
+      } else {
+        placeSuggestion.value = data.placeName
+      }
+    }).catch(() => {
+      // 空候选/网络失败静默降级：保留手工输入路径
+    }).finally(() => {
+      if (requestId === placeRequestId) placeFetching.value = false
+    })
+  }, 600)
+})
+
+function applyPlaceSuggestion() {
+  if (placeSuggestion.value) {
+    placeName.value = placeSuggestion.value
+    placeSuggestion.value = ''
+  }
+}
+
 const hasDraft = computed(() => Boolean(
   title.value.trim() || content.value.trim() || placeName.value.trim()
     || coordinateText(latitude.value) || coordinateText(longitude.value) || items.value.length,
@@ -425,6 +468,8 @@ function applyEdited(newFile) {
 onUnmounted(() => {
   window.removeEventListener('beforeunload', handleBeforeUnload)
   disposed = true
+  if (placeDebounceTimer) clearTimeout(placeDebounceTimer)
+  placeRequestId += 1 // 使在途响应作废
   items.value.forEach(item => {
     item.removed = true
     item.controller?.abort()
@@ -567,6 +612,15 @@ onUnmounted(() => {
         </div>
       </div>
       <p v-if="coordinateError" data-testid="location-error" class="text-xs text-red-500" role="alert">{{ coordinateError }}</p>
+      <p v-if="placeSuggestion" data-testid="place-suggestion" class="flex items-center gap-2 text-xs text-ink-soft">
+        <span>候选地名：{{ placeSuggestion }}</span>
+        <button
+          type="button"
+          data-testid="apply-place-suggestion"
+          class="px-2 h-6 rounded-full bg-brand-50 text-brand-600 text-xs"
+          @click="applyPlaceSuggestion"
+        >使用候选（不覆盖已填）</button>
+      </p>
       <div v-if="hasCoordinates" class="grid grid-cols-2 gap-2">
         <label class="sr-only" for="publish-place-source">地点来源</label>
         <select id="publish-place-source" v-model="placeSource" class="h-10 px-3 rounded-xl bg-mute border border-transparent text-sm">

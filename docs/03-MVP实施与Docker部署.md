@@ -672,11 +672,11 @@ TOKEN=<上一步accessToken>; curl -s -X POST $BASE/media/images \
 
 > E3 任务定义以 [05 手册 §6.5](05-后续开发路线图与实施手册.md) 为准。隐私边界：用户坐标禁止外发第三方公有 API，采用自托管容器；供应商关闭/超时/失败一律空候选降级。
 
-- [ ] E3-01 provider SPI 与容器：`place` 包门面接口 + Nominatim/Photon 容器编排（01 §3.1 依赖行更新）、超时 2s、配置开关与关闭降级
-- [ ] E3-02 API 与缓存：契约 v1.7 `GET /places/reverse-geocode`（登录用户、30/min 限流、geohash-5 缓存 TTL 30d）同步 02；JUnit + 黑盒覆盖边界码
-- [ ] E3-03 前端联动：发布页选点/坐标输入触发候选地名回填（必须用户确认，不静默覆盖已填地名）；Vitest + 失败降级 UI
-- [ ] E3-04 验收与隐私断言：容器无公网出联、缓存命中、限流 429、超时降级不阻塞发布；三浏览器回归
-- [ ] E3 出口门禁：证据报告按 evidence 规范落盘并同步 Checklist、HANDOVER、CHANGELOG
+- [x] E3-01 provider SPI 与容器：`place` 包门面接口 + Nominatim/Photon 容器编排（01 §3.1 依赖行更新）、超时 2s、配置开关与关闭降级（2026-09-19：`PlaceProvider` SPI + `NominatimProvider`（Spring 内置 RestClient 零新依赖），compose `nominatim` 挂 geo profile 无公网端口，`SCENARY_PLACE_PROVIDER_ENABLED` 默认 false；JUnit GeohashTest/NominatimProviderTest 通过）
+- [x] E3-02 API 与缓存：契约 v1.9 `GET /places/reverse-geocode`（登录用户、30/min 限流、geohash-5 缓存 TTL 30d）同步 02；JUnit + 黑盒覆盖边界码（2026-09-19：02 §7B + §1.4 限流行；黑盒 A 组 8/8 匿名 401/参数 40000/关闭态空候选；设计修正：只缓存成功地名，超时空结果不落缓存防网格污染）
+- [x] E3-03 前端联动：发布页选点/坐标输入触发候选地名回填（必须用户确认，不静默覆盖已填地名）；Vitest + 失败降级 UI（2026-09-19：`src/api/place.js` + PublishView 防抖 600ms 查询，空字段自动回填/已填出候选条确认；Vitest PublishPlaceFlow 4/4）
+- [x] E3-04 验收与隐私断言：容器无公网出联、缓存命中、限流 429、超时降级不阻塞发布；三浏览器回归（2026-09-19：B 组 11/11——缓存命中上游仅调 1 次、超时 elapsed=2031ms 降级、第 24 次触发 429；mock 容器 PortBindings={} 仅内网；p12-e3-place.spec 12/12 三浏览器 + 既有 4 spec 12/12 无回归）
+- [x] E3 出口门禁：证据报告按 evidence 规范落盘并同步 Checklist、HANDOVER、CHANGELOG（2026-09-19：证据见 [evidence/2026-09-19-P12-E3逆地理编码验收](evidence/2026-09-19-P12-E3逆地理编码验收.md)；回滚路径复跑 8/8；学习沉淀 25）
 
 ---
 

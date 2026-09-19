@@ -23,6 +23,7 @@ public class RateLimitService {
     int mediaPer10min = 60;
     int commentPerMin = 20;
     int reportPer10min = 20;
+    int placePerMin = 30;
     boolean exemptLoopback = true;
 
     public RateLimitService(StringRedisTemplate redis) {
@@ -49,6 +50,9 @@ public class RateLimitService {
 
     @Value("${scenary.ratelimit.report-per-10min:20}")
     public void setReportPer10min(int v) { this.reportPer10min = v; }
+
+    @Value("${scenary.ratelimit.place-per-min:30}")
+    public void setPlacePerMin(int v) { this.placePerMin = v; }
 
     public void register(String ip) {
         if (exemptLoopback && isLoopback(ip)) {
@@ -82,6 +86,12 @@ public class RateLimitService {
     public void comments(long userId) {
         check("rl:comment:" + userId, TimeUnit.MINUTES.toSeconds(1), commentPerMin,
                 "评论过于频繁");
+    }
+
+    /** 逆地理编码查询（docs/02 §7B，P12-E3）：保护 provider 与缓存面。 */
+    public void places(long userId) {
+        check("rl:place:" + userId, TimeUnit.MINUTES.toSeconds(1), placePerMin,
+                "地名查询过于频繁");
     }
 
     void check(String key, long windowSeconds, int limit, String action) {

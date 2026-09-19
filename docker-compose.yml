@@ -107,6 +107,13 @@ services:
       SCENARY_RATELIMIT_EXEMPT_LOOPBACK: ${SCENARY_RATELIMIT_EXEMPT_LOOPBACK:-true}
       # P18 举报限流（默认 20/10min/用户）：Compose 演示放宽容纳黑盒矩阵，生产在 .env 调回
       SCENARY_RATELIMIT_REPORT_PER_10MIN: ${SCENARY_RATELIMIT_REPORT_PER_10MIN:-200}
+      # P12-E3 逆地理编码（docs/05 §6.5）：默认关闭返回空候选；--profile geo 启用
+      # nominatim 且导入 OSM 数据后，在 .env 置 SCENARY_PLACE_PROVIDER_ENABLED=true
+      SCENARY_RATELIMIT_PLACE_PER_MIN: ${SCENARY_RATELIMIT_PLACE_PER_MIN:-30}
+      SCENARY_PLACE_PROVIDER_ENABLED: ${SCENARY_PLACE_PROVIDER_ENABLED:-false}
+      SCENARY_PLACE_PROVIDER_URL: ${SCENARY_PLACE_PROVIDER_URL:-http://nominatim:8080}
+      SCENARY_PLACE_PROVIDER_TIMEOUT_MS: ${SCENARY_PLACE_PROVIDER_TIMEOUT_MS:-2000}
+      SCENARY_PLACE_CACHE_TTL_DAYS: ${SCENARY_PLACE_CACHE_TTL_DAYS:-30}
       SCENARY_NOTIFICATION_CLEANUP_ENABLED: ${SCENARY_NOTIFICATION_CLEANUP_ENABLED:-true}
       SCENARY_NOTIFICATION_RETENTION_DAYS: ${SCENARY_NOTIFICATION_RETENTION_DAYS:-90}
       TZ: Asia/Shanghai
@@ -123,8 +130,25 @@ services:
       backend: {condition: service_healthy}
     ports: ["8081:80"]
 
+  # P12-E3 自托管逆地理 provider（docs/05 §6.5）：仅内网可达（无 ports 映射，坐标不出内网）。
+  # 默认不随栈启动；首次启用：docker compose --profile geo up -d nominatim，
+  # 并在 .env 配 NOMINATIM_PBF_URL（区域 OSM pbf，如 download.geofabrik.de 的省级 extract）与
+  # SCENARY_PLACE_PROVIDER_ENABLED=true；数据导入耗时长，FREEZE=1 防重启重复导入。
+  nominatim:
+    image: mediagis/nominatim:4.5
+    profiles: ["geo"]
+    restart: unless-stopped
+    environment:
+      PBF_URL: ${NOMINATIM_PBF_URL:-}
+      REPLICATION_URL: ""
+      FREEZE: "true"
+      THREADS: 4
+    volumes: ["scenary-nominatim-data:/var/lib/postgresql"]
+    shm_size: 1g
+
 volumes:
   scenary-mysql-data:
   scenary-redis-data:
   scenary-mq-data:
   scenary-minio-data:
+  scenary-nominatim-data:

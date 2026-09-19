@@ -34,6 +34,7 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/v1/users/*/follow",
                         "/api/v1/users/*/block",
                         "/api/v1/reports",
+                        "/api/v1/places/reverse-geocode",
                         "/api/v1/users/me/bookmarks",
                         "/api/v1/notifications",
                         "/api/v1/notifications/**");
