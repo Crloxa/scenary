@@ -78,8 +78,8 @@ public class VideoTranscodeService {
             uploadedKeys.add(lowKey);
 
             int updated = mediaMapper.updateVideoProcessResult(mediaId, coverKey,
-                    minio.publicUrl(coverKey), metadata.width(), metadata.height(), metadata.durationMs(),
-                    highKey, minio.publicUrl(highKey), lowKey, minio.publicUrl(lowKey));
+                    metadata.width(), metadata.height(), metadata.durationMs(),
+                    highKey, lowKey);
             if (updated != 1) {
                 throw new IllegalStateException("video status changed before completion");
             }

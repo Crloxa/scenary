@@ -24,6 +24,7 @@ import net.coobird.thumbnailator.geometry.Positions;
 /**
  * 用户域服务：资料/头像/公开主页；个人网格经 NoteService 门面取数（依赖铁律 docs/01 §4.1）。
  * 头像为"封面式"200x200 居中裁切，输出 JPEG 单对象，无独立缩略图（docs/02 §3.3）。
+ * 账号注销编排见 {@link AccountDeactivationService}（避免与 CommentService 形成 bean 环）。
  */
 @Service
 public class UserService {
@@ -42,22 +43,27 @@ public class UserService {
 
     public UserVO me(long userId) {
         UserEntity u = require(userId);
-        return new UserVO(u.getId(), u.getUsername(), u.getNickname(), u.getAvatarUrl(),
+        return new UserVO(u.getId(), u.getUsername(), u.getNickname(), viewUrl(u.getAvatarUrl()),
                 u.getBio(), userMapper.countNotes(userId, true), u.getCreatedAt().getTime());
     }
 
-    /** 不存在或禁用账号一律按资源不存在表达（禁用者登录已在认证域拦截） */
+    /** 不存在或非正常态账号一律按资源不存在表达（禁用/注销者登录已在认证域拦截） */
     private UserEntity require(long userId) {
         UserEntity u = userMapper.findById(userId);
-        if (u == null || (u.getStatus() != null && u.getStatus() == 0)) {
+        if (u == null || u.getStatus() == null || u.getStatus() != 1) {
             throw new BizException(ErrorCode.NOT_FOUND);
         }
         return u;
     }
 
+    /** E2 跨模块窄门面：把持久化的 key/遗留 URL 转成浏览器可达的短时签名 URL（docs/02 §1.5）。 */
+    public String viewUrl(String stored) {
+        return minio.viewUrl(stored);
+    }
+
     public PublicUserVO publicProfile(long userId) {
         UserEntity u = require(userId);
-        return new PublicUserVO(u.getId(), u.getNickname(), u.getAvatarUrl(),
+        return new PublicUserVO(u.getId(), u.getNickname(), viewUrl(u.getAvatarUrl()),
                 u.getBio(), userMapper.countNotes(userId, false), u.getCreatedAt().getTime());
     }
 
@@ -107,9 +113,9 @@ public class UserService {
 
             String key = "avatar/" + userId + "/" + UUID.randomUUID() + ".jpg";
             minio.put(key, new ByteArrayInputStream(out.toByteArray()), out.size(), "image/jpeg");
-            String url = minio.publicUrl(key);
-            userMapper.updateAvatar(userId, url);
-            return url;
+            // E2-02：avatar_url 列改存 object key，展示 URL 由读路径签名（docs/02 §1.5）
+            userMapper.updateAvatar(userId, key);
+            return viewUrl(key);
         } catch (BizException e) {
             throw e;
         } catch (Exception e) {

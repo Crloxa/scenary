@@ -37,7 +37,7 @@ class SearchServiceTest {
         when(socialService.noteStatuses(List.of(9L), 42L))
                 .thenReturn(Map.of(9L, new SocialVO(true, false, false, 1, 0, 2, 3)));
 
-        SearchPageResult<SearchNoteVO> page = new SearchService(searchMapper, socialService)
+        SearchPageResult<SearchNoteVO> page = new SearchService(searchMapper, socialService, null)
                 .search(42L, "  A_%  ", null, null, "RELEVANCE");
 
         assertEquals(1, page.list().size());
@@ -56,7 +56,7 @@ class SearchServiceTest {
         when(searchMapper.selectNotes("云海", "relevance", null, null, null, 2))
                 .thenReturn(List.of(first, probe));
 
-        SearchService service = new SearchService(searchMapper, socialService);
+        SearchService service = new SearchService(searchMapper, socialService, null);
         SearchPageResult<SearchNoteVO> page = service.search(null, "云海", null, 1, "relevance");
 
         assertTrue(page.hasMore());
@@ -71,7 +71,7 @@ class SearchServiceTest {
 
     @Test
     void invalidQueryAndSortAreRejectedBeforeDatabaseAccess() {
-        SearchService service = new SearchService(searchMapper, socialService);
+        SearchService service = new SearchService(searchMapper, socialService, null);
 
         assertThrows(BizException.class, () -> service.search(null, " ", null, null, "recent"));
         assertThrows(BizException.class, () -> service.search(null, "a", null, null, "recent"));

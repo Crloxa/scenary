@@ -1,11 +1,11 @@
 # Scenary · 交接文档（HANDOVER）
 
 > 新会话/新协作者快速接管用。治理规则入口仍是 [../AGENTS.md](../AGENTS.md)，本文只回答"现状怎么跑、测什么、下一步做什么"。
-> 更新时间：2026-09-04 · 对应版本 v2.38 · 进度真相源 [03 手册末尾 Checklist](03-MVP实施与Docker部署.md) · 最新证据 [P12-E1 分片上传验收](evidence/2026-09-04-P12-E1分片上传验收.md) · 当前改进入口 [05 后续开发路线图](05-后续开发路线图与实施手册.md) · 最新学习笔记 [20 P12-E1 预签名与断点续传](learning/20-P12-E1预签名与断点续传.md)
+> 更新时间：2026-09-12 · 对应版本 v2.41 · 进度真相源 [03 手册末尾 Checklist](03-MVP实施与Docker部署.md) · 最新验收证据 [P12-E2 私有桶与短时签名验收](evidence/2026-09-12-P12-E2私有桶与短时签名验收.md)（审计依据见 [project-audit-2026-09-11](project-audit-2026-09-11.md)）· P15 证据 [P15 账号与安全基线验收](evidence/2026-09-12-P15账号与安全基线验收.md) · 当前改进入口 [05 后续开发路线图](05-后续开发路线图与实施手册.md) · 最新学习笔记 [22 P12-E2 私有桶 key 语义与签名收口](learning/22-P12-E2私有桶key语义与签名收口.md)
 
 ## 1. 一句话现状
 
-后端 MVP 主链路已验收（18 端点全绿），前端七视图可用并已切换薄荷绿×青冥×茶白双主题；P4、P5、P6 和 Phase 7 均已验收。P8 已于 2026-09-03 通过全量出口门禁；P9、P10（含未覆盖项补充）、P11 搜索与发现和 P12 视频与地点（含 E1 分片上传）均已于 2026-09-04 完成。全栈由 Docker Compose 在 `:8081` 对外提供，backend health、`/api`、`/minio`、SPA history 和 WebSocket 升级链路已实测。
+后端 MVP 主链路已验收（18 端点全绿），前端七视图可用并已切换薄荷绿×青冥×茶白双主题；P4、P5、P6 和 Phase 7 均已验收。P8 已于 2026-09-03 通过全量出口门禁；P9、P10（含未覆盖项补充）、P11 搜索与发现和 P12 视频与地点（含 E1 分片上传）均已于 2026-09-04 完成。全栈由 Docker Compose 在 `:8081` 对外提供，backend health、`/api`、`/minio`、SPA history 和 WebSocket 升级链路已实测。2026-09-12：P15 账号与安全基线（限流/安全头/密码找回脚本/账号注销/通知保留）完成；**P12-E2 私有桶与短时签名完成——对象桶已私有，全部媒体 URL 为运行时短时签名（TTL 300s），"私密笔记封面匿名可达"漏洞已封死**；P12-E3/E4 待施工。
 
 ## 2. 如何跑起来
 
@@ -36,8 +36,11 @@ docker compose ps
 | P11 索引分析 | `pwsh -File ops/rebuild-search-index.ps1` | ANALYZE、搜索索引和 EXPLAIN 查询计划 | ✅ |
 | P12 视频地点黑盒 | `node docs/dev/test-p12-video-location.mjs` | 魔数/状态、ffprobe/ffmpeg 产物、MAP 坐标、EXIF 隐私、V7 和队列隔离 | ✅11 |
 | P12-E1 分片黑盒 | `node docs/dev/test-p12-e1-upload.mjs` | V8 会话、真实预签名 PUT、恢复、合并/幂等、取消、过期和 MinIO 对象校验 | ✅11 |
-| 后端单元 | `cd backend && mvn test -q` | 认证/媒体/视频消费者/traceId/Feed/笔记/社交/评论/通知/搜索/分片上传边界回归 | ✅50 |
-| 前端单元 | `cd frontend && npm test` | request、媒体/视频、发布、详情、登录、NoteCard、社交、评论/通知、搜索 API 与视图 | ✅33 |
+| P12-E2 私有桶黑盒 | `node docs/dev/test-p12-e2-private.mjs` | key 语义残留 0、签名 URL 匿名可读、无签名直链/伪造签名/存在性探测全 403、Range 206 | ✅8 |
+| P15 安全黑盒 | `node docs/dev/test-p15-security.mjs` | 安全响应头、注册（IP+XFF 末段归因）/社交/评论限流 429、注销全链路、通知保留配置；末段自清 rl:register:* 可重跑 | ✅13 |
+| 密码重置 | `pwsh -File ops/reset-user-password.ps1 -Username <u> -NewPassword <p>`（`-Preview`/`-Reactivate`） | jshell 生成 BCrypt → mysql 容器 UPDATE；旧密拒绝新密登录 | ✅ |
+| 后端单元 | `cd backend && mvn test -q` | 认证/媒体/视频消费者/traceId/Feed/笔记/社交/评论/通知/搜索/分片上传/限流/注销边界回归 | ✅68 |
+| 前端单元 | `cd frontend && npm test` | request、媒体/视频、发布、详情、登录、NoteCard、社交、评论/通知、搜索 API 与视图、注销危险区 | ✅35 |
 | 前端浏览器 | `cd frontend && npm run test:e2e` | Chromium/Firefox/WebKit 的 390px 路由、评论/通知语义、键盘焦点、console/page error | ✅6 |
 | P11 前端浏览器 | `cd frontend && SCENARY_FRONTEND_URL=http://localhost:8081 npx playwright test e2e/p11-search.spec.js` | Chromium/Firefox/WebKit 搜索 query/sort/highlight/可分享 URL | ✅3 |
 | P12 前端浏览器 | `cd frontend && npx playwright test e2e/p12-video.spec.js` | Chromium/Firefox/WebKit 视频发布、单次提交、地点字段、详情播放 | ✅3 |
@@ -55,14 +58,15 @@ P8 完整证据、环境指纹与验证边界归档在 [2026-09-03-P8改进验�
 
 ## 4. 待办清单（按优先级）
 
-> 当前工作边界：Phase 7、P8、P9、P10、P11 和 P12（含 E1）均已通过全量出口验收；暂无已排期的后续施工。
+> 当前工作边界：Phase 7、P8、P9、P10、P11、P12（含 E1、E2）和 P15 均已通过全量出口验收（P15 仅邮件找回 03b 延后）；P12-E3/E4 已立项待施工，Checklist 见 03 附 8~9。
 
-1. **历史媒体 URL 迁移**：开发期已有媒体行可能持久化旧 MinIO 直连 URL；已提供 `ops/migrate-media-urls.ps1`，先用 `-Preview` 核对参数，再按新旧 public host 批量重建 media、note 封面和可选头像 URL。实际历史数据迁移仍是部署前运维动作。
-2. **P8 证据维护**：若正式执行历史 URL 迁移，需追加运维证据和 CHANGELOG 勘误，不回改本报告历史结果。
-3. **后续路线**：P12-01~P12-05 与 P12-E1 已完成并分别归档证据；私有桶短时播放签名、外部逆地理编码、地图 UI 属于后续增强，P13/P14 仍为长期 TODO。
-4. **长期 TODO（暂不排期）**：P13 内容审核、P14 规模化运维；两者的设计草案和重新立项出口条件保留在 [05 后续开发路线图](05-后续开发路线图与实施手册.md) 中。
+1. **P12-E3 逆地理编码（下一项）/ P12-E4 地图 UI**：自托管 provider + Leaflet 选点展示；E4 依赖 E3；任务定义见 [05 §6.5/§6.6](05-后续开发路线图与实施手册.md)。
+2. **P15 遗留小项**：P15-03b 邮件找回（待外部 SMTP 凭据，03 附 10 未勾）；CSP 从 Report-Only 转 enforce（先盘点 index.html 两处内联脚本）；HSTS 随 TLS 部署形态启用。
+3. **回滚提示（E2）**：私有桶出问题时 `ops/set-bucket-policy.ps1 -Policy download` + `.env` 设 `SCENARY_MEDIA_PRESIGN_READ=false` 重启 backend 即回直链模式（命令已验证，见 E2 证据 §5）。
+4. **历史媒体 URL 迁移**：已由 E2-03 完成 URL→key 回填（`ops/migrate-media-urls.ps1 -ToKeys`）；换域名部署时仍用默认模式按新旧 public host 重建。
+5. **长期 TODO（暂不排期）**：P13 内容审核、P14 规模化运维；两者的设计草案和重新立项出口条件保留在 [05 后续开发路线图](05-后续开发路线图与实施手册.md) 中。
 
-> 当前施工记录：P8-01~P8-22、P9-01~P9-05、P10-01~P10-06、P10-S01~P10-S05、P11-01~P11-05、P12-01~P12-05 与 P12-E1-01~P12-E1-04 均已落地并完成验证；P12 基础出口报告为 `docs/evidence/2026-09-04-P12视频与地点验收.md`，E1 出口报告为 `docs/evidence/2026-09-04-P12-E1分片上传验收.md`，最新学习笔记为 `docs/learning/20-P12-E1预签名与断点续传.md`。
+> 当前施工记录：P8-01~P8-22、P9-01~P9-05、P10-01~P10-06、P10-S01~P10-S05、P11-01~P11-05、P12-01~P12-05、P12-E1-01~P12-E1-04、P15-01~P15-06（03b 延后）与 P12-E2-01~E2-03 均已落地并完成验证；E2 出口报告为 `docs/evidence/2026-09-12-P12-E2私有桶与短时签名验收.md`，最新学习笔记为 `docs/learning/22-P12-E2私有桶key语义与签名收口.md`。
 
 ## 5. 关键决策与坑位速查（细节见对应文档）
 

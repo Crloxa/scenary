@@ -2,7 +2,7 @@
 
 > 本文档是前后端并行开发的**唯一契约**。实现以本文为准；不一致时改代码不改文档，改文档必须记录变更。
 > 配套：架构背景见 [01](01-技术栈与总体架构.md)，施工顺序见 [03](03-MVP实施与Docker部署.md)。
-> 版本 v1.5 · 2026-09-04
+> 版本 v1.6 · 2026-09-11
 
 ---
 
@@ -39,14 +39,14 @@
 | 40000 | 400 | 参数校验失败 | 标题超长、密码强度不足、图片数量>9 |
 | 40100 | 401 | 未登录 / 缺少令牌 | 未带 Authorization 访问受保护接口 |
 | 40101 | 401 | 令牌无效或已过期 | access 过期且 refresh 失败 |
-| 40300 | 403 | 无权操作该资源 | 删除别人的笔记 |
-| 40301 | 403 | 账号已被禁用 | users.status=0 登录 |
-| 40400 | 404 | 资源不存在 | 笔记已删除/私密被他人访问 |
+| 40300 | 403 | 无权操作该资源 | 删除别人的笔记；注销账号时密码二次确认失败 |
+| 40301 | 403 | 账号已被禁用 | users.status=0 登录；users.status=2（已注销）登录同码，message 一致 |
+| 40400 | 404 | 资源不存在 | 笔记已删除/私密被他人访问；用户主页已被注销 |
 | 40901 | 409 | 媒体尚未处理完成 | 提交笔记时含 status≠1 的图或视频 |
 | 40902 | 409 | 上传会话已过期 | 分片会话超过有效期后继续取片或合并 |
 | 40903 | 409 | 上传分片不完整 | 合并时缺少分片、分片大小或总大小不符 |
 | 41001 | 422 | 用户名已存在 | 注册重名 |
-| 42001 | 429 | 请求过于频繁 | 触发登录锁/注册限流，message 含剩余秒数 |
+| 42001 | 429 | 请求过于频繁 | 登录锁；注册/发笔记/点赞/收藏/关注/上传等写接口触发 §1.4 限流，message 含剩余秒数 |
 | 50000 | 500 | 服务器内部错误 | 兜底，message 固定"服务开小差了"不泄内部信息 |
 
 ### 1.3 游标分页约定
@@ -58,6 +58,28 @@
 ```
 
 `hasMore=false` 时 `nextCursor=null`。
+
+### 1.4 写接口限流约定（P15）
+
+写接口按用户（或注册按客户端 IP）在 Redis 滑动窗口内限频，超出返回 `42001/429`，message 含剩余秒数。阈值经 `SCENARY_RATELIMIT_*` 环境变量可调；来自回环地址（127.0.0.1/::1）的客户端豁免注册限流，用于本地开发与自动化测试，生产流量经反代进入时携带真实客户端 IP 不受影响。
+
+| 接口 | 限制 | key 维度 |
+|---|---|---|
+| POST /auth/register | 5 次/小时 | 客户端 IP |
+| POST /notes | 30 次/10 分钟 | 用户 |
+| PUT/DELETE /notes/{id}/like、/bookmark、/users/{id}/follow | 120 次/分钟 | 用户 |
+| POST /media/images | 60 次/10 分钟 | 用户 |
+| POST /notes/{id}/comments | 20 次/分钟（既有 P10 契约不变） | 用户 |
+
+### 1.5 媒体 URL 生命周期（P12-E2）
+
+对象存储桶默认**私有**（`mc anonymous set none`），所有响应中的媒体 URL 字段（`url`、`thumbUrl`、`coverUrl`、`avatarUrl`、`playbackUrl`、`playbackLowUrl`）均为**运行时生成的短时预签名 GET URL**（默认有效期 300 秒，`SCENARY_MEDIA_PRESIGN_TTL_SECONDS` 可调），非持久化直链：
+
+- 数据库与缓存（feed 两级缓存、`note:card:{id}`）只持久化 object key；签名在 VO 组装时完成（本地 HMAC 计算，无网络 IO）。
+- URL 带自校验签名：改动路径、参数或过期后由对象存储直接拒绝（403），客户端不得解析、拼接或长期缓存 URL；页面长时间停留后应由接口重新获取。
+- 视频播放支持 Range 请求（拖动进度条），签名 URL 对 Range 同样有效。
+- 回滚模式：`SCENARY_MEDIA_PRESIGN_READ=false` 且桶策略切回 public-read（`ops/set-bucket-policy.ps1 -Policy download`）时，读路径退回持久化直链。
+- 历史直链数据经 `ops/migrate-media-urls.ps1 -ToKeys` 回填为 key（先 `-Preview`）。
 
 ---
 
@@ -137,7 +159,21 @@ Content-Type: multipart/form-data，字段名 `file`，单张 image/jpeg|png ≤
 同步处理：MinIO 存 `avatar/{userId}/{uuid}.jpg` + Thumbnailator 生成 200×200 封面式缩放覆盖原路径（头像不分图）。
 响应 data：`{ "avatarUrl": "http://.../avatar/10086/x.jpg" }`，并自动写入 users.avatar_url。
 
-### 3.4 GET /users/{userId} — 用户公开主页
+### 3.8 DELETE /users/me — 注销账号 🔒（P15）
+
+请求：`{ "password": "当前密码" }`。密码二次确认失败返回 40300。
+
+服务端行为（同一事务 + 提交后吊销令牌）：
+
+1. `users.status` 置 2（注销态），nickname 置"已注销用户"，bio 清空，头像对象从桶删除并清空 `avatar_url`；
+2. 名下全部笔记软删（visibility=2 + deleted_at），全部评论软删（deleted_at，前端按既有"已删除"占位渲染）；
+3. 访问/刷新令牌即时吊销，后续任何请求返回 40100，再次登录返回 40301（与禁用账号同码同文案，不区分提示）；
+4. `username` 保留占用防冒名；点赞/收藏/关注关系与既有通知保留（计数语义与禁用账号一致）；
+5. GET /users/{userId} 对注销用户返回 40400；feed/搜索/详情按既有可见性过滤自然消失。
+
+响应 data：`{ "deactivated": true }`。本操作不可由 API 撤销；恢复属于运维动作（重置 users.status）。
+
+
 
 免认证可看。响应 data = 3.1 结构去掉 username/email 类敏感字段，保留 id/nickname/avatarUrl/bio/noteCount/createdAt，并增加 P9 `social` 社交状态；匿名视角的 `following` 为 false，但关注/被关注计数仍公开返回。
 （访问自己时可通过 3.1 判断身份。）
@@ -565,3 +601,4 @@ Query：`cursor`（缺省取最新，传上一页 `nextCursor` 后取更小的 i
 | v1.3 | 2026-09-04 | P11：新增公开笔记搜索、recent/relevance 排序、opaque cursor、纯文本 highlight；V6 搜索读路径索引 |
 | v1.4 | 2026-09-04 | P12：新增视频上传/状态/播放字段、独立转码队列约定和笔记坐标字段；V7 媒体/地点扩展 |
 | v1.5 | 2026-09-04 | P12-E1：新增视频分片上传会话、预签名 PUT、断点恢复、合并校验、取消与过期清理；V8 会话/分片表 |
+| v1.6 | 2026-09-11 | P15：新增 DELETE /users/me 注销账号；新增 §1.4 写接口限流约定（注册按 IP、写接口按用户，42001/429）；users.status 增加 2=注销态语义，注销登录并入 40301，注销用户主页 40400；通知保留策略（已读超期定时清理） |

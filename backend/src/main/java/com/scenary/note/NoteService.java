@@ -16,6 +16,7 @@ import com.scenary.common.BizException;
 import com.scenary.common.ErrorCode;
 import com.scenary.common.GridCardVO;
 import com.scenary.common.PageResult;
+import com.scenary.common.RateLimitService;
 import com.scenary.media.MediaMapper;
 import com.scenary.media.MinioService;
 import com.scenary.user.UserEntity;
@@ -37,18 +38,22 @@ public class NoteService {
     private final UserMapper userMapper;
     private final MinioService minio;
     private final StringRedisTemplate redis;
+    private final RateLimitService rateLimitService;
 
     public NoteService(NoteMapper noteMapper, MediaMapper mediaMapper,
-                       UserMapper userMapper, MinioService minio, StringRedisTemplate redis) {
+                       UserMapper userMapper, MinioService minio, StringRedisTemplate redis,
+                       RateLimitService rateLimitService) {
         this.noteMapper = noteMapper;
         this.mediaMapper = mediaMapper;
         this.userMapper = userMapper;
         this.minio = minio;
         this.redis = redis;
+        this.rateLimitService = rateLimitService;
     }
 
     @Transactional(noRollbackFor = DuplicateKeyException.class)
     public NoteCreatedVO create(long userId, NoteCreateRequest req) {
+        rateLimitService.notes(userId);
         String requestKey = normalizeRequestKey(req.requestKey());
         if (requestKey != null) {
             NoteEntity existing = noteMapper.findByUserAndRequestKey(userId, requestKey);
@@ -131,6 +136,17 @@ public class NoteService {
         redis.delete(KEY_NOTE_CARD + noteId);
     }
 
+    /**
+     * 账号注销：作者名下全部可见笔记软删，清其 feed 卡片缓存（docs/02 §3.8）。
+     * user 模块注销事务经此门面调用，返回受影响行数供日志。
+     */
+    @Transactional
+    public int deactivateAuthorNotes(long userId) {
+        int rows = noteMapper.softDeleteAllByAuthor(userId);
+        redis.delete(KEY_FEED_FIRST);
+        return rows;
+    }
+
     /** 记录快照的轻量内部结构，避免把 media 实体散出模块 */
     private record MediaItemSnapshot(long id, String thumbUrl, Integer mediaType,
                                      BigDecimal exifLatitude, BigDecimal exifLongitude) {
@@ -194,15 +210,20 @@ public class NoteService {
 
     // ---------- 聚合查询（详情/网格门面） ----------
 
+    /** E2 跨模块窄门面：持久化 key/遗留 URL → 浏览器可达短时签名 URL（docs/02 §1.5）。 */
+    public String viewUrl(String stored) {
+        return minio.viewUrl(stored);
+    }
+
     public NoteDetailVO detail(Long viewerId, long noteId) {
         NoteEntity n = requireVisible(viewerId, noteId);
         var briefs = briefsMap(List.of(n.getUserId()));
         var author = toAuthor(n.getUserId(), briefs);
         var images = mediaMapper.selectByNoteIds(List.of(noteId)).stream()
                 .map(m -> new NoteDetailVO.ImageItem(m.getId(), minio.displayUrl(m),
-                        m.getThumbUrl(), m.getWidth(), m.getHeight(),
+                        minio.viewUrl(m.getThumbUrl()), m.getWidth(), m.getHeight(),
                         com.scenary.media.MediaType.from(m.getMediaType()).label(), m.getDurationMs(),
-                        m.getPlaybackUrl(), m.getPlaybackLowUrl()))
+                        minio.viewUrl(m.getPlaybackUrl()), minio.viewUrl(m.getPlaybackLowUrl())))
                 .toList();
         boolean mine = Objects.equals(viewerId, n.getUserId());
         boolean exposeLocation = !"EXIF".equals(n.getPlaceSource());
@@ -252,7 +273,7 @@ public class NoteService {
         long cursor = cursorParam == null ? Long.MAX_VALUE : cursorParam;
         var rows = noteMapper.selectGridRows(targetUserId, cursor, limit, showPrivate);
         List<GridCardVO> vos = rows.stream()
-                .map(n -> new GridCardVO(n.getId(), n.getTitle(), n.getCoverUrl(),
+                .map(n -> new GridCardVO(n.getId(), n.getTitle(), viewUrl(n.getCoverUrl()),
                         n.getMediaCount(), n.getVisibility(), n.getCreatedAt().getTime()))
                 .toList();
         return PageResult.build(vos, limit, GridCardVO::id);
@@ -277,7 +298,7 @@ public class NoteService {
     public AuthorVO toAuthor(long userId, Map<Long, UserEntity> briefs) {
         UserEntity u = briefs.get(userId);
         return u == null ? new AuthorVO(userId, "已注销", null)
-                : new AuthorVO(u.getId(), u.getNickname(), u.getAvatarUrl());
+                : new AuthorVO(u.getId(), u.getNickname(), viewUrl(u.getAvatarUrl()));
     }
 
     private String normalizeRequestKey(String requestKey) {
@@ -289,7 +310,7 @@ public class NoteService {
     }
 
     private NoteCreatedVO toCreated(NoteEntity note) {
-        return new NoteCreatedVO(note.getId(), note.getCoverUrl());
+        return new NoteCreatedVO(note.getId(), viewUrl(note.getCoverUrl()));
     }
 
     static int clampLimit(Integer limitParam) {

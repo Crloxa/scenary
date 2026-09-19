@@ -37,7 +37,7 @@
         UPDATE media
         SET status          = #{status},
             thumb_object_key = #{thumbObjectKey},
-            thumb_url        = #{thumbUrl},
+            thumb_url        = #{thumbObjectKey},
             width            = #{width},
             height           = #{height},
             failure_reason   = NULL,
@@ -49,14 +49,14 @@
         UPDATE media
         SET status = 12,
             thumb_object_key = #{thumbObjectKey},
-            thumb_url = #{thumbUrl},
+            thumb_url = #{thumbObjectKey},
             width = #{width},
             height = #{height},
             duration_ms = #{durationMs},
             playback_object_key = #{playbackObjectKey},
-            playback_url = #{playbackUrl},
+            playback_url = #{playbackObjectKey},
             playback_low_object_key = #{playbackLowObjectKey},
-            playback_low_url = #{playbackLowUrl},
+            playback_low_url = #{playbackLowObjectKey},
             failure_reason = NULL,
             failed_at = NULL
         WHERE id = #{id} AND media_type = 1 AND status = 11

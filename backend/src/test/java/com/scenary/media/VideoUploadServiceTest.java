@@ -103,7 +103,6 @@ class VideoUploadServiceTest {
         when(sessionMapper.markCompleted("u-2", 701L)).thenReturn(1);
         when(minio.statSize(part.getObjectKey())).thenReturn(16L);
         when(minio.get(part.getObjectKey())).thenReturn(new ByteArrayInputStream(mp4Head()));
-        when(minio.publicUrl(any())).thenReturn("http://example/orig.mp4");
         when(minio.displayUrl(any(MediaEntity.class))).thenReturn("http://example/thumb.jpg");
         doAnswer(invocation -> {
             invocation.<MediaEntity>getArgument(0).setId(701L);

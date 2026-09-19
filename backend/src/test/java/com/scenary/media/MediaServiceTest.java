@@ -15,16 +15,20 @@ import static org.mockito.Mockito.doAnswer;
 
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.mock.web.MockMultipartFile;
 
 import com.scenary.common.BizException;
 import com.scenary.common.ErrorCode;
+import com.scenary.common.RateLimitService;
 import com.scenary.config.MinioProperties;
 import com.scenary.config.RabbitConfig;
 
@@ -37,15 +41,29 @@ class MediaServiceTest {
     private MediaMapper mediaMapper;
     @Mock
     private RabbitTemplate rabbitTemplate;
+    @Mock
+    private StringRedisTemplate redis;
+    @Mock
+    private ValueOperations<String, String> valueOperations;
+
+    @BeforeEach
+    void stubRateLimitRedis() {
+        // 图片上传限流器查询 Redis；未打桩的 increment 返回 null 视为放行
+        org.mockito.Mockito.lenient().when(redis.opsForValue()).thenReturn(valueOperations);
+    }
+
+    private MediaService service() {
+        return new MediaService(properties(), minio, mediaMapper, rabbitTemplate,
+                new RateLimitService(redis));
+    }
 
     @Test
     void removesObjectWhenDatabaseInsertFails() {
-        MediaService service = new MediaService(properties(), minio, mediaMapper, rabbitTemplate);
+        MediaService service = service();
         MockMultipartFile file = new MockMultipartFile("files", "photo.png", "image/png",
                 new byte[]{(byte) 0x89, 'P', 'N', 'G'});
 
         doNothing().when(minio).put(anyString(), any(), any(Long.class), anyString());
-        when(minio.publicUrl(anyString())).thenReturn("http://example/original.png");
         doThrow(new DuplicateKeyException("database unavailable")).when(mediaMapper).insert(any(MediaEntity.class));
 
         BizException error = assertThrows(BizException.class,
@@ -58,7 +76,7 @@ class MediaServiceTest {
 
     @Test
     void uploadsVideoToTheDedicatedTranscodeRouteWithoutExposingOriginalUrl() {
-        MediaService service = new MediaService(properties(), minio, mediaMapper, rabbitTemplate);
+        MediaService service = service();
         byte[] head = new byte[16];
         head[4] = 'f';
         head[5] = 't';
@@ -67,7 +85,6 @@ class MediaServiceTest {
         MockMultipartFile file = new MockMultipartFile("file", "clip.mov", "video/quicktime", head);
 
         doNothing().when(minio).put(anyString(), any(), any(Long.class), anyString());
-        when(minio.publicUrl(anyString())).thenReturn("http://example/original.mov");
         when(minio.displayUrl(any(MediaEntity.class))).thenReturn("http://example/thumb.jpg");
         doAnswer(invocation -> {
             MediaEntity media = invocation.getArgument(0);

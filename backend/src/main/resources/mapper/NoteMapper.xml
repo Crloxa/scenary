@@ -59,4 +59,10 @@
         UPDATE notes SET visibility = 2, deleted_at = CURRENT_TIMESTAMP(3) WHERE id = #{id}
     </update>
 
+    <update id="softDeleteAllByAuthor">
+        UPDATE notes
+        SET visibility = 2, deleted_at = CURRENT_TIMESTAMP(3)
+        WHERE user_id = #{userId} AND visibility IN (0, 1)
+    </update>
+
 </mapper>

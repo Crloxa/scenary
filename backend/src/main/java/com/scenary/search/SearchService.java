@@ -25,16 +25,19 @@ public class SearchService {
 
     private final SearchMapper searchMapper;
     private final SocialService socialService;
+    private final com.scenary.note.NoteService noteService;
 
     /** 供不需要社交状态的单元测试/旧调用方使用。 */
     public SearchService(SearchMapper searchMapper) {
-        this(searchMapper, null);
+        this(searchMapper, null, null);
     }
 
     @Autowired
-    public SearchService(SearchMapper searchMapper, SocialService socialService) {
+    public SearchService(SearchMapper searchMapper, SocialService socialService,
+                         com.scenary.note.NoteService noteService) {
         this.searchMapper = searchMapper;
         this.socialService = socialService;
+        this.noteService = noteService;
     }
 
     public SearchPageResult<SearchNoteVO> search(Long viewerId, String query,
@@ -111,8 +114,12 @@ public class SearchService {
     }
 
     private SearchNoteVO toVO(SearchRow row, String query, SocialVO social) {
-        AuthorVO author = new AuthorVO(row.getUserId(), row.getAuthorNickname(), row.getAuthorAvatarUrl());
-        return new SearchNoteVO(row.getId(), row.getTitle(), preview(row.getContent()), row.getCoverUrl(),
+        // E2：cover/头像为持久化 key，出响应前转短时签名 URL；测试注入 null 门面时降级原值
+        String coverUrl = noteService == null ? row.getCoverUrl() : noteService.viewUrl(row.getCoverUrl());
+        String avatarUrl = noteService == null ? row.getAuthorAvatarUrl()
+                : noteService.viewUrl(row.getAuthorAvatarUrl());
+        AuthorVO author = new AuthorVO(row.getUserId(), row.getAuthorNickname(), avatarUrl);
+        return new SearchNoteVO(row.getId(), row.getTitle(), preview(row.getContent()), coverUrl,
                 row.getCoverWidth(), row.getCoverHeight(), value(row.getMediaCount()), author,
                 row.getCreatedAt().getTime(), social,
                 new HighlightVO(excerpt(row.getTitle(), query), excerpt(row.getContent(), query),

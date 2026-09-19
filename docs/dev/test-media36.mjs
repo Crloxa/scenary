@@ -52,7 +52,8 @@ const AUTH = {Authorization:'Bearer '+owner.data.accessToken};
   ok('② 状态=0 thumbUrl=null width=null',
      j.data.items.every(i=>i.status===0&&i.thumbUrl===null&&i.width===null));
   // P8-07 隐私默认值：上传响应只返回 thumb 展示地址，不把 orig 直链交给客户端。
-  ok('② URL 形如 publicHost/bucket/thumb/', /\/scenary-media\/thumb\/\d{6}\/[0-9a-f-]{36}_t\.jpg$/.test(j.data.items[0].url), j.data.items[0].url);
+  // E2（02 §1.5）：展示地址为运行时短时签名 URL，路径不变、追加 X-Amz 签名参数。
+  ok('② URL 路径形如 publicHost/bucket/thumb/ 且带签名', /\/scenary-media\/thumb\/\d{6}\/[0-9a-f-]{36}_t\.jpg\?/.test(j.data.items[0].url) && j.data.items[0].url.includes('X-Amz-Signature='), j.data.items[0].url);
   globalThis.ids = j.data.items.map(i=>i.mediaId);
   globalThis.urls = j.data.items.map(i=>i.url);
 }

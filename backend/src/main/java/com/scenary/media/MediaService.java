@@ -24,6 +24,7 @@ import com.drew.imaging.ImageMetadataReader;
 
 import com.scenary.common.BizException;
 import com.scenary.common.ErrorCode;
+import com.scenary.common.RateLimitService;
 import com.scenary.config.MinioProperties;
 import com.scenary.config.RabbitConfig;
 
@@ -46,16 +47,20 @@ public class MediaService {
     private final MinioService minio;
     private final MediaMapper mediaMapper;
     private final RabbitTemplate rabbitTemplate;
+    private final RateLimitService rateLimitService;
 
     public MediaService(MinioProperties minioProps, MinioService minio,
-                        MediaMapper mediaMapper, RabbitTemplate rabbitTemplate) {
+                        MediaMapper mediaMapper, RabbitTemplate rabbitTemplate,
+                        RateLimitService rateLimitService) {
         this.minioProps = minioProps;
         this.minio = minio;
         this.mediaMapper = mediaMapper;
         this.rabbitTemplate = rabbitTemplate;
+        this.rateLimitService = rateLimitService;
     }
 
     public MediaUploadVO uploadImages(long userId, List<MultipartFile> files) {
+        rateLimitService.media(userId);
         if (files == null || files.isEmpty() || files.size() > 9) {
             throw new BizException(ErrorCode.VALIDATION, "图片数量须为 1~9 张");
         }
@@ -145,7 +150,8 @@ public class MediaService {
             media.setOrderNo(order);
             media.setBucket(minioProps.getBucket());
             media.setObjectKey(objectKey);
-            media.setUrl(minio.publicUrl(objectKey));
+            // E2-02：url 列语义改为 object key，展示 URL 由读路径运行时签名（docs/02 §1.5）
+            media.setUrl(objectKey);
             media.setMime(type.mime());
             media.setMediaType(MediaType.IMAGE.code());
             media.setSizeBytes(file.getSize());
@@ -186,7 +192,8 @@ public class MediaService {
             media.setOrderNo(1);
             media.setBucket(minioProps.getBucket());
             media.setObjectKey(objectKey);
-            media.setUrl(minio.publicUrl(objectKey));
+            // E2-02：url 列语义改为 object key（docs/02 §1.5）
+            media.setUrl(objectKey);
             media.setMime(type.mime());
             media.setMediaType(MediaType.VIDEO.code());
             media.setSizeBytes(file.getSize());
@@ -289,8 +296,9 @@ public class MediaService {
 
     private MediaItemVO toItem(MediaEntity media) {
         return new MediaItemVO(media.getId(), MediaType.from(media.getMediaType()).label(),
-                minio.displayUrl(media), media.getThumbUrl(), media.getStatus(), media.getWidth(),
-                media.getHeight(), media.getDurationMs(), media.getPlaybackUrl(), media.getPlaybackLowUrl());
+                minio.displayUrl(media), minio.viewUrl(media.getThumbUrl()), media.getStatus(),
+                media.getWidth(), media.getHeight(), media.getDurationMs(),
+                minio.viewUrl(media.getPlaybackUrl()), minio.viewUrl(media.getPlaybackLowUrl()));
     }
 
     private void removePlaybackObjects(MediaEntity media) {

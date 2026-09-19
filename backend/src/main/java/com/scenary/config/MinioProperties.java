@@ -32,4 +32,11 @@ public class MinioProperties {
     /** 预签名根路径由 nginx 反代剥离，例如 /minio。 */
     private String presignPathPrefix = "";
     private boolean exposeOriginalUrl;
+    /**
+     * E2 私有桶读路径开关（docs/02 §1.5）：true 时展示 URL 一律运行时短时签名；
+     * false 为回滚模式，读路径原样返回持久化值（要求桶保持 public-read）。
+     */
+    private boolean presignRead = true;
+    /** 展示签名 URL 的有效期（秒），默认 300；需大于前端一次浏览会话的媒体加载窗口。 */
+    private int presignTtlSeconds = 300;
 }

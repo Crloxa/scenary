@@ -10,7 +10,20 @@ logging:
     console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} [trace=%X{traceId},user=%X{userId}] - %msg%n"
 
 scenary:
+  media:
+    presign-read: "${SCENARY_MEDIA_PRESIGN_READ:true}"
+    presign-ttl-seconds: "${SCENARY_MEDIA_PRESIGN_TTL_SECONDS:300}"
   comment:
     sensitive-words: "${SCENARY_COMMENT_SENSITIVE_WORDS:诈骗,赌博,色情}"
   websocket:
     allowed-origins: "${SCENARY_WEBSOCKET_ALLOWED_ORIGINS:http://localhost:8081,http://127.0.0.1:8081,http://localhost:5173,http://127.0.0.1:5173}"
+  ratelimit:
+    register-per-hour: "${SCENARY_RATELIMIT_REGISTER_PER_HOUR:20}"
+    note-per-10min: "${SCENARY_RATELIMIT_NOTE_PER_10MIN:30}"
+    social-per-min: "${SCENARY_RATELIMIT_SOCIAL_PER_MIN:120}"
+    media-per-10min: "${SCENARY_RATELIMIT_MEDIA_PER_10MIN:60}"
+    comment-per-min: "${SCENARY_RATELIMIT_COMMENT_PER_MIN:20}"
+    exempt-loopback: "${SCENARY_RATELIMIT_EXEMPT_LOOPBACK:true}"
+  notification:
+    cleanup-enabled: "${SCENARY_NOTIFICATION_CLEANUP_ENABLED:true}"
+    retention-days: "${SCENARY_NOTIFICATION_RETENTION_DAYS:90}"

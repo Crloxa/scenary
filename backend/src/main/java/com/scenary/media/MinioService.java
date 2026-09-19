@@ -67,25 +67,46 @@ public class MinioService {
         return props.getPublicHost() + "/" + props.getBucket() + "/" + objectKey;
     }
 
-    /** 默认展示 URL：优先缩略图；仅在显式配置 exposeOriginalUrl=true 时暴露原图。 */
+    /**
+     * 从持久化的公开直链反解 object key（形如 {publicHost}/{bucket}/{key}）；
+     * 不匹配既有前缀格式时返回 null，由调用方决定兜底。
+     */
+    public String objectKeyFromPublicUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return null;
+        }
+        String marker = "/" + props.getBucket() + "/";
+        int idx = url.indexOf(marker);
+        if (idx < 0) {
+            return null;
+        }
+        String key = url.substring(idx + marker.length());
+        int query = key.indexOf('?');
+        return query < 0 ? key : key.substring(0, query);
+    }
+
+    /** 默认展示 URL：优先缩略图；仅在显式配置 exposeOriginalUrl=true 时暴露原图。E2 起经 viewUrl 短时签名。 */
     public String displayUrl(MediaEntity media) {
         if (media == null) {
             return null;
         }
         if (props.isExposeOriginalUrl()) {
-            return media.getUrl();
+            return viewUrl(media.getUrl() != null ? media.getUrl() : media.getObjectKey());
+        }
+        if (media.getThumbObjectKey() != null && !media.getThumbObjectKey().isBlank()) {
+            return viewUrl(media.getThumbObjectKey());
         }
         if (media.getThumbUrl() != null && !media.getThumbUrl().isBlank()) {
-            return media.getThumbUrl();
+            return viewUrl(media.getThumbUrl());
         }
-        return publicUrl(thumbKeyOf(media.getObjectKey()));
+        return viewUrl(thumbKeyOf(media.getObjectKey()));
     }
 
     public String displayUrl(String objectKey) {
         if (props.isExposeOriginalUrl()) {
-            return publicUrl(objectKey);
+            return viewUrl(objectKey);
         }
-        return publicUrl(thumbKeyOf(objectKey));
+        return viewUrl(thumbKeyOf(objectKey));
     }
 
     /** orig/{yyyyMM}/{uuid}.{ext} -> thumb/{yyyyMM}/{uuid}_t.jpg（与原图同 uuid 成对） */
@@ -125,6 +146,42 @@ public class MinioService {
         } catch (Exception e) {
             throw new BizException(ErrorCode.INTERNAL_ERROR, "预签名上传地址生成失败");
         }
+    }
+
+    /** E2 私有桶读路径：短时预签名 GET，复用 E1 的同源反代机制（docs/02 §1.5）。 */
+    public String presignGet(String objectKey, int expirySeconds) {
+        try {
+            String signed = presignClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
+                    .method(Method.GET)
+                    .bucket(props.getBucket())
+                    .object(objectKey)
+                    .expiry(expirySeconds, TimeUnit.SECONDS)
+                    .build());
+            return addPathPrefix(signed, props.getPresignPathPrefix());
+        } catch (Exception e) {
+            throw new BizException(ErrorCode.INTERNAL_ERROR, "预签名访问地址生成失败");
+        }
+    }
+
+    /**
+     * 展示 URL 的统一出口（E2-02）：入参是持久化值——新数据为 object key，
+     * E2 切换前的历史数据是直链 URL（回填前容忍）。presign-read 关闭时原样返回（回滚模式）。
+     */
+    public String viewUrl(String stored) {
+        if (stored == null || stored.isBlank()) {
+            return null;
+        }
+        if (!props.isPresignRead()) {
+            return stored;
+        }
+        String key = stored;
+        if (stored.startsWith("http://") || stored.startsWith("https://")) {
+            key = objectKeyFromPublicUrl(stored);
+            if (key == null) {
+                return stored;   // 无法归因到本桶的旧值原样返回，交由调用方展示
+            }
+        }
+        return presignGet(key, props.getPresignTtlSeconds());
     }
 
     public long statSize(String objectKey) {

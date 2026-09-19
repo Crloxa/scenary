@@ -166,7 +166,8 @@ public class VideoUploadService {
             media.setOrderNo(1);
             media.setBucket(minioProps.getBucket());
             media.setObjectKey(finalKey);
-            media.setUrl(minio.publicUrl(finalKey));
+            // E2-02：url 列语义改为 object key（docs/02 §1.5）
+            media.setUrl(finalKey);
             media.setMime(type.mime());
             media.setMediaType(MediaType.VIDEO.code());
             media.setSizeBytes(total);

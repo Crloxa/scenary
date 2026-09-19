@@ -126,8 +126,7 @@ public class ThumbnailConsumer {
 
         minio.put(thumbKey, new ByteArrayInputStream(buffer.toByteArray()),
                 buffer.size(), "image/jpeg");
-        mediaMapper.updateProcessResult(mediaId, 1, thumbKey,
-                minio.publicUrl(thumbKey), tw, th);
+        mediaMapper.updateProcessResult(mediaId, 1, thumbKey, tw, th);
         log.info("thumb ready mediaId={} {}x{} bytes={}", mediaId, tw, th, buffer.size());
     }
 

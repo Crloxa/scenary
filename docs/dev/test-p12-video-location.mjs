@@ -112,10 +112,12 @@ try {
     item && !JSON.stringify(item).includes('/orig/') && !JSON.stringify(item).includes('p12-short.mp4'));
 
   const ready = await waitVideo(author.accessToken, item.mediaId);
+  // E2（02 §1.5）：播放地址为签名 URL，改按对象路径断言
+  const pathOf = u => { try { return new URL(u).pathname; } catch { return ''; } };
   ok('③ ffprobe/ffmpeg 产出 READY、封面和双码率播放地址',
     ready.status === 12 && ready.durationMs > 0 && ready.width === 640 && ready.height === 360
-      && ready.url?.includes('/thumb/') && ready.playbackUrl?.endsWith('_720.mp4')
-      && ready.playbackLowUrl?.endsWith('_480.mp4'));
+      && ready.url?.includes('/thumb/') && pathOf(ready.playbackUrl).endsWith('_720.mp4')
+      && pathOf(ready.playbackLowUrl).endsWith('_480.mp4'));
   ok('③ READY 响应仍不含原始对象路径',
     !JSON.stringify(ready).includes('/orig/') && !JSON.stringify(ready).includes('p12-short.mp4'));
 
@@ -138,7 +140,7 @@ try {
     mapDetail.code === 0 && mapDetail.data.latitude === 30.9785
       && mapDetail.data.longitude === 102.7591
       && mapDetail.data.images[0].mediaType === 'VIDEO'
-      && mapDetail.data.images[0].playbackUrl?.endsWith('_720.mp4'));
+      && pathOf(mapDetail.data.images[0].playbackUrl).endsWith('_720.mp4'));
 
   const gpsMediaId = await uploadImage(author.accessToken, gpsJpeg);
   const exifNoteId = await publish(author.accessToken, gpsMediaId, {

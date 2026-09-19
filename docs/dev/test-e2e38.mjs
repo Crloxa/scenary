@@ -45,11 +45,11 @@ const uploadWaitDone = async (at, w=900, h=700) => {
   {
     const fd=new FormData(); fd.append('file',new Blob([makePng(400,300,[180,60,40])],{type:'image/png'}),'me.png');
     const av = await j(await fetch(B+'/users/me/avatar',{method:'POST',headers:AT,body:fd}));
-    ok('③ 头像上传 返回avatarUrl', av.code===0 && /\/scenary-media\/avatar\/\d+\/[0-9a-f-]{36}\.jpg$/.test(av.data.avatarUrl||''), av.data.avatarUrl);
+    ok('③ 头像上传 返回avatarUrl（签名 URL，路径为 avatar 对象）', av.code===0 && /\/scenary-media\/avatar\/\d+\/[0-9a-f-]{36}\.jpg\?/.test(av.data.avatarUrl||'') && (av.data.avatarUrl||'').includes('X-Amz-Signature='), av.data.avatarUrl);
     const hr = await fetch(av.data.avatarUrl);
     ok('③b 头像匿名可读且为jpeg', hr.status===200 && hr.headers.get('content-type')==='image/jpeg');
     me = await j(await fetch(B+'/users/me',{headers:AT}));
-    ok('③c me.avatarUrl 已更新', me.data.avatarUrl===av.data.avatarUrl);
+    ok('③c me.avatarUrl 已更新（比较对象路径，签名随时间变化）', new URL(me.data.avatarUrl).pathname===new URL(av.data.avatarUrl).pathname);
   }
 
   // ---- 发布与 feed ----
@@ -58,7 +58,7 @@ const uploadWaitDone = async (at, w=900, h=700) => {
   const requestKey = crypto.randomUUID();
   const publishBody = {title:'雨后的四姑娘山', content:'十月初的雪线，云开了一小时。拍摄于双桥沟，光线从东侧打到雪面上。', placeName:'四川·四姑娘山', mediaIds:[m1.mediaId,m2.mediaId], requestKey};
   const created = await j(await fetch(B+'/notes',{method:'POST',headers:{...AT,'content-type':'application/json'},body:JSON.stringify(publishBody)}));
-  ok('④ 发布 code=0 coverUrl=首图thumb', created.code===0 && created.data.coverUrl===m1.thumbUrl);
+  ok('④ 发布 code=0 coverUrl=首图thumb（对象路径一致）', created.code===0 && new URL(created.data.coverUrl).pathname===new URL(m1.thumbUrl).pathname);
   const repeated = await j(await fetch(B+'/notes',{method:'POST',headers:{...AT,'content-type':'application/json'},body:JSON.stringify(publishBody)}));
   ok('④b 同 requestKey 重试只返回同一篇', repeated.code===0 && repeated.data.id===created.data.id);
 
@@ -97,7 +97,7 @@ const uploadWaitDone = async (at, w=900, h=700) => {
   {
     const dA = await j(await fetch(B+'/notes/'+created.data.id,{headers:AT}));
     ok('⑨ 作者看 mine=true images有序', dA.code===0 && dA.data?.mine===true && dA.data.images?.length===2 &&
-       dA.data.images[0].thumbUrl===m1.thumbUrl, dA.message);
+       new URL(dA.data.images[0].thumbUrl).pathname===new URL(m1.thumbUrl).pathname, dA.message);
     const dB = await j(await fetch(B+'/notes/'+created.data.id));
     ok('⑨b 匿名 mine=false 且公开可见', dB.data.mine===false && dB.data.title==='雨后的四姑娘山');
     const dp = await j(await fetch(B+'/notes/'+priv.data.id));

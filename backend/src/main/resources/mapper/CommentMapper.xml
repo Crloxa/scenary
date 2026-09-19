@@ -41,4 +41,10 @@
         WHERE id = #{id} AND user_id = #{userId} AND status = 1
     </update>
 
+    <update id="softDeleteAllByAuthor">
+        UPDATE comments
+        SET status = 2, deleted_at = CURRENT_TIMESTAMP(3)
+        WHERE user_id = #{userId} AND status = 1
+    </update>
+
 </mapper>

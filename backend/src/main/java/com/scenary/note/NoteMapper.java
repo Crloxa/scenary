@@ -33,4 +33,7 @@ public interface NoteMapper {
 
     /** 软删：visibility=2 + deleted_at=now */
     int softDelete(@Param("id") Long id);
+
+    /** 账号注销：作者名下全部可见笔记软删（docs/02 §3.8） */
+    int softDeleteAllByAuthor(@Param("userId") long userId);
 }

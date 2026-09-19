@@ -653,3 +653,54 @@ TOKEN=<上一步accessToken>; curl -s -X POST $BASE/media/images \
 - [x] P12-E1-03 断点与生命周期：GET 恢复已上传分片、重复 complete 幂等、取消和过期会话/对象清理（2026-09-04：黑盒 ③⑤⑦⑨⑩ 全部通过）
 - [x] P12-E1-04 前端体验：视频进度、刷新后重新选择同文件恢复、上传中离开保护、失败重试和单次 complete（2026-09-04：Vitest 33/33、构建 107 modules、三浏览器专项 3/3）
 - [x] P12-E1 出口门禁：后端单测、Compose 黑盒真实分片 PUT/合并/转码、前端 Vitest/构建/三浏览器、证据/学习/HANDOVER/CHANGELOG 闭环（2026-09-04：后端 JUnit 50/50、黑盒 PASS=11 FAIL=0、Compose 重建/健康和文档闭环通过；证据见 `docs/evidence/2026-09-04-P12-E1分片上传验收.md`，学习笔记见 `docs/learning/20-P12-E1预签名与断点续传.md`）
+
+---
+
+## 附 7 · P12-E2 私有桶与短时签名 Checklist
+
+> E2 任务定义以 [05 手册 §6.4](05-后续开发路线图与实施手册.md) 为准。实测依据见 [project-audit-2026-09-11](project-audit-2026-09-11.md) 探针 3/4（私密笔记封面匿名可达、桶级匿名存在性探测）。API 契约不变，URL 字段值改为短时签名。
+
+- [x] E2-01 签名读能力：`MinioService.presignGet`/`viewUrl` 容错读、`SCENARY_MEDIA_PRESIGN_READ` 开关（false=回滚直链）、`ops/set-bucket-policy.ps1` 双向切换脚本、minio-init 策略经 `MINIO_BUCKET_POLICY`（默认 none=私有）（2026-09-12：minio-init 实测输出 `set to private`，黑盒 ③④⑤ 全 403）
+- [x] E2-02 读路径切 key：媒体/笔记/搜索/社交/feed VO 改"持久化 key、运行时签名"（默认 TTL 300s 可配）；两级缓存改存 key、`FeedService.sign` 组装时签名；02 §1.5 增补"媒体 URL 生命周期"（2026-09-12：JUnit 68/68；黑盒 ②⑥ 签名 URL 全链路 + Range 206）
+- [x] E2-03 历史数据回填：`ops/migrate-media-urls.ps1 -ToKeys` 支持 URL→key 解析回填（Preview→执行→抽查）（2026-09-12：Preview 命中 media 365+218 行、notes 218、users 26，执行后黑盒 ① 断言残留=0）
+- [x] E2-04 关闭公开读与回归：桶切 private 后审计探针 3/4 复跑得 403；黑盒 ③ 直链 403、⑤ 存在性探测 403；视频/图片签名可读、Range 206；过期/防篡改语义由 ④ 篡改签名 403 覆盖；10 并发压测与三浏览器媒体链路（2026-09-12：E2 黑盒 8/8、13 套件回归、Playwright 6/6、压测错误率 0）
+- [x] E2 出口门禁：黑盒/压测/浏览器/回滚路径（`set-bucket-policy.ps1 -Policy download` + `PRESIGN_READ=false`）均有命令与结果，证据报告落盘并同步 HANDOVER、CHANGELOG、05 §11（2026-09-12：证据见 `docs/evidence/2026-09-12-P12-E2私有桶与短时签名验收.md`）
+
+---
+
+## 附 8 · P12-E3 逆地理编码 Checklist
+
+> E3 任务定义以 [05 手册 §6.5](05-后续开发路线图与实施手册.md) 为准。隐私边界：用户坐标禁止外发第三方公有 API，采用自托管容器；供应商关闭/超时/失败一律空候选降级。
+
+- [ ] E3-01 provider SPI 与容器：`place` 包门面接口 + Nominatim/Photon 容器编排（01 §3.1 依赖行更新）、超时 2s、配置开关与关闭降级
+- [ ] E3-02 API 与缓存：契约 v1.7 `GET /places/reverse-geocode`（登录用户、30/min 限流、geohash-5 缓存 TTL 30d）同步 02；JUnit + 黑盒覆盖边界码
+- [ ] E3-03 前端联动：发布页选点/坐标输入触发候选地名回填（必须用户确认，不静默覆盖已填地名）；Vitest + 失败降级 UI
+- [ ] E3-04 验收与隐私断言：容器无公网出联、缓存命中、限流 429、超时降级不阻塞发布；三浏览器回归
+- [ ] E3 出口门禁：证据报告按 evidence 规范落盘并同步 Checklist、HANDOVER、CHANGELOG
+
+---
+
+## 附 9 · P12-E4 地图 UI Checklist
+
+> E4 任务定义以 [05 手册 §6.6](05-后续开发路线图与实施手册.md) 为准，依赖 E3。不做路线/导航/附近推荐；瓦片源出网需在验收环境声明，未准备瓦片时降级为坐标文本。
+
+- [ ] E4-01 依赖与组件：leaflet 登记 01 §3.1 并 dynamic import 拆包；地图选点组件（点击/拖 marker → lat/lng + place_source=MAP），`VITE_ENABLE_MAP` feature flag
+- [ ] E4-02 发布页集成：选点 → E3 候选地名 → 可编辑确认；手工坐标输入保留为键盘可达替代路径
+- [ ] E4-03 详情页展示：带坐标才渲染小地图，无坐标零布局抖动；390px 移动端适配
+- [ ] E4-04 验收：Vitest、构建（leaflet 独立 chunk）、三浏览器、flag 关闭整体摘除回归、可访问性专项
+- [ ] E4 出口门禁：证据报告落盘并同步 Checklist、HANDOVER、CHANGELOG
+
+---
+
+## 附 10 · P15 账号与安全基线 Checklist
+
+> P15 任务定义以 [05 手册 §7](05-后续开发路线图与实施手册.md) 为准，2026-09-11 实测审计驱动立项。审计探针已正规化为 `docs/dev/test-p15-security.mjs` 作为本阶段回归工具。阈值以 02 §1.4 契约为准（注册默认 20/h/IP、Compose 演示 200/h；社交 120/min；发笔记 30/10min；上传 60/10min）。
+
+- [x] P15-01 写接口限流基线：`common.RateLimitService`（复用评论 INCR 模式与 TOO_MANY_REQUESTS 码）+ XFF 末段归因与回环豁免；黑盒 429 断言（2026-09-12：社交 `{"404":120,"429":5}`、评论 22 触发、注册 201 触发并清理计数键恢复；JUnit RateLimitServiceTest/ClientIpTest 通过）
+- [x] P15-02 安全响应头：nginx 增加 X-Frame-Options/X-Content-Type-Options/Referrer-Policy；CSP Report-Only + report-to 指令（/csp-report 丢弃收集，WebKit console 断言抓到缺指令缺陷后补齐）；HSTS 仅 TLS 部署形态启用并登记（2026-09-12：黑盒 ① 四头齐全 + http 无 HSTS 预期）
+- [x] P15-03a 密码找回（运维重置脚本）：`ops/reset-user-password.ps1`（jshell + spring-security-crypto 生成 BCrypt，支持 -Preview/-Reactivate 与自定义 Maven 仓库）（2026-09-12：端到端实测旧密 40000/新密 code=0）
+- [ ] P15-03b 邮件找回（延后）：V9 users.email + 重置令牌表（15min 单次）+ spring-boot-starter-mail（01 §3.1 已登记）；依赖外部 SMTP 凭据，当前以 03a 过渡
+- [x] P15-04 账号注销：DELETE /users/me（密码二次确认）→ status=2 + 昵称匿名化 + 笔记评论软删 + 令牌吊销 + 用户名保留防冒名；契约进 02 v1.6 并对齐禁用账号可见性边界（2026-09-12：黑盒 ④ 六断言通过；前端危险区 Vitest 2 用例；bean 环解耦沉淀学习笔记 21）
+- [x] P15-05 通知生命周期：定时清理已读超 90 天通知（@Scheduled 分批 500，env 可关），dry-run 统计门面 + 配置注入断言（2026-09-12：JUnit 分批/统计用例 + 黑盒 ⑥ env 注入通过）
+- [x] P15-06 仓库卫生：根 `/test-results/` 入 .gitignore（v2.39 生效）；审计探针正规化为 `docs/dev/test-p15-security.mjs`（随机用户名 + 限流键清理，可重复执行）
+- [x] P15 出口门禁：探针复跑矩阵（注册 429、安全头齐全、注销后旧令牌 401/登录 40301/内容 404、重置链路端到端）+ 既有矩阵无回归；证据落盘并同步 HANDOVER、CHANGELOG、05 §11（2026-09-12：JUnit 68/68、Vitest 35/35、构建 107 modules、12 黑盒套件 147/147 + P15 黑盒 13/13、三浏览器 6/6；证据见 `docs/evidence/2026-09-12-P15账号与安全基线验收.md`）

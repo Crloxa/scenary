@@ -100,8 +100,10 @@ try {
     && repeated.data.items[0].mediaId === media.mediaId);
 
   const ready = await waitVideo(author.accessToken, media.mediaId);
+  // E2（02 §1.5）：播放地址为签名 URL，改按对象路径断言
+  const pathOf = u => { try { return new URL(u).pathname; } catch { return ''; } };
   ok('⑥ 合并产物沿用 P12 转码链路', ready.status === 12
-    && ready.playbackUrl?.endsWith('_720.mp4') && ready.playbackLowUrl?.endsWith('_480.mp4'));
+    && pathOf(ready.playbackUrl).endsWith('_720.mp4') && pathOf(ready.playbackLowUrl).endsWith('_480.mp4'));
 
   const afterComplete = await request(`/media/video-uploads/${sessionId}`, {
     headers: headers(author.accessToken),

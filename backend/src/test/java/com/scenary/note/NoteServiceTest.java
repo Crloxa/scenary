@@ -4,7 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -15,15 +17,18 @@ import java.util.List;
 import java.util.Date;
 import java.math.BigDecimal;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 
 import com.scenary.common.BizException;
 import com.scenary.common.ErrorCode;
+import com.scenary.common.RateLimitService;
 import com.scenary.media.MediaEntity;
 import com.scenary.media.MediaMapper;
 import com.scenary.media.MinioService;
@@ -43,10 +48,25 @@ class NoteServiceTest {
     private MinioService minio;
     @Mock
     private StringRedisTemplate redis;
+    @Mock
+    private ValueOperations<String, String> valueOperations;
+
+    @BeforeEach
+    void stubRateLimitRedis() {
+        // 限流器在每次 create 前查询 Redis；未打桩的 increment 返回 null 视为放行
+        lenient().when(redis.opsForValue()).thenReturn(valueOperations);
+        // 详情/网格签名出口按恒等变换，便于断言透传值
+        lenient().when(minio.viewUrl(any())).thenAnswer(inv -> inv.getArgument(0));
+    }
+
+    private NoteService service() {
+        return new NoteService(noteMapper, mediaMapper, userMapper, minio, redis,
+                new RateLimitService(redis));
+    }
 
     @Test
     void createReturnsExistingNoteForDuplicateRequestKey() {
-        NoteService service = new NoteService(noteMapper, mediaMapper, userMapper, minio, redis);
+        NoteService service = service();
 
         NoteEntity existing = new NoteEntity();
         existing.setId(42L);
@@ -60,12 +80,13 @@ class NoteServiceTest {
         assertEquals("http://example/cover.jpg", created.coverUrl());
         verify(noteMapper).findByUserAndRequestKey(7L, "idem-1");
         verify(noteMapper, never()).insert(any());
-        verifyNoInteractions(mediaMapper, userMapper, minio);
+        // 幂等重放不触碰媒体/用户与缓存失效；coverUrl 仍需经 viewUrl 签名（minio 例外）
+        verifyNoInteractions(mediaMapper, userMapper);
     }
 
     @Test
     void createReturnsExistingNoteAfterConcurrentUniqueKeyCollision() {
-        NoteService service = new NoteService(noteMapper, mediaMapper, userMapper, minio, redis);
+        NoteService service = service();
 
         MediaEntity media = new MediaEntity();
         media.setId(11L);
@@ -84,7 +105,9 @@ class NoteServiceTest {
 
         assertEquals(43L, created.id());
         verify(noteMapper, times(2)).findByUserAndRequestKey(7L, "idem-2");
-        verifyNoInteractions(userMapper, minio, redis);
+        // 幂等重放不触碰缓存失效与媒体摘要；redis 仅允许限流器计数
+        verify(redis, never()).delete(anyString());
+        verifyNoInteractions(userMapper);
     }
 
     private NoteEntity existingNote(long id) {
@@ -96,7 +119,7 @@ class NoteServiceTest {
 
     @Test
     void createRollsBackWhenMediaBindDoesNotAffectRow() {
-        NoteService service = new NoteService(noteMapper, mediaMapper, userMapper, minio, redis);
+        NoteService service = service();
 
         MediaEntity media = new MediaEntity();
         media.setId(11L);
@@ -122,7 +145,7 @@ class NoteServiceTest {
 
     @Test
     void detailUsesValueEqualityForOwnerViewerId() {
-        NoteService service = new NoteService(noteMapper, mediaMapper, userMapper, minio, redis);
+        NoteService service = service();
 
         NoteEntity note = new NoteEntity();
         note.setId(901L);
@@ -156,7 +179,7 @@ class NoteServiceTest {
 
     @Test
     void createPersistsExplicitMapCoordinates() {
-        NoteService service = new NoteService(noteMapper, mediaMapper, userMapper, minio, redis);
+        NoteService service = service();
 
         MediaEntity media = new MediaEntity();
         media.setId(21L);
@@ -186,7 +209,7 @@ class NoteServiceTest {
 
     @Test
     void derivesExifCoordinatesButDetailDoesNotExposeThem() {
-        NoteService service = new NoteService(noteMapper, mediaMapper, userMapper, minio, redis);
+        NoteService service = service();
 
         MediaEntity media = new MediaEntity();
         media.setId(22L);

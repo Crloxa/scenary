@@ -77,7 +77,7 @@ public class FeedService {
         if (cacheVersion != null) {
             PageResult<NoteCardVO> cached = readFirstPageCache(cacheVersion);
             if (cached != null && matchesCurrentFirstPage(cached)) {
-                return enrich(cached, viewerId);
+                return enrich(sign(cached), viewerId);
             }
             if (cached != null) {
                 redis.delete(firstPageCacheKey(cacheVersion));
@@ -94,7 +94,25 @@ public class FeedService {
         if (cacheVersion != null) {
             writeFirstPageCache(result, cacheVersion);
         }
-        return enrich(result, viewerId);
+        return enrich(sign(result), viewerId);
+    }
+
+    /**
+     * E2-02 缓存语义：L1/L2 缓存里持久化的是 cover/avatar key（或切换前的遗留 URL），
+     * 出响应前才在此统一转成短时签名 URL（docs/02 §1.5）。
+     */
+    private PageResult<NoteCardVO> sign(PageResult<NoteCardVO> page) {
+        var cards = page.getList().stream().map(this::signCard).toList();
+        return PageResult.of(cards, page.getNextCursor(), page.isHasMore());
+    }
+
+    private NoteCardVO signCard(NoteCardVO card) {
+        AuthorVO author = card.author();
+        AuthorVO signed = author == null ? null
+                : new AuthorVO(author.id(), author.nickname(), noteService.viewUrl(author.avatarUrl()));
+        return new NoteCardVO(card.id(), card.title(), card.contentPreview(),
+                noteService.viewUrl(card.coverUrl()), card.coverWidth(), card.coverHeight(),
+                card.mediaCount(), signed, card.createdAt(), card.social());
     }
 
     private PageResult<NoteCardVO> enrich(PageResult<NoteCardVO> page, Long viewerId) {

@@ -12,24 +12,20 @@ public interface MediaMapper {
 
     MediaEntity findById(@Param("id") Long id);
 
-    /** 消费者回调：成功写缩略图与宽高；最终失败由消费者写入 status=2 与失败信息 */
+    /** 消费者回调：成功写缩略图与宽高；最终失败由消费者写入 status=2 与失败信息。E2 起 url 列存 key */
     int updateProcessResult(@Param("id") Long id,
                             @Param("status") int status,
                             @Param("thumbObjectKey") String thumbObjectKey,
-                            @Param("thumbUrl") String thumbUrl,
                             @Param("width") Integer width,
                             @Param("height") Integer height);
 
     int updateVideoProcessResult(@Param("id") Long id,
                                  @Param("thumbObjectKey") String thumbObjectKey,
-                                 @Param("thumbUrl") String thumbUrl,
                                  @Param("width") Integer width,
                                  @Param("height") Integer height,
                                  @Param("durationMs") Long durationMs,
                                  @Param("playbackObjectKey") String playbackObjectKey,
-                                 @Param("playbackUrl") String playbackUrl,
-                                 @Param("playbackLowObjectKey") String playbackLowObjectKey,
-                                 @Param("playbackLowUrl") String playbackLowUrl);
+                                 @Param("playbackLowObjectKey") String playbackLowObjectKey);
 
     /** 最终失败：写 status=2 并记录失败原因/时间，供轮询端立即展示失败态。 */
     int updateFailureResult(@Param("id") Long id,

@@ -4,6 +4,7 @@ import com.scenary.common.AuthorVO;
 import com.scenary.common.BizException;
 import com.scenary.common.ErrorCode;
 import com.scenary.common.PageResult;
+import com.scenary.common.RateLimitService;
 import com.scenary.common.SocialVO;
 import com.scenary.note.NoteService;
 import com.scenary.notification.NotificationService;
@@ -28,22 +29,27 @@ public class SocialService {
     private final NoteService noteService;
     private final UserService userService;
     private final NotificationService notificationService;
+    private final RateLimitService rateLimitService;
 
     public SocialService(SocialMapper socialMapper, NoteService noteService, UserService userService) {
-        this(socialMapper, noteService, userService, null);
+        this(socialMapper, noteService, userService, null, null);
     }
 
     @org.springframework.beans.factory.annotation.Autowired
     public SocialService(SocialMapper socialMapper, NoteService noteService, UserService userService,
-                         NotificationService notificationService) {
+                         NotificationService notificationService, RateLimitService rateLimitService) {
         this.socialMapper = socialMapper;
         this.noteService = noteService;
         this.userService = userService;
         this.notificationService = notificationService;
+        this.rateLimitService = rateLimitService;
     }
 
     @Transactional
     public SocialVO like(long userId, long noteId, boolean enabled) {
+        if (rateLimitService != null) {
+            rateLimitService.social(userId);
+        }
         userService.ensureActive(userId);
         NoteService.NoteTarget target = noteService.socialTarget(noteId);
         userService.ensureActive(target.authorId());
@@ -60,6 +66,9 @@ public class SocialService {
 
     @Transactional
     public SocialVO bookmark(long userId, long noteId, boolean enabled) {
+        if (rateLimitService != null) {
+            rateLimitService.social(userId);
+        }
         userService.ensureActive(userId);
         NoteService.NoteTarget target = noteService.socialTarget(noteId);
         userService.ensureActive(target.authorId());
@@ -73,6 +82,9 @@ public class SocialService {
 
     @Transactional
     public SocialVO follow(long followerId, long followingId, boolean enabled) {
+        if (rateLimitService != null) {
+            rateLimitService.social(followerId);
+        }
         userService.ensureActive(followerId);
         userService.ensureActive(followingId);
         if (followerId == followingId) {
@@ -146,9 +158,10 @@ public class SocialService {
     }
 
     private BookmarkVO toBookmark(BookmarkRow row, SocialVO social) {
-        AuthorVO author = new AuthorVO(row.getAuthorId(), row.getAuthorNickname(), row.getAuthorAvatarUrl());
+        AuthorVO author = new AuthorVO(row.getAuthorId(), row.getAuthorNickname(),
+                noteService.viewUrl(row.getAuthorAvatarUrl()));
         return new BookmarkVO(row.getNoteId(), row.getTitle(), preview(row.getContent()),
-                row.getCoverUrl(), row.getMediaCount() == null ? 0 : row.getMediaCount(),
+                noteService.viewUrl(row.getCoverUrl()), row.getMediaCount() == null ? 0 : row.getMediaCount(),
                 author, row.getCreatedAt().getTime(), social);
     }
 

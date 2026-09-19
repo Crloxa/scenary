@@ -79,7 +79,7 @@ const dlqDepth = async () => {
     await new Promise(r=>setTimeout(r,400));
   }
   ok('① 6秒内轮询至 status=1', st.data.status===1, '耗时~'+tries*400+'ms');
-  ok('① thumbUrl 为 thumb/ 直链', /\/scenary-media\/thumb\/\d{6}\/[0-9a-f-]{36}_t\.jpg$/.test(st.data.thumbUrl||''), st.data.thumbUrl);
+  ok('① thumbUrl 路径为 thumb/ 对象且带签名（02 §1.5）', /\/scenary-media\/thumb\/\d{6}\/[0-9a-f-]{36}_t\.jpg\?/.test(st.data.thumbUrl||'') && (st.data.thumbUrl||'').includes('X-Amz-Signature='), st.data.thumbUrl);
 
   // ② 尺寸语义 ≤800 且等比
   ok('② 宽高≤800 且比列≈原图', st.data.width<=800 && st.data.height<=800 &&
