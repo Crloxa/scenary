@@ -115,6 +115,21 @@ public class CommentService {
 
     /** 账号注销：作者名下全部未删评论软删，展示侧按既有"已删除"占位渲染（docs/02 §3.8）。 */
     @Transactional
+    /**
+     * P18 评论举报前置校验（docs/02 §10.1）：评论存在、未删除、所属笔记对举报者可见、
+     * 且不是自己的评论。仅做校验与门面收敛，报告行由 report 模块落库。
+     */
+    public void reportTarget(long reporterId, long commentId) {
+        var c = commentMapper.findById(commentId);
+        if (c == null || c.getStatus() == null || c.getStatus() != 1) {
+            throw new BizException(ErrorCode.NOT_FOUND);
+        }
+        if (c.getUserId() == reporterId) {
+            throw new BizException(ErrorCode.VALIDATION, "不能举报自己的评论");
+        }
+        noteService.commentTarget(reporterId, c.getNoteId());
+    }
+
     public int deactivateAuthorComments(long userId) {
         return commentMapper.softDeleteAllByAuthor(userId);
     }

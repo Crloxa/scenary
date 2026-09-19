@@ -5,6 +5,7 @@ import { noteApi } from '@/api/note'
 import { getErrorText } from '@/utils/request'
 import { toast } from '@/utils/toast'
 import { socialApi } from '@/api/social'
+import { reportApi } from '@/api/report'
 import { useUserStore } from '@/stores/user'
 import { commentApi } from '@/api/comment'
 
@@ -23,6 +24,45 @@ const armDelete = ref(false)
 let disarmTimer = null
 let loadSeq = 0
 const socialPending = ref('')
+// P18 举报状态（docs/02 §10.1）
+const REPORT_REASONS = [
+  { code: 'SPAM', label: '垃圾广告 / 营销内容' },
+  { code: 'PORTRAIT', label: '包含人物肖像，不符合社区定位' },
+  { code: 'INFRINGING', label: '侵权 / 违法内容' },
+  { code: 'OTHER', label: '其他问题' },
+]
+const showReport = ref(false)
+const reportReason = ref('')
+const reportText = ref('')
+const reportPending = ref(false)
+const reportError = ref('')
+
+function openReport() {
+  reportReason.value = ''
+  reportText.value = ''
+  reportError.value = ''
+  showReport.value = true
+}
+
+async function submitReport() {
+  if (!reportReason.value || reportPending.value) return
+  reportPending.value = true
+  reportError.value = ''
+  try {
+    await reportApi.create({
+      targetType: 'note',
+      targetId: detail.value.id,
+      reasonCode: reportReason.value,
+      reasonText: reportText.value.trim(),
+    })
+    showReport.value = false
+    toast('已收到你的举报，我们会尽快处理')
+  } catch (e) {
+    reportError.value = getErrorText(e) || '提交失败，请稍后重试'
+  } finally {
+    reportPending.value = false
+  }
+}
 const comments = ref([])
 const commentsCursor = ref(undefined)
 const commentsHasMore = ref(true)
@@ -271,9 +311,51 @@ function fmt(ts) {
         :class="detail.social?.bookmarked ? 'border-brand-400 bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-300' : 'border-line hover:bg-mute'"
         @click="toggleSocial('bookmark')"
       >▮ {{ detail.social?.bookmarked ? '已收藏' : '收藏' }} {{ detail.social?.bookmarkCount || 0 }}</button>
+      <!-- P18 举报入口：登录且非自己的笔记 -->
+      <button
+        v-if="!detail.mine && store.isLoggedIn"
+        type="button"
+        data-testid="btn-report-note"
+        class="h-9 px-4 rounded-full border border-line text-ink-soft hover:text-red-500 hover:border-red-200 transition text-sm"
+        @click="openReport"
+      >举报</button>
       <span class="text-xs text-ink-soft ml-auto">
         {{ detail.social?.followerCount || 0 }} 位关注作者 · 作者关注 {{ detail.social?.followingCount || 0 }} 人
       </span>
+    </div>
+
+    <!-- P18 举报弹层 -->
+    <div v-if="showReport" class="fixed inset-0 z-50 bg-black/40 grid place-items-center px-4" @click.self="showReport = false">
+      <div class="w-full max-w-sm bg-surface rounded-2xl p-5 space-y-3" role="dialog" aria-label="举报笔记">
+        <h2 class="font-medium">举报这篇笔记</h2>
+        <fieldset class="space-y-1.5 text-sm">
+          <legend class="sr-only">举报原因</legend>
+          <label v-for="r in REPORT_REASONS" :key="r.code" class="flex items-center gap-2 cursor-pointer">
+            <input v-model="reportReason" type="radio" :value="r.code" class="accent-brand-500 w-4 h-4" />
+            {{ r.label }}
+          </label>
+        </fieldset>
+        <label for="report-text" class="sr-only">补充说明（选填）</label>
+        <textarea
+          id="report-text"
+          v-model="reportText"
+          rows="3"
+          maxlength="200"
+          placeholder="补充说明（选填，200 字以内）"
+          class="w-full p-2.5 rounded-xl bg-mute border border-transparent outline-none focus:border-brand-300 text-sm resize-none"
+        ></textarea>
+        <p v-if="reportError" class="text-xs text-red-500" role="alert">{{ reportError }}</p>
+        <div class="flex gap-2 pt-1">
+          <button type="button" class="flex-1 h-10 rounded-xl border border-line text-ink-soft text-sm" @click="showReport = false">取消</button>
+          <button
+            type="button"
+            data-testid="btn-report-submit"
+            :disabled="!reportReason || reportPending"
+            class="flex-1 h-10 rounded-xl bg-red-500 text-white text-sm disabled:bg-neutral-200 disabled:text-neutral-400"
+            @click="submitReport"
+          >{{ reportPending ? '提交中…' : '提交举报' }}</button>
+        </div>
+      </div>
     </div>
 
     <!-- 图片/视频纵向流；视频只使用转码产物，不请求原始对象 -->

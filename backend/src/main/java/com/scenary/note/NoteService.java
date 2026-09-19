@@ -204,6 +204,49 @@ public class NoteService {
     }
 
     /**
+     * P18 举报前置校验（docs/02 §10.1）：存在、未删除、对举报者可见；不能举报自己。
+     */
+    public void reportTarget(long reporterId, long noteId) {
+        NoteEntity n = noteMapper.findById(noteId);
+        if (n == null || n.getVisibility() == null || n.getVisibility() == 2
+                || ((n.getVisibility() == 0 || n.getVisibility() == 3)
+                    && n.getUserId() != reporterId)) {
+            throw new BizException(ErrorCode.NOT_FOUND);
+        }
+        if (n.getUserId() == reporterId) {
+            throw new BizException(ErrorCode.VALIDATION, "不能举报自己的笔记");
+        }
+    }
+
+    /**
+     * P18 举报计数与阈值隐藏：计数 +1；达到 report-hide-threshold（默认 5）且仍公开时
+     * visibility 1→3（仅作者可见），并失效卡片与首页缓存。返回本次是否触发隐藏。
+     */
+    @org.springframework.beans.factory.annotation.Value("${scenary.moderation.report-hide-threshold:5}")
+    private int reportHideThreshold;
+
+    @Transactional
+    public boolean applyReportCount(long reporterId, long noteId) {
+        NoteEntity n = noteMapper.findById(noteId);
+        if (n == null) {
+            throw new BizException(ErrorCode.NOT_FOUND);
+        }
+        noteMapper.incrementReportCount(noteId);
+        Integer count = noteMapper.selectReportCount(noteId);
+        if (count != null && count >= reportHideThreshold && n.getVisibility() != null
+                && n.getVisibility() == 1) {
+            int updated = noteMapper.hideByReports(noteId);
+            if (updated == 1) {
+                redis.delete(KEY_NOTE_CARD + noteId);
+                // 推进版本而非只删基础键：版本化 L1 页里可能仍持有被隐藏卡片
+                invalidateFirstPageCache();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * 账号注销：作者名下全部可见笔记软删，清其 feed 卡片缓存（docs/02 §3.8）。
      * user 模块注销事务经此门面调用，返回受影响行数供日志。
      */
@@ -303,6 +346,12 @@ public class NoteService {
                 com.scenary.common.SocialVO.empty(), mine);
     }
 
+    /** P18 详情屏蔽门使用：仅取作者 id（软删返回 null）。 */
+    public Long authorIdOf(long noteId) {
+        NoteEntity n = noteMapper.findById(noteId);
+        return n == null ? null : n.getUserId();
+    }
+
     /** P9 社交模块只可对公开且未删除笔记建立关系。 */
     public NoteTarget socialTarget(long noteId) {
         NoteEntity n = noteMapper.findByIdForUpdate(noteId);
@@ -312,11 +361,12 @@ public class NoteService {
         return new NoteTarget(n.getId(), n.getUserId());
     }
 
-    /** 评论允许作者查看自己的私密笔记；写入时使用行锁与软删竞态隔离。 */
+    /** 评论允许作者查看自己的私密/审核隐藏笔记；写入时使用行锁与软删竞态隔离。 */
     public NoteTarget commentTarget(Long viewerId, long noteId) {
         NoteEntity n = noteMapper.findById(noteId);
         if (n == null || n.getVisibility() == null || n.getVisibility() == 2
-                || (n.getVisibility() == 0 && !Objects.equals(viewerId, n.getUserId()))) {
+                || ((n.getVisibility() == 0 || n.getVisibility() == 3)
+                    && !Objects.equals(viewerId, n.getUserId()))) {
             throw new BizException(ErrorCode.NOT_FOUND);
         }
         return new NoteTarget(n.getId(), n.getUserId());
@@ -325,7 +375,8 @@ public class NoteService {
     public NoteTarget commentTargetForUpdate(long viewerId, long noteId) {
         NoteEntity n = noteMapper.findByIdForUpdate(noteId);
         if (n == null || n.getVisibility() == null || n.getVisibility() == 2
-                || (n.getVisibility() == 0 && viewerId != n.getUserId())) {
+                || ((n.getVisibility() == 0 || n.getVisibility() == 3)
+                    && viewerId != n.getUserId())) {
             throw new BizException(ErrorCode.NOT_FOUND);
         }
         return new NoteTarget(n.getId(), n.getUserId());
@@ -339,7 +390,7 @@ public class NoteService {
         boolean showPrivate = viewerId != null && viewerId == targetUserId;
         int limit = clampLimit(limitParam);
         long cursor = cursorParam == null ? Long.MAX_VALUE : cursorParam;
-        var rows = noteMapper.selectGridRows(targetUserId, cursor, limit, showPrivate);
+        var rows = noteMapper.selectGridRows(targetUserId, viewerId, cursor, limit, showPrivate);
         List<GridCardVO> vos = rows.stream()
                 .map(n -> new GridCardVO(n.getId(), n.getTitle(), viewUrl(n.getCoverUrl()),
                         n.getMediaCount(), n.getVisibility(), n.getCreatedAt().getTime()))
@@ -349,9 +400,10 @@ public class NoteService {
 
     NoteEntity requireVisible(Long viewerId, long noteId) {
         NoteEntity n = noteMapper.findById(noteId);
-        // 不存在 / 已软删 / 他人私密 —— 一律 404 隐藏存在性
+        // 不存在 / 已软删 / 他人私密或审核隐藏 —— 一律 404 隐藏存在性（P18 visibility=3 仅作者可见）
         if (n == null || n.getVisibility() == null || n.getVisibility() == 2
-                || (n.getVisibility() == 0 && !Objects.equals(viewerId, n.getUserId()))) {
+                || ((n.getVisibility() == 0 || n.getVisibility() == 3)
+                    && !Objects.equals(viewerId, n.getUserId()))) {
             throw new BizException(ErrorCode.NOT_FOUND);
         }
         return n;

@@ -1,9 +1,11 @@
 package com.scenary.note;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
@@ -309,6 +311,49 @@ class NoteServiceTest {
                 new NoteUpdateRequest("t", null, null, List.of(13L), null, null, null, null, 1)));
         assertEquals(ErrorCode.VALIDATION, ex.getErrorCode());
         verify(noteMapper, never()).update(any());
+    }
+
+    @Test
+    void applyReportCountHidesNoteAtThresholdAndBumpsFeedVersion() {
+        NoteService service = service();
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "reportHideThreshold", 5);
+
+        NoteEntity note = new NoteEntity();
+        note.setId(9L);
+        note.setUserId(8L);
+        note.setVisibility(1);
+        note.setReportCount(4);
+        when(noteMapper.findById(9L)).thenReturn(note);
+        when(noteMapper.selectReportCount(9L)).thenReturn(5);
+        when(noteMapper.hideByReports(9L)).thenReturn(1);
+
+        boolean hidden = service.applyReportCount(7L, 9L);
+
+        assertTrue(hidden);
+        verify(noteMapper).incrementReportCount(9L);
+        verify(noteMapper).hideByReports(9L);
+        verify(redis).delete("note:card:9");
+        verify(redis).delete("feed:first:v1");
+        verify(valueOperations).increment("feed:first:v1:version");
+    }
+
+    @Test
+    void applyReportCountBelowThresholdKeepsVisible() {
+        NoteService service = service();
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "reportHideThreshold", 5);
+
+        NoteEntity note = new NoteEntity();
+        note.setId(10L);
+        note.setUserId(8L);
+        note.setVisibility(1);
+        note.setReportCount(1);
+        when(noteMapper.findById(10L)).thenReturn(note);
+        when(noteMapper.selectReportCount(10L)).thenReturn(2);
+
+        boolean hidden = service.applyReportCount(7L, 10L);
+
+        assertFalse(hidden);
+        verify(noteMapper, never()).hideByReports(anyLong());
     }
 
     private MediaEntity media(long id, Long noteId, int status, int mediaType) {

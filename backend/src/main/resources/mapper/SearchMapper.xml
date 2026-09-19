@@ -47,6 +47,12 @@
         INNER JOIN users u ON u.id = n.user_id AND u.status = 1
         LEFT JOIN media cover ON cover.note_id = n.id AND cover.order_no = 1
         WHERE n.visibility = 1
+        <if test="viewerId != null">
+          /* P18 屏蔽双向过滤 */
+          AND NOT EXISTS (SELECT 1 FROM user_blocks b
+                          WHERE (b.user_id = #{viewerId} AND b.blocked_user_id = n.user_id)
+                             OR (b.user_id = n.user_id AND b.blocked_user_id = #{viewerId}))
+        </if>
           AND <include refid="any_match"/>
         <if test="cursorId != null">
           <choose>

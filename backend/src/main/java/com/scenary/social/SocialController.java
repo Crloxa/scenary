@@ -58,6 +58,21 @@ public class SocialController {
         return Result.ok(socialService.follow(UserContext.require(), userId, false));
     }
 
+    /** 屏蔽/取消屏蔽（docs/02 §10.2，P18）：路径已由拦截器要求登录。 */
+    @org.springframework.web.bind.annotation.RequestMapping(
+            value = "/users/{targetUserId}/block", method = {org.springframework.web.bind.annotation.RequestMethod.PUT})
+    public Result<Void> block(@PathVariable long targetUserId) {
+        socialService.block(UserContext.require(), targetUserId, true);
+        return Result.ok();
+    }
+
+    @org.springframework.web.bind.annotation.RequestMapping(
+            value = "/users/{targetUserId}/block", method = {org.springframework.web.bind.annotation.RequestMethod.DELETE})
+    public Result<Void> unblock(@PathVariable long targetUserId) {
+        socialService.block(UserContext.require(), targetUserId, false);
+        return Result.ok();
+    }
+
     @GetMapping("/users/me/bookmarks")
     public Result<PageResult<BookmarkVO>> bookmarks(
             @RequestParam(required = false) Long cursor,

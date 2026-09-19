@@ -31,6 +31,14 @@ public interface SocialMapper {
                                       @Param("limit") int limit);
 
     /** 关注者列表（docs/02 §3.9，P16-02）：游标 follows.id 倒序，仅 status=1 用户 */
+    /** P18 屏蔽（docs/02 §10.2）：唯一键幂等，自屏蔽由 CHECK 约束兜底 */
+    int insertBlock(@Param("userId") long userId, @Param("blockedUserId") long blockedUserId);
+
+    int deleteBlock(@Param("userId") long userId, @Param("blockedUserId") long blockedUserId);
+
+    /** 双向屏蔽判定：a、b 任一方屏蔽对方即 true（feed/搜索/网格/详情过滤共用） */
+    Boolean existsBlockEitherWay(@Param("userA") long userA, @Param("userB") long userB);
+
     List<FollowRow> selectFollowers(@Param("userId") long userId,
                                     @Param("viewerId") Long viewerId,
                                     @Param("cursor") long cursor,

@@ -51,7 +51,7 @@ class FeedServiceTest {
         when(redis.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get(NoteService.KEY_FEED_FIRST_VERSION)).thenReturn("3");
         when(valueOperations.get(NoteService.KEY_FEED_FIRST + ":3")).thenReturn(null);
-        when(noteMapper.selectFeedRows(Long.MAX_VALUE, 11)).thenReturn(List.of(note));
+        when(noteMapper.selectFeedRows(null, Long.MAX_VALUE, 11)).thenReturn(List.of(note));
         when(noteService.briefsMap(List.of(7L))).thenReturn(Map.of());
         when(mediaMapper.selectByNoteIds(List.of(10L))).thenReturn(List.of());
 
@@ -68,7 +68,7 @@ class FeedServiceTest {
         PageResult<NoteCardVO> second = service.page(null, null);
 
         assertEquals(10L, second.getList().get(0).id());
-        verify(noteMapper, org.mockito.Mockito.times(2)).selectFeedRows(Long.MAX_VALUE, 11);
+        verify(noteMapper, org.mockito.Mockito.times(2)).selectFeedRows(null, Long.MAX_VALUE, 11);
     }
 
     @Test
@@ -80,7 +80,7 @@ class FeedServiceTest {
         when(valueOperations.get(NoteService.KEY_NOTE_CARD + "9"))
                 .thenReturn(new ObjectMapper().writeValueAsString(card));
         NoteEntity row = note(9L);
-        when(noteMapper.selectFeedRows(100L, 11)).thenReturn(List.of(row));
+        when(noteMapper.selectFeedRows(null, 100L, 11)).thenReturn(List.of(row));
 
         PageResult<NoteCardVO> result = service.page(100L, 10);
 

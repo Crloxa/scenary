@@ -103,6 +103,22 @@
         LIMIT #{limit}
     </select>
 
+    <!-- P18 屏蔽：唯一键幂等；existsBlockEitherWay 供 feed/搜索/网格/详情双向过滤 -->
+    <insert id="insertBlock">
+        INSERT IGNORE INTO user_blocks (user_id, blocked_user_id)
+        VALUES (#{userId}, #{blockedUserId})
+    </insert>
+
+    <delete id="deleteBlock">
+        DELETE FROM user_blocks WHERE user_id = #{userId} AND blocked_user_id = #{blockedUserId}
+    </delete>
+
+    <select id="existsBlockEitherWay" resultType="java.lang.Boolean">
+        SELECT EXISTS (SELECT 1 FROM user_blocks b
+                       WHERE (b.user_id = #{userA} AND b.blocked_user_id = #{userB})
+                          OR (b.user_id = #{userB} AND b.blocked_user_id = #{userA}))
+    </select>
+
     <!-- P16-02 关注者/正在关注列表：follows.id 倒序游标；join status=1 过滤禁用与注销用户 -->
     <select id="selectFollowers" resultType="com.scenary.social.FollowRow">
         SELECT f.id AS id,

@@ -1,6 +1,7 @@
 package com.scenary.social;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.never;
@@ -170,5 +171,29 @@ class SocialServiceTest {
         verify(socialMapper, never()).selectFollowing(org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyInt());
+    }
+
+    @Test
+    void blockIsIdempotentAndRejectsSelf() {
+        SocialService service = new SocialService(socialMapper, noteService, userService);
+
+        service.block(7L, 9L, true);
+        service.block(7L, 9L, true);
+        verify(socialMapper, org.mockito.Mockito.times(2)).insertBlock(7L, 9L);
+
+        BizException self = assertThrows(BizException.class, () -> service.block(7L, 7L, true));
+        assertEquals(ErrorCode.VALIDATION, self.getErrorCode());
+    }
+
+    @Test
+    void isBlockedEitherWayMapsSqlTruth() {
+        SocialService service = new SocialService(socialMapper, noteService, userService);
+        when(socialMapper.existsBlockEitherWay(7L, 9L)).thenReturn(Boolean.TRUE);
+        when(socialMapper.existsBlockEitherWay(7L, 11L)).thenReturn(Boolean.FALSE);
+
+        assertTrue(service.isBlockedEitherWay(7L, 9L));
+        assertFalse(service.isBlockedEitherWay(7L, 11L));
+        // 自身永不视为屏蔽
+        assertFalse(service.isBlockedEitherWay(7L, 7L));
     }
 }

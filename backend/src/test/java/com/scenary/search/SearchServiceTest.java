@@ -32,7 +32,7 @@ class SearchServiceTest {
     @Test
     void relevancePageEscapesLikeCharactersAndBuildsPlainHighlight() {
         SearchRow row = row(9L, "A_% 远方", "带着 A_% 出发", "海岸 A_%", "旅人", 9, 2_000L);
-        when(searchMapper.selectNotes("A\\_\\%", "relevance", null, null, null, 11))
+        when(searchMapper.selectNotes("A\\_\\%", "relevance", null, null, null, 42L, 11))
                 .thenReturn(List.of(row));
         when(socialService.noteStatuses(List.of(9L), 42L))
                 .thenReturn(Map.of(9L, new SocialVO(true, false, false, 1, 0, 2, 3)));
@@ -53,7 +53,7 @@ class SearchServiceTest {
     void cursorIsBoundToQueryAndSortAndCarriesTheLastOrderingKey() {
         SearchRow first = row(9L, "云海", "", "", "山客", 5, 2_000L);
         SearchRow probe = row(8L, "云海日出", "", "", "山客", 4, 1_000L);
-        when(searchMapper.selectNotes("云海", "relevance", null, null, null, 2))
+        when(searchMapper.selectNotes("云海", "relevance", null, null, null, null, 2))
                 .thenReturn(List.of(first, probe));
 
         SearchService service = new SearchService(searchMapper, socialService, null);
@@ -66,7 +66,7 @@ class SearchServiceTest {
         assertEquals(9L, cursor.id());
         assertThrows(BizException.class,
                 () -> SearchCursor.parse(page.nextCursor(), "海边", "relevance"));
-        verify(searchMapper).selectNotes(eq("云海"), eq("relevance"), isNull(), isNull(), isNull(), eq(2));
+        verify(searchMapper).selectNotes(eq("云海"), eq("relevance"), isNull(), isNull(), isNull(), isNull(), eq(2));
     }
 
     @Test

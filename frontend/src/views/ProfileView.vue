@@ -191,6 +191,22 @@ async function logout() {
 function fmt(ts) {
   return new Date(Number(ts)).toLocaleDateString()
 }
+// P18 屏蔽该用户：确认后单向写入，双方内容互不可见（docs/02 §10.2）
+async function blockUser() {
+  if (!profile.value || isSelf.value) return
+  if (!store.isLoggedIn) {
+    router.push({ path: '/login', query: { redirect: route.fullPath } })
+    return
+  }
+  if (!window.confirm(`屏蔽后你和 ${profile.value.nickname} 将互相看不到对方的内容，确定屏蔽吗？`)) return
+  try {
+    await socialApi.block(userId.value, true)
+    toast('已屏蔽该用户')
+  } catch (e) {
+    toast(getErrorText(e), 'error')
+  }
+}
+
 async function toggleFollow() {
   if (!profile.value || isSelf.value) return
   if (!store.isLoggedIn) {
@@ -286,6 +302,15 @@ async function toggleFollow() {
         @click="toggleFollow"
       >{{ profile.social?.following ? '已关注' : '关注' }} · {{ profile.social?.followerCount || 0 }}</button>
     </header>
+    <!-- P18 屏蔽入口（非本人且已登录）：屏蔽后双方内容互不可见 -->
+    <div v-if="!isSelf && store.isLoggedIn" class="max-w-[720px] mx-auto mt-2 flex justify-end">
+      <button
+        type="button"
+        data-testid="btn-block-user"
+        class="text-xs text-ink-soft hover:text-red-500 transition"
+        @click="blockUser"
+      >屏蔽该用户</button>
+    </div>
 
     <!-- 编辑弹层 -->
       <div v-if="editing" class="fixed inset-0 z-50 bg-black/40 grid place-items-center px-4" @click.self="editing=false">

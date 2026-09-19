@@ -22,6 +22,7 @@ public class RateLimitService {
     int socialPerMin = 120;
     int mediaPer10min = 60;
     int commentPerMin = 20;
+    int reportPer10min = 20;
     boolean exemptLoopback = true;
 
     public RateLimitService(StringRedisTemplate redis) {
@@ -46,12 +47,20 @@ public class RateLimitService {
     @Value("${scenary.ratelimit.exempt-loopback:true}")
     public void setExemptLoopback(boolean v) { this.exemptLoopback = v; }
 
+    @Value("${scenary.ratelimit.report-per-10min:20}")
+    public void setReportPer10min(int v) { this.reportPer10min = v; }
+
     public void register(String ip) {
         if (exemptLoopback && isLoopback(ip)) {
             return;
         }
         check("rl:register:" + ip, TimeUnit.HOURS.toSeconds(1), registerPerHour,
                 "注册过于频繁");
+    }
+
+    public void reports(long userId) {
+        check("rl:report:" + userId, TimeUnit.MINUTES.toSeconds(10), reportPer10min,
+                "举报过于频繁");
     }
 
     public void notes(long userId) {

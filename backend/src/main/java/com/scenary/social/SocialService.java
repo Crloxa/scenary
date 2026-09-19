@@ -101,6 +101,36 @@ public class SocialService {
         return userSocial(followingId, followerId);
     }
 
+    /**
+     * P18 屏蔽/取消屏蔽（docs/02 §10.2）：幂等；不能屏蔽自己；
+     * 目标禁用/注销/不存在统一 40400（对齐 follow 边界）。不产生通知。
+     */
+    @Transactional
+    public void block(long userId, long targetUserId, boolean enabled) {
+        if (rateLimitService != null) {
+            rateLimitService.social(userId);
+        }
+        userService.ensureActive(userId);
+        userService.ensureActive(targetUserId);
+        if (userId == targetUserId) {
+            throw new BizException(ErrorCode.VALIDATION, "不能屏蔽自己");
+        }
+        if (enabled) {
+            socialMapper.insertBlock(userId, targetUserId);
+        } else {
+            socialMapper.deleteBlock(userId, targetUserId);
+        }
+    }
+
+    /** 双向屏蔽判定（P18）：NoteController 详情过滤等场景使用。 */
+    public boolean isBlockedEitherWay(long userA, long userB) {
+        if (userA == userB) {
+            return false;
+        }
+        Boolean blocked = socialMapper.existsBlockEitherWay(userA, userB);
+        return Boolean.TRUE.equals(blocked);
+    }
+
     public SocialVO noteSocial(long noteId, Long viewerId) {
         return socialRow(noteId, viewerId);
     }

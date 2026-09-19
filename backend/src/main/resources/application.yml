@@ -36,7 +36,11 @@ scenary:
     social-per-min: "${SCENARY_RATELIMIT_SOCIAL_PER_MIN:120}"
     media-per-10min: "${SCENARY_RATELIMIT_MEDIA_PER_10MIN:60}"
     comment-per-min: "${SCENARY_RATELIMIT_COMMENT_PER_MIN:20}"
+    report-per-10min: "${SCENARY_RATELIMIT_REPORT_PER_10MIN:20}"
     exempt-loopback: "${SCENARY_RATELIMIT_EXEMPT_LOOPBACK:true}"
   notification:
     cleanup-enabled: "${SCENARY_NOTIFICATION_CLEANUP_ENABLED:true}"
     retention-days: "${SCENARY_NOTIFICATION_RETENTION_DAYS:90}"
+  # P18 举报达阈值自动隐藏（docs/05 §14）；处置只做隐藏，人工处置属 P13
+  moderation:
+    report-hide-threshold: "${SCENARY_MODERATION_REPORT_HIDE_THRESHOLD:5}"

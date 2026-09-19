@@ -57,6 +57,12 @@ public class NoteController {
             @PathVariable long noteId,
             @RequestHeader(value = "Authorization", required = false) String authorization) {
         Long viewer = jwtUtil.peekUserId(authorization);
+        // P18 屏蔽双向过滤：任一方屏蔽对方即 404，隐藏存在性（匿名不过滤）
+        Long blockedAuthor = viewer == null ? null : noteService.authorIdOf(noteId);
+        if (blockedAuthor != null && viewer != null
+                && socialService.isBlockedEitherWay(viewer, blockedAuthor)) {
+            throw new com.scenary.common.BizException(com.scenary.common.ErrorCode.NOT_FOUND);
+        }
         return Result.ok(noteService.detail(viewer, noteId)
                 .withSocial(socialService.noteSocial(noteId, viewer)));
     }

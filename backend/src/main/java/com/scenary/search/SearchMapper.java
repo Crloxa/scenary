@@ -14,5 +14,6 @@ public interface SearchMapper {
                                 @Param("cursorScore") Integer cursorScore,
                                 @Param("cursorCreatedAt") Date cursorCreatedAt,
                                 @Param("cursorId") Long cursorId,
+                                @Param("viewerId") Long viewerId,
                                 @Param("limit") int limit);
 }

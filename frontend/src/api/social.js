@@ -19,6 +19,13 @@ export const socialApi = {
       url: `/users/${userId}/follow`,
     }))
   },
+  // P18 屏蔽/取消屏蔽（docs/02 §10.2）
+  async block(userId, enabled) {
+    return unwrap(await instance.request({
+      method: enabled ? 'put' : 'delete',
+      url: `/users/${userId}/block`,
+    }))
+  },
   async bookmarks({ cursor, limit = 10 } = {}) {
     return unwrap(await instance.get('/users/me/bookmarks', {
       params: cursor == null ? { limit } : { cursor, limit },

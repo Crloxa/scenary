@@ -6,7 +6,7 @@
     <sql id="all_columns">
         id, user_id, title, content, cover_url, media_count,
         place_name, latitude, longitude, place_source, place_precision,
-        request_key, visibility, created_at, updated_at
+        request_key, visibility, report_count, created_at, updated_at
     </sql>
 
     <insert id="insert" parameterType="com.scenary.note.NoteEntity"
@@ -49,6 +49,12 @@
         SELECT <include refid="all_columns"/>
         FROM notes
         WHERE visibility = 1 AND id &lt; #{cursor}
+        <if test="viewerId != null">
+        /* P18 屏蔽双向过滤：屏蔽者与被屏蔽者互不可见 */
+        AND NOT EXISTS (SELECT 1 FROM user_blocks b
+                        WHERE (b.user_id = #{viewerId} AND b.blocked_user_id = notes.user_id)
+                           OR (b.user_id = notes.user_id AND b.blocked_user_id = #{viewerId}))
+        </if>
         ORDER BY id DESC
         LIMIT #{limit}
     </select>
@@ -57,6 +63,12 @@
         SELECT <include refid="all_columns"/>
         FROM notes
         WHERE user_id = #{userId} AND id &lt; #{cursor}
+        <if test="viewerId != null and !showPrivate">
+        /* P18：被屏蔽者看屏蔽者的网格为空（双向） */
+        AND NOT EXISTS (SELECT 1 FROM user_blocks b
+                        WHERE (b.user_id = #{viewerId} AND b.blocked_user_id = notes.user_id)
+                           OR (b.user_id = notes.user_id AND b.blocked_user_id = #{viewerId}))
+        </if>
         <choose>
             <when test="showPrivate">AND visibility IN (0, 1)</when>
             <otherwise>AND visibility = 1</otherwise>
@@ -73,6 +85,19 @@
         UPDATE notes
         SET visibility = 2, deleted_at = CURRENT_TIMESTAMP(3)
         WHERE user_id = #{userId} AND visibility IN (0, 1)
+    </update>
+
+    <update id="incrementReportCount">
+        UPDATE notes SET report_count = report_count + 1 WHERE id = #{noteId}
+    </update>
+
+    <select id="selectReportCount" resultType="java.lang.Integer">
+        SELECT report_count FROM notes WHERE id = #{noteId}
+    </select>
+
+    <update id="hideByReports">
+        UPDATE notes SET visibility = 3, updated_at = CURRENT_TIMESTAMP(3)
+        WHERE id = #{noteId} AND visibility = 1
     </update>
 
 </mapper>

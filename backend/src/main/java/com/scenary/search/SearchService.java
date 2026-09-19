@@ -57,7 +57,7 @@ public class SearchService {
                 cursor == null ? null : cursor.score(),
                 cursor == null ? null : new java.util.Date(cursor.createdAt()),
                 cursor == null ? null : cursor.id(),
-                limit + 1);
+                viewerId, limit + 1);
 
         boolean hasMore = rows.size() > limit;
         List<SearchRow> pageRows = rows.stream().limit(limit).toList();

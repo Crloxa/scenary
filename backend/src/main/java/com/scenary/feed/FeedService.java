@@ -84,7 +84,7 @@ public class FeedService {
             }
         }
 
-        var rows = noteMapper.selectFeedRows(cursor, limit + 1);
+        var rows = noteMapper.selectFeedRows(viewerId, cursor, limit + 1);
         var cards = assembleCards(rows);
         PageResult<NoteCardVO> result = PageResult.of(
                 cards.subList(0, Math.min(limit, cards.size())),
@@ -223,7 +223,7 @@ public class FeedService {
 
     /** 仅核对覆盖索引返回的笔记 ID，防止交错写入的旧 L1 页对外可见。 */
     private boolean matchesCurrentFirstPage(PageResult<NoteCardVO> cached) {
-        List<NoteEntity> current = noteMapper.selectFeedRows(Long.MAX_VALUE, DEFAULT_PAGE_LIMIT + 1);
+        List<NoteEntity> current = noteMapper.selectFeedRows(null, Long.MAX_VALUE, DEFAULT_PAGE_LIMIT + 1);
         int expectedSize = Math.min(DEFAULT_PAGE_LIMIT, current.size());
         if (cached.getList().size() != expectedSize || cached.isHasMore() != (current.size() > DEFAULT_PAGE_LIMIT)) {
             return false;
