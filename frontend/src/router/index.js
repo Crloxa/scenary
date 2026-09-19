@@ -20,6 +20,13 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      // P16-01 编辑模式：同一视图按参数区分，复用媒体/表单/校验逻辑
+      path: '/publish/:noteId(\\d+)',
+      name: 'publish-edit',
+      component: () => import('@/views/PublishView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/bookmarks',
       name: 'bookmarks',
       component: () => import('@/views/BookmarksView.vue'),
@@ -32,7 +39,22 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     { path: '/note/:id', name: 'note', component: () => import('@/views/NoteDetailView.vue') },
-    { path: '/user/:id(\\d+)', name: 'user', component: () => import('@/views/ProfileView.vue') },
+    {
+      path: '/user/:id(\\d+)',
+      name: 'user',
+      component: () => import('@/views/ProfileView.vue'),
+    },
+    // P16-02 关注关系列表
+    {
+      path: '/user/:id(\\d+)/followers',
+      name: 'user-followers',
+      component: () => import('@/views/FollowListView.vue'),
+    },
+    {
+      path: '/user/:id(\\d+)/following',
+      name: 'user-following',
+      component: () => import('@/views/FollowListView.vue'),
+    },
     {
       path: '/:pathMatch(.*)*',
       name: 'notfound',

@@ -29,4 +29,16 @@ public interface SocialMapper {
     List<BookmarkRow> selectBookmarks(@Param("userId") long userId,
                                       @Param("cursor") long cursor,
                                       @Param("limit") int limit);
+
+    /** 关注者列表（docs/02 §3.9，P16-02）：游标 follows.id 倒序，仅 status=1 用户 */
+    List<FollowRow> selectFollowers(@Param("userId") long userId,
+                                    @Param("viewerId") Long viewerId,
+                                    @Param("cursor") long cursor,
+                                    @Param("limit") int limit);
+
+    /** 正在关注列表（docs/02 §3.10，P16-02）：语义与 selectFollowers 对称 */
+    List<FollowRow> selectFollowing(@Param("userId") long userId,
+                                    @Param("viewerId") Long viewerId,
+                                    @Param("cursor") long cursor,
+                                    @Param("limit") int limit);
 }

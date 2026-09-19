@@ -17,6 +17,16 @@
                 #{placePrecision}, #{requestKey}, #{coverUrl}, #{mediaCount}, #{visibility})
     </insert>
 
+    <update id="update" parameterType="com.scenary.note.NoteEntity">
+        UPDATE notes
+        SET title = #{title}, content = #{content}, place_name = #{placeName},
+            latitude = #{latitude}, longitude = #{longitude},
+            place_source = #{placeSource}, place_precision = #{placePrecision},
+            visibility = #{visibility}, cover_url = #{coverUrl}, media_count = #{mediaCount},
+            updated_at = CURRENT_TIMESTAMP(3)
+        WHERE id = #{id}
+    </update>
+
     <select id="findById" resultType="com.scenary.note.NoteEntity">
         SELECT <include refid="all_columns"/>
         FROM notes WHERE id = #{id} LIMIT 1

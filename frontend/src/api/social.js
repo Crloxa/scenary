@@ -24,4 +24,15 @@ export const socialApi = {
       params: cursor == null ? { limit } : { cursor, limit },
     }))
   },
+  // P16-02 关注者/正在关注列表（docs/02 §3.9/§3.10）
+  async followers(userId, { cursor, limit = 10 } = {}) {
+    return unwrap(await instance.get(`/users/${userId}/followers`, {
+      params: cursor == null ? { limit } : { cursor, limit },
+    }))
+  },
+  async following(userId, { cursor, limit = 10 } = {}) {
+    return unwrap(await instance.get(`/users/${userId}/following`, {
+      params: cursor == null ? { limit } : { cursor, limit },
+    }))
+  },
 }

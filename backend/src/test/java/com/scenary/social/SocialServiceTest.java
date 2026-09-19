@@ -132,4 +132,43 @@ class SocialServiceTest {
         row.setFollowingCount(followingCount);
         return row;
     }
+
+    @Test
+    void followersListsActiveUsersWithViewerPerspective() {
+        SocialService service = new SocialService(socialMapper, noteService, userService);
+        org.mockito.Mockito.lenient().when(userService.viewUrl(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        com.scenary.social.FollowRow row = new FollowRow();
+        row.setId(5L);
+        row.setUserId(100L);
+        row.setNickname("山野行人");
+        row.setAvatarUrl("avatar-100");
+        row.setFollowing(Boolean.TRUE);
+        when(socialMapper.selectFollowers(11L, 7L, Long.MAX_VALUE, 11))
+                .thenReturn(List.of(row));
+
+        PageResult<FollowVO> page = service.followers(11L, 7L, null, null);
+
+        assertEquals(1, page.getList().size());
+        FollowVO vo = page.getList().get(0);
+        assertEquals(100L, vo.id());
+        assertEquals("山野行人", vo.nickname());
+        assertEquals("avatar-100", vo.avatarUrl());
+        assertTrue(vo.following());
+    }
+
+    @Test
+    void followListRejectsMissingOrDisabledTarget() {
+        SocialService service = new SocialService(socialMapper, noteService, userService);
+        org.mockito.Mockito.doThrow(new BizException(ErrorCode.NOT_FOUND))
+                .when(userService).ensureActive(99L);
+
+        BizException ex = assertThrows(BizException.class,
+                () -> service.following(99L, 7L, null, null));
+        assertEquals(ErrorCode.NOT_FOUND, ex.getErrorCode());
+        verify(socialMapper, never()).selectFollowing(org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyInt());
+    }
 }

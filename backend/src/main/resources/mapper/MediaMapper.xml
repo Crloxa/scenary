@@ -140,6 +140,22 @@
         WHERE id = #{mediaId} AND note_id IS NULL
     </update>
 
+    <update id="rebindToNote">
+        UPDATE media SET note_id = #{noteId}, order_no = #{orderNo}
+        WHERE id = #{mediaId} AND (note_id IS NULL OR note_id = #{noteId})
+    </update>
+
+    <!-- 编辑全量替换：不在新集合中的旧媒体解绑回游离态。order_no 列 NOT NULL，
+         以 0 作游离标记（绑定行从 1 起，读路径只按 note_id 过滤，见 selectByNoteIds） -->
+    <update id="unbindFromNoteExcept">
+        UPDATE media SET note_id = NULL, order_no = 0
+        WHERE note_id = #{noteId}
+        <if test="keepIds != null and keepIds.size() > 0">
+            AND id NOT IN
+            <foreach collection="keepIds" item="kid" open="(" separator="," close=")">#{kid}</foreach>
+        </if>
+    </update>
+
     <select id="selectByNoteIds" resultType="com.scenary.media.MediaEntity">
         SELECT <include refid="all_columns"/>
         FROM media

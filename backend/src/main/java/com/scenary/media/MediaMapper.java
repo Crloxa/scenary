@@ -57,6 +57,17 @@ public interface MediaMapper {
                    @Param("orderNo") Integer orderNo,
                    @Param("mediaId") Long mediaId);
 
+    /**
+     * 编辑事务内重绑：目标媒体为游离或已绑定本笔记时允许（docs/02 §5.11 全量替换语义）。
+     */
+    int rebindToNote(@Param("noteId") Long noteId,
+                     @Param("orderNo") Integer orderNo,
+                     @Param("mediaId") Long mediaId);
+
+    /** 编辑事务内解绑不在新集合中的旧媒体（note_id 置空回到游离态，可被删除闭环回收） */
+    int unbindFromNoteExcept(@Param("noteId") Long noteId,
+                             @Param("keepIds") List<Long> keepIds);
+
     /** 按 note 集合批量取媒体行（用于封面/详情聚合），结果按 note_id,order_no 升序 */
     List<MediaEntity> selectByNoteIds(@Param("noteIds") List<Long> noteIds);
 

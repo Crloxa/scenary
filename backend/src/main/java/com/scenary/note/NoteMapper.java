@@ -10,6 +10,9 @@ public interface NoteMapper {
 
     int insert(NoteEntity note);
 
+    /** 编辑（docs/02 §5.11）：全字段内容更新，updated_at 由 SQL 兜底刷新 */
+    int update(NoteEntity note);
+
     NoteEntity findById(@Param("id") Long id);
 
     /** 社交写事务内锁定目标笔记，避免检查公开状态后与软删竞态。 */

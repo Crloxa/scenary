@@ -1,14 +1,26 @@
 <script setup>
-import { ref, computed, reactive, onMounted, onUnmounted } from 'vue'
-import { onBeforeRouteLeave, useRouter } from 'vue-router'
+import { ref, computed, reactive, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { mediaApi, waitProcessed, isAbortError } from '@/api/media'
 import { noteApi } from '@/api/note'
 import { useUserStore } from '@/stores/user'
 import { getErrorText } from '@/utils/request'
 import { toast } from '@/utils/toast'
 
+// P17 修图与滤镜：构建期开关，VITE_ENABLE_EDITOR=false 整体摘除（docs/05 §13）；
+// 弹窗经动态导入拆包——flag 关闭时主包不含编辑器代码
+const EDITOR_ENABLED = import.meta.env.VITE_ENABLE_EDITOR !== 'false'
+const ImageEditorModal = EDITOR_ENABLED
+  ? defineAsyncComponent(() => import('@/components/ImageEditorModal.vue'))
+  : null
+
+const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+
+// P16-01 编辑模式：/publish/:noteId 预填并 PUT 全量替换；无参数为发布模式
+const editId = route.params.noteId ? Number(route.params.noteId) : null
+const editMode = computed(() => editId != null)
 
 const MAX_FILES = 9
 const MAX_BYTES = 10 * 1024 * 1024
@@ -77,7 +89,50 @@ onBeforeRouteLeave(() => {
   return window.confirm('当前发布内容尚未完成，确定要离开吗？')
 })
 
-onMounted(() => window.addEventListener('beforeunload', handleBeforeUnload))
+onMounted(() => {
+  window.addEventListener('beforeunload', handleBeforeUnload)
+  if (editMode.value) loadForEdit()
+})
+
+// 编辑模式：加载自己的笔记预填表单与既有媒体（existing 项不参与孤儿清理，移除仅解除绑定）
+async function loadForEdit() {
+  try {
+    const note = await noteApi.detail(editId)
+    if (!note.mine) {
+      toast('只能编辑自己的笔记', 'error')
+      router.replace('/')
+      return
+    }
+    title.value = note.title || ''
+    content.value = note.content || ''
+    placeName.value = note.placeName || ''
+    latitude.value = note.latitude ?? ''
+    longitude.value = note.longitude ?? ''
+    placeSource.value = note.placeSource === 'EXIF' ? 'MAP' : (note.placeSource || 'MAP')
+    placePrecision.value = note.placePrecision || 'EXACT'
+    visibility.value = note.visibility === 0 ? '0' : '1'
+    items.value = (note.images || []).map(img => reactive({
+      key: `e${++uid}`,
+      file: null,
+      url: img.mediaType === 'VIDEO' ? (img.playbackUrl || '') : (img.thumbUrl || img.url || ''),
+      kind: img.mediaType === 'VIDEO' ? 'video' : 'image',
+      progress: 'ready',
+      mediaId: img.mediaId,
+      existing: true,
+      playbackUrl: img.playbackUrl || null,
+      playbackLowUrl: img.playbackLowUrl || null,
+      durationMs: img.durationMs || null,
+      uploadedBytes: 0,
+      totalBytes: 0,
+      controller: null,
+      removed: false,
+      error: '',
+    }))
+  } catch (e) {
+    toast(getErrorText(e) || '笔记不存在或已删除', 'error')
+    router.replace('/')
+  }
+}
 
 function pick() {
   fileInput.value?.click()
@@ -256,7 +311,8 @@ function removeItem(key) {
   item.removed = true
   item.controller?.abort()
   releasePreview(item)
-  if (item.mediaId && !published) {
+  // existing 项仍绑定在笔记上，不能删对象；编辑提交时由后端按新集合解绑
+  if (item.mediaId && !published && !item.existing) {
     const id = item.mediaId
     item.mediaId = null
     removeOrphan(id)
@@ -291,7 +347,7 @@ async function submitNote() {
   submitting.value = true
   try {
     const ordered = items.value.map(i => i.mediaId)
-    await noteApi.create({
+    const payload = {
       title: title.value.trim(),
       content: content.value.trim(),
       placeName: placeName.value.trim(),
@@ -301,8 +357,16 @@ async function submitNote() {
       placePrecision: coordinateText(latitude.value) === '' ? null : placePrecision.value,
       mediaIds: ordered,
       visibility: Number(visibility.value),
-      requestKey,
-    })
+    }
+    if (editMode.value) {
+      await noteApi.update(editId, payload)
+      published = true
+      items.value.forEach(releasePreview)
+      toast('修改已保存')
+      router.push(`/note/${editId}`)
+      return
+    }
+    await noteApi.create({ ...payload, requestKey })
     published = true
     requestKey = crypto.randomUUID()
     items.value.forEach(releasePreview)
@@ -319,6 +383,45 @@ function coordinateText(value) {
   return value == null ? '' : String(value).trim()
 }
 
+// ---------- P17 图片编辑器 ----------
+const editingItem = ref(null)
+
+function canEditItem(item) {
+  return EDITOR_ENABLED && item.kind === 'image' && Boolean(item.file)
+    && ['ready', 'fail', 'queued'].includes(item.progress)
+}
+
+function openEditor(item) {
+  if (!canEditItem(item)) return
+  editingItem.value = item
+}
+
+function closeEditor() {
+  editingItem.value = null
+}
+
+/** 编辑产物替换原图：旧媒体删除后按新文件重走上传管线 */
+function applyEdited(newFile) {
+  const item = editingItem.value
+  if (!item) return
+  editingItem.value = null
+  releasePreview(item)
+  if (item.mediaId && !item.existing && !published) {
+    const id = item.mediaId
+    item.mediaId = null
+    removeOrphan(id)
+  }
+  item.file = newFile
+  item.url = URL.createObjectURL(newFile)
+  item.mediaId = null
+  item.progress = 'queued'
+  item.error = ''
+  item.uploadedBytes = 0
+  item.totalBytes = newFile.size
+  item.removed = false
+  processQueue()
+}
+
 onUnmounted(() => {
   window.removeEventListener('beforeunload', handleBeforeUnload)
   disposed = true
@@ -326,7 +429,7 @@ onUnmounted(() => {
     item.removed = true
     item.controller?.abort()
     releasePreview(item)
-    if (item.mediaId && !published) removeOrphan(item.mediaId)
+    if (item.mediaId && !published && !item.existing) removeOrphan(item.mediaId)
   })
   items.value = []
 })
@@ -334,7 +437,7 @@ onUnmounted(() => {
 
 <template>
   <section class="max-w-[640px] mx-auto pt-6">
-    <h1 class="text-lg font-semibold mb-4">发布笔记</h1>
+    <h1 class="text-lg font-semibold mb-4">{{ editMode ? '编辑笔记' : '发布笔记' }}</h1>
 
     <!-- 媒体选区：图片可多选，视频单选且不可与图片混合 -->
     <div
@@ -371,6 +474,13 @@ onUnmounted(() => {
 
           <!-- 操作角标 -->
           <div class="absolute top-1 right-1 flex gap-1">
+            <button
+              v-if="canEditItem(it)"
+              aria-label="编辑图片"
+              class="w-5 h-5 rounded-full bg-black/55 text-white text-[10px] leading-none grid place-items-center"
+              title="编辑"
+              @click="openEditor(it)"
+            >✎</button>
             <button :aria-label="`移除${it.kind === 'video' ? '视频' : '图片'}`" class="w-5 h-5 rounded-full bg-black/55 text-white text-xs leading-none grid place-items-center" title="移除" @click="removeItem(it.key)">×</button>
           </div>
           <div class="absolute top-1 left-1 flex gap-0.5">
@@ -486,8 +596,16 @@ onUnmounted(() => {
         :disabled="!canSubmit"
         class="w-full h-11 rounded-xl bg-brand-500 hover:bg-brand-600 disabled:bg-neutral-200 disabled:text-neutral-400 transition text-white font-medium"
       >
-        {{ submitting ? '发布中…' : '发布' }}
+        {{ submitting ? (editMode ? '保存中…' : '发布中…') : (editMode ? '保存修改' : '发布') }}
       </button>
     </form>
+
+    <!-- P17 图片编辑器弹窗 -->
+    <ImageEditorModal
+      v-if="editingItem"
+      :file="editingItem.file"
+      @apply="applyEdited"
+      @close="closeEditor"
+    />
   </section>
 </template>

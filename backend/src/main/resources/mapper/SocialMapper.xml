@@ -103,4 +103,45 @@
         LIMIT #{limit}
     </select>
 
+    <!-- P16-02 关注者/正在关注列表：follows.id 倒序游标；join status=1 过滤禁用与注销用户 -->
+    <select id="selectFollowers" resultType="com.scenary.social.FollowRow">
+        SELECT f.id AS id,
+               u.id AS user_id,
+               u.nickname,
+               u.avatar_url AS avatar_url,
+               <choose>
+                   <when test="viewerId != null">
+                       EXISTS (SELECT 1 FROM follows v
+                               WHERE v.follower_id = #{viewerId} AND v.following_id = u.id)
+                   </when>
+                   <otherwise>FALSE</otherwise>
+               </choose> AS following
+        FROM follows f
+        INNER JOIN users u ON u.id = f.follower_id AND u.status = 1
+        WHERE f.following_id = #{userId}
+          AND f.id &lt; #{cursor}
+        ORDER BY f.id DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectFollowing" resultType="com.scenary.social.FollowRow">
+        SELECT f.id AS id,
+               u.id AS user_id,
+               u.nickname,
+               u.avatar_url AS avatar_url,
+               <choose>
+                   <when test="viewerId != null">
+                       EXISTS (SELECT 1 FROM follows v
+                               WHERE v.follower_id = #{viewerId} AND v.following_id = u.id)
+                   </when>
+                   <otherwise>FALSE</otherwise>
+               </choose> AS following
+        FROM follows f
+        INNER JOIN users u ON u.id = f.following_id AND u.status = 1
+        WHERE f.follower_id = #{userId}
+          AND f.id &lt; #{cursor}
+        ORDER BY f.id DESC
+        LIMIT #{limit}
+    </select>
+
 </mapper>

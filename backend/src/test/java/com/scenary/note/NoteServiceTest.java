@@ -238,4 +238,87 @@ class NoteServiceTest {
         assertEquals(new BigDecimal("30.123456"), saved.getLatitude());
         assertEquals(new BigDecimal("102.654321"), saved.getLongitude());
     }
+
+    @Test
+    void updateRejectsSoftDeletedAndForeignNotes() {
+        NoteService service = service();
+
+        NoteEntity deleted = new NoteEntity();
+        deleted.setId(9L);
+        deleted.setUserId(7L);
+        deleted.setVisibility(2);
+        when(noteMapper.findByIdForUpdate(9L)).thenReturn(deleted);
+        BizException gone = assertThrows(BizException.class, () -> service.update(7L, 9L,
+                new NoteUpdateRequest("t", null, null, List.of(1L), null, null, null, null, 1)));
+        assertEquals(ErrorCode.NOT_FOUND, gone.getErrorCode());
+
+        NoteEntity foreign = new NoteEntity();
+        foreign.setId(10L);
+        foreign.setUserId(8L);
+        foreign.setVisibility(1);
+        when(noteMapper.findByIdForUpdate(10L)).thenReturn(foreign);
+        BizException forbidden = assertThrows(BizException.class, () -> service.update(7L, 10L,
+                new NoteUpdateRequest("t", null, null, List.of(1L), null, null, null, null, 1)));
+        assertEquals(ErrorCode.FORBIDDEN, forbidden.getErrorCode());
+        verify(noteMapper, never()).update(any());
+    }
+
+    @Test
+    void updateReplacesMediaAndInvalidatesCardCache() {
+        NoteService service = service();
+
+        NoteEntity note = new NoteEntity();
+        note.setId(9L);
+        note.setUserId(7L);
+        note.setVisibility(1);
+        when(noteMapper.findByIdForUpdate(9L)).thenReturn(note);
+
+        MediaEntity kept = media(11L, 9L, 1, (byte) 0);
+        MediaEntity fresh = media(12L, null, 1, (byte) 0);
+        when(mediaMapper.findById(11L)).thenReturn(kept);
+        when(mediaMapper.findById(12L)).thenReturn(fresh);
+        when(mediaMapper.rebindToNote(9L, 1, 11L)).thenReturn(1);
+        when(mediaMapper.rebindToNote(9L, 2, 12L)).thenReturn(1);
+
+        NoteCreatedVO updated = service.update(7L, 9L,
+                new NoteUpdateRequest("新标题", "正文", null, List.of(11L, 12L),
+                        null, null, null, null, 1));
+
+        assertEquals(9L, updated.id());
+        verify(noteMapper).update(note);
+        assertEquals("新标题", note.getTitle());
+        assertEquals("thumb-11", note.getCoverUrl());
+        assertEquals(2, note.getMediaCount());
+        // 不在新集合的旧媒体被解绑；已绑定本笔记与游离媒体都保留
+        verify(mediaMapper).unbindFromNoteExcept(9L, List.of());
+        verify(redis).delete("note:card:9");
+    }
+
+    @Test
+    void updateRejectsMediaBoundToAnotherNote() {
+        NoteService service = service();
+
+        NoteEntity note = new NoteEntity();
+        note.setId(9L);
+        note.setUserId(7L);
+        note.setVisibility(1);
+        when(noteMapper.findByIdForUpdate(9L)).thenReturn(note);
+        when(mediaMapper.findById(13L)).thenReturn(media(13L, 77L, 1, (byte) 0));
+
+        BizException ex = assertThrows(BizException.class, () -> service.update(7L, 9L,
+                new NoteUpdateRequest("t", null, null, List.of(13L), null, null, null, null, 1)));
+        assertEquals(ErrorCode.VALIDATION, ex.getErrorCode());
+        verify(noteMapper, never()).update(any());
+    }
+
+    private MediaEntity media(long id, Long noteId, int status, int mediaType) {
+        MediaEntity m = new MediaEntity();
+        m.setId(id);
+        m.setUserId(7L);
+        m.setNoteId(noteId);
+        m.setStatus(status);
+        m.setMediaType(mediaType);
+        m.setThumbUrl("thumb-" + id);
+        return m;
+    }
 }

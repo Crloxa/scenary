@@ -248,7 +248,20 @@ async function toggleFollow() {
           <span class="text-xs text-ink-soft">{{ fmt(profile.createdAt) }} 加入</span>
         </div>
         <p class="text-sm text-ink-soft mt-1 line-clamp-2">{{ profile.bio || '这个人很懒，什么都没留下' }}</p>
-        <p class="mt-2 text-sm"><span class="font-semibold">{{ profile.noteCount }}</span><span class="text-ink-soft ml-1">篇笔记</span></p>
+        <p class="mt-2 text-sm flex items-center gap-4">
+          <span><span class="font-semibold">{{ profile.noteCount }}</span><span class="text-ink-soft ml-1">篇笔记</span></span>
+          <!-- P16-02 关注关系列表入口 -->
+          <router-link
+            data-testid="link-followers"
+            class="text-ink-soft hover:text-brand-500 transition"
+            :to="`/user/${userId}/followers`"
+          ><span class="font-semibold text-ink">{{ profile.social?.followerCount || 0 }}</span> 关注者</router-link>
+          <router-link
+            data-testid="link-following"
+            class="text-ink-soft hover:text-brand-500 transition"
+            :to="`/user/${userId}/following`"
+          ><span class="font-semibold text-ink">{{ profile.social?.followingCount || 0 }}</span> 正在关注</router-link>
+        </p>
       </div>
 
       <div v-if="isSelf" class="self-start flex flex-col gap-2">

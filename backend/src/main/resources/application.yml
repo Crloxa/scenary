@@ -5,6 +5,15 @@ spring:
   profiles:
     active: dev
 
+# P16-03 OpenAPI（springdoc）：与手写 02 契约并存；生产由 scenary.apidoc.enabled 关闭
+springdoc:
+  api-docs:
+    enabled: "${scenary.apidoc.enabled:true}"
+    path: /api/v1/api-docs
+  swagger-ui:
+    enabled: "${scenary.apidoc.enabled:true}"
+    path: /api/v1/docs
+
 logging:
   pattern:
     console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} [trace=%X{traceId},user=%X{userId}] - %msg%n"
@@ -13,6 +22,10 @@ scenary:
   media:
     presign-read: "${SCENARY_MEDIA_PRESIGN_READ:true}"
     presign-ttl-seconds: "${SCENARY_MEDIA_PRESIGN_TTL_SECONDS:300}"
+  # P16-03：api-docs 收敛进 /api/v1 前缀（nginx 同源反代天然可达）；
+  # 生产 Compose 默认 false，不出文档面（docs/01 §3.1）
+  apidoc:
+    enabled: "${SCENARY_APIDOC_ENABLED:true}"
   comment:
     sensitive-words: "${SCENARY_COMMENT_SENSITIVE_WORDS:诈骗,赌博,色情}"
   websocket:

@@ -231,11 +231,20 @@ function fmt(ts) {
       </button>
       <span class="text-xs text-ink-soft">{{ fmt(detail.createdAt) }}</span>
       <span v-if="detail.placeName" class="ml-auto text-xs px-2.5 py-1 rounded-full bg-brand-50 text-brand-600">📍 {{ detail.placeName }}</span>
+      <!-- P16-01：作者可进入编辑模式 -->
+      <button
+        v-if="detail.mine"
+        data-testid="btn-edit-note"
+        class="ml-auto text-xs h-8 px-3 rounded-full border border-line text-ink-soft hover:border-brand-300 hover:text-brand-500 transition"
+        @click="router.push(`/publish/${detail.id}`)"
+      >
+        编辑
+      </button>
       <button
         v-if="detail.mine"
         data-testid="btn-del-note"
         :disabled="deleting"
-        class="ml-auto text-xs h-8 px-3 rounded-full border transition"
+        class="text-xs h-8 px-3 rounded-full border transition"
         :class="armDelete ? 'bg-red-500 text-white border-red-500' : 'border-red-200 text-red-500 hover:bg-red-50'"
         @click="removeNote"
       >

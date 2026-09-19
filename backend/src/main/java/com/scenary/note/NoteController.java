@@ -37,9 +37,19 @@ public class NoteController {
     @PostMapping
     public Result<NoteCreatedVO> create(@Valid @RequestBody NoteCreateRequest req) {
         NoteCreatedVO created = noteService.create(UserContext.require(), req);
-        // NoteService 返回时事务已提交；此处再推进版本，保证发布响应后的首页读取不会复用旧快照。
+        // NoteService 返回时事务已提交；此处再推进版本，保证发布响应前的旧查询不会回写为当前首页快照。
         noteService.invalidateFirstPageCache();
         return Result.ok(created);
+    }
+
+    /** 编辑笔记（docs/02 §5.11，P16-01）：路径已由拦截器要求登录。 */
+    @org.springframework.web.bind.annotation.PutMapping("/{noteId}")
+    public Result<NoteCreatedVO> update(@PathVariable long noteId,
+                                        @Valid @RequestBody NoteUpdateRequest req) {
+        NoteCreatedVO updated = noteService.update(UserContext.require(), noteId, req);
+        // 标题/封面可能已进入首页卡片，编辑提交后同样推进首页缓存版本
+        noteService.invalidateFirstPageCache();
+        return Result.ok(updated);
     }
 
     @GetMapping("/{noteId}")

@@ -129,6 +129,39 @@ public class SocialService {
         return PageResult.of(items, nextCursor, hasMore);
     }
 
+    /**
+     * 关注者列表（docs/02 §3.9，P16-02）：目标禁用/注销/不存在即 40400（对齐 3.4 边界）。
+     * 游标由 follows.id 驱动，仅列出 status=1 用户；匿名视角 following=false。
+     */
+    public PageResult<FollowVO> followers(long targetUserId, Long viewerId,
+                                          Long cursorParam, Integer limitParam) {
+        return followList(targetUserId, viewerId, cursorParam, limitParam, true);
+    }
+
+    /** 正在关注列表（docs/02 §3.10，P16-02），语义与 followers 对称。 */
+    public PageResult<FollowVO> following(long targetUserId, Long viewerId,
+                                          Long cursorParam, Integer limitParam) {
+        return followList(targetUserId, viewerId, cursorParam, limitParam, false);
+    }
+
+    private PageResult<FollowVO> followList(long targetUserId, Long viewerId,
+                                            Long cursorParam, Integer limitParam, boolean followerDirection) {
+        userService.ensureActive(targetUserId);
+        int limit = clampLimit(limitParam);
+        long cursor = cursorParam == null ? Long.MAX_VALUE : cursorParam;
+        List<FollowRow> rows = followerDirection
+                ? socialMapper.selectFollowers(targetUserId, viewerId, cursor, limit + 1)
+                : socialMapper.selectFollowing(targetUserId, viewerId, cursor, limit + 1);
+        List<FollowVO> items = rows.stream().limit(limit)
+                .map(row -> new FollowVO(row.getUserId(), row.getNickname(),
+                        userService.viewUrl(row.getAvatarUrl()),
+                        Boolean.TRUE.equals(row.getFollowing())))
+                .toList();
+        boolean hasMore = rows.size() > limit;
+        Long nextCursor = hasMore ? rows.get(limit - 1).getId() : null;
+        return PageResult.of(items, nextCursor, hasMore);
+    }
+
     private SocialVO noteSocial(long noteId, long viewerId) {
         return socialRow(noteId, viewerId);
     }

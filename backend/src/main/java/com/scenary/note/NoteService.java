@@ -91,7 +91,8 @@ public class NoteService {
         note.setTitle(req.title());
         note.setContent(req.content() == null ? "" : req.content());
         note.setPlaceName(req.placeName());
-        Location location = resolveLocation(req, snapshots);
+        Location location = resolveLocation(req.latitude(), req.longitude(), req.placeSource(),
+                req.placePrecision(), snapshots);
         note.setLatitude(location.latitude());
         note.setLongitude(location.longitude());
         note.setPlaceSource(location.source());
@@ -119,6 +120,72 @@ public class NoteService {
             }
             throw new BizException(ErrorCode.INTERNAL_ERROR, "笔记发布失败，请重试");
         }
+        return toCreated(note);
+    }
+
+    /**
+     * 编辑笔记（docs/02 §5.11，P16-01）：owner 校验后全量替换内容与媒体集合。
+     * 已绑定本笔记的媒体允许原样保留；解绑与重绑在同一事务，行锁防并发编辑。
+     */
+    @Transactional
+    public NoteCreatedVO update(long userId, long noteId, NoteUpdateRequest req) {
+        rateLimitService.notes(userId);
+        NoteEntity note = noteMapper.findByIdForUpdate(noteId);
+        // 软删与不存在同样 404，隐藏存在性；他人笔记 403
+        if (note == null || note.getVisibility() == null || note.getVisibility() == 2) {
+            throw new BizException(ErrorCode.NOT_FOUND);
+        }
+        if (note.getUserId() != userId) {
+            throw new BizException(ErrorCode.FORBIDDEN);
+        }
+        List<MediaItemSnapshot> snapshots = req.mediaIds().stream()
+                .map(id -> {
+                    var m = mediaMapper.findById(id);
+                    if (m == null) {
+                        throw new BizException(ErrorCode.NOT_FOUND, "媒体不存在: " + id);
+                    }
+                    if (m.getUserId() != userId) {
+                        throw new BizException(ErrorCode.FORBIDDEN, "包含不属于你的媒体");
+                    }
+                    if (m.getNoteId() != null && m.getNoteId() != noteId) {
+                        throw new BizException(ErrorCode.VALIDATION, "媒体已被其他笔记使用: " + id);
+                    }
+                    boolean ready = m.getStatus() != null
+                            && (m.getStatus() == 1
+                            || (m.getMediaType() != null && m.getMediaType() == 1 && m.getStatus() == 12));
+                    if (!ready) {
+                        throw new BizException(ErrorCode.MEDIA_NOT_READY,
+                                "媒体仍在处理中，请稍后重试");
+                    }
+                    return new MediaItemSnapshot(m.getId(), m.getThumbUrl(), m.getMediaType(),
+                            m.getExifLatitude(), m.getExifLongitude());
+                })
+                .toList();
+
+        note.setTitle(req.title());
+        note.setContent(req.content() == null ? "" : req.content());
+        note.setPlaceName(req.placeName());
+        Location location = resolveLocation(req.latitude(), req.longitude(), req.placeSource(),
+                req.placePrecision(), snapshots);
+        note.setLatitude(location.latitude());
+        note.setLongitude(location.longitude());
+        note.setPlaceSource(location.source());
+        note.setPlacePrecision(location.precision());
+        note.setVisibility(req.visibility() == null ? note.getVisibility() : req.visibility());
+        note.setCoverUrl(snapshots.get(0).thumbUrl());
+        note.setMediaCount(snapshots.size());
+        noteMapper.update(note);
+        // 先整体解绑再按新集合重绑：uk_media_note_order(note_id, order_no) 唯一键下，
+        // 直接原位重绑会与旧序号冲突；全量替换语义下先清空再写入是唯一安全顺序
+        mediaMapper.unbindFromNoteExcept(noteId, List.of());
+        for (int i = 0; i < snapshots.size(); i++) {
+            int updated = mediaMapper.rebindToNote(noteId, i + 1, snapshots.get(i).id());
+            if (updated != 1) {
+                throw new BizException(ErrorCode.INTERNAL_ERROR, "媒体绑定失败，请重试");
+            }
+        }
+        // 卡片缓存内含标题/封面；feed 首页版本由 Controller 在事务提交后推进
+        redis.delete(KEY_NOTE_CARD + noteId);
         return toCreated(note);
     }
 
@@ -152,14 +219,15 @@ public class NoteService {
                                      BigDecimal exifLatitude, BigDecimal exifLongitude) {
     }
 
-    private Location resolveLocation(NoteCreateRequest req, List<MediaItemSnapshot> snapshots) {
-        boolean hasLatitude = req.latitude() != null;
-        boolean hasLongitude = req.longitude() != null;
+    private Location resolveLocation(BigDecimal latitude, BigDecimal longitude, String placeSource,
+                                     String placePrecision, List<MediaItemSnapshot> snapshots) {
+        boolean hasLatitude = latitude != null;
+        boolean hasLongitude = longitude != null;
         if (hasLatitude != hasLongitude) {
             throw new BizException(ErrorCode.VALIDATION, "纬度和经度必须同时提供");
         }
-        String requestedSource = req.placeSource() == null ? null
-                : req.placeSource().trim().toUpperCase(Locale.ROOT);
+        String requestedSource = placeSource == null ? null
+                : placeSource.trim().toUpperCase(Locale.ROOT);
         if (requestedSource != null && !List.of("MANUAL", "EXIF", "MAP").contains(requestedSource)) {
             throw new BizException(ErrorCode.VALIDATION, "地点来源无效");
         }
@@ -167,9 +235,9 @@ public class NoteService {
             if ("EXIF".equals(requestedSource)) {
                 throw new BizException(ErrorCode.VALIDATION, "EXIF 坐标不能由客户端提交");
             }
-            return new Location(req.latitude(), req.longitude(),
+            return new Location(latitude, longitude,
                     requestedSource == null ? "MAP" : requestedSource,
-                    normalizePrecision(req.placePrecision(), "EXACT"));
+                    normalizePrecision(placePrecision, "EXACT"));
         }
         if ("MAP".equals(requestedSource)) {
             throw new BizException(ErrorCode.VALIDATION, "地图地点必须提供坐标");
@@ -179,7 +247,7 @@ public class NoteService {
         }
         if ("MANUAL".equals(requestedSource) || snapshots.stream()
                 .noneMatch(item -> item.exifLatitude() != null && item.exifLongitude() != null)) {
-            return new Location(null, null, "MANUAL", req.placePrecision());
+            return new Location(null, null, "MANUAL", placePrecision);
         }
         return firstExif(snapshots);
     }
