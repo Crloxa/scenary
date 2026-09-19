@@ -1,5 +1,41 @@
 # Changelog · Scenary
 
+## [v2.42] · 2026-09-19 · 功能拓展与候选立项规划落盘（提案，未立项）
+
+- **差距盘点**：新增 [docs/06-功能拓展与候选立项规划.md](docs/06-功能拓展与候选立项规划.md)，以"愿景落差 / 产品补强 / 工程模块化"三个透镜盘点除线上部署外的候选功能：A 类 4 项（修图与滤镜、人物检测安全门分段、生物物种树、全局地图浏览页）、B 类 8 项（笔记编辑、关注/粉丝列表、举报、屏蔽、标签、OG 分享卡、邮件通知、数据导出）、C 类 5 项（媒体管线 SPI、领域事件+Outbox、独立 worker、可观测性最小集、OpenAPI）。
+- **优先级建议**：① 夹缝任务（笔记编辑/关注列表/OpenAPI）→ ② P16 修图与滤镜 → ③ P17 社区治理最小闭环（举报+屏蔽）→ ④ E5 地图浏览（依赖 E4）→ ⑤ 安全门第二段/物种树按愿景节奏重新立项；含各档进入条件、出口证据与规模估算。
+- **现状核查依据**：grep 当前工作区全部 Controller 端点与前端视图，确认笔记编辑、关注列表、举报/屏蔽、标签、图片编辑均不存在；思绪.txt 逐条对照表记录 F7（修图）为从未进入任何一期规划的愿景条目（影响 `docs/06-功能拓展与候选立项规划.md`）。
+- **边界**：仅新增提案文档并登记索引，未立项任何阶段、未改代码/契约/迁移；P12-E3/E4 与 P15-03b 仍是当前施工队列；候选条目转正须按 06 §8 流程走。
+
+## [v2.41] · 2026-09-12 · P12-E2 私有桶与短时签名完成（修复私密媒体匿名可达漏洞）
+
+- **E2-01 签名读能力**：`MinioService.presignGet` 复用 E1 同源反代机制；`viewUrl` 容错读（key/遗留 URL→签名 URL）；`SCENARY_MEDIA_PRESIGN_READ=false` 为回滚直链模式；新增 `ops/set-bucket-policy.ps1`（none/download 双向），`MINIO_BUCKET_POLICY` 默认 none=私有，minio-init 实测 `set to private`（影响 `backend/.../media/MinioService.java`、`config/MinioProperties.java`、`frontend/nginx.conf` 未动反代、`docker-compose.yml`、`ops/set-bucket-policy.ps1`）。
+- **E2-02 读路径切 key**：图片/视频上传、缩略图消费者、视频转码、头像的 URL 列改存 key（`updateProcessResult`/`updateVideoProcessResult` 去 URL 入参）；读路径签名出口覆盖媒体 toItem、笔记详情/网格/发布响应、feed 两级缓存（`FeedService.sign`，缓存存 key 组装时签名）、搜索、收藏、评论/通知作者头像；跨模块经 `NoteService.viewUrl`/`UserService.viewUrl` 窄门面；施工中修复发布响应 `NoteCreatedVO.coverUrl` 漏签名（前端 e2e ERR_INVALID_URL 抓出）（影响 `media/`、`mq/ThumbnailConsumer`、`note/`、`feed/`、`search/`、`social/`、`comment/`、`notification/`、`user/`）。
+- **E2-03 历史回填**：`ops/migrate-media-urls.ps1 -ToKeys`，Preview 命中 media 365/218、notes 218、users 26 行，执行后黑盒断言 `http%` 残留=0（影响 `ops/migrate-media-urls.ps1`）。
+- **契约**：02 新增 §1.5"媒体 URL 生命周期"（非破坏性：字段结构不变，值为短时签名 URL，TTL 300s 可配）；5 个黑盒脚本断言升级为"对象路径+签名"语义（影响 `docs/02-API接口规范.md`、`docs/dev/test-{media36,thumbnail37,e2e38,p12-video-location,p12-e1-upload}.mjs`）。
+- **验收闭环**：E2 黑盒 `8/8`（无签名直链 403=漏洞封死、伪造签名 403、存在性探测 403、签名可读 200、Range 206、key 语义残留 0）；后端 JUnit `68/68`、前端 Vitest `35/35`、构建通过；13 个既有黑盒套件 `147/147`；三浏览器 Playwright `6/6`（`--workers=1`，并发时 WebKit 与 ffmpeg 资源竞争属环境偶发）；压测 `17739` 请求错误率 0、p50/p95/p99 `5.22/9.48/17.45ms`（与 P10 基线同量级）；证据/学习/Checklist 同步（影响 `docs/dev/test-p12-e2-private.mjs`、`docs/evidence/2026-09-12-P12-E2私有桶与短时签名验收.md`、`docs/learning/22-P12-E2私有桶key语义与签名收口.md`、03 附 7、05 §11）。
+- **边界**：签名 TTL 内"URL+签名即授权"，页面长停留需刷新重新获取；缩略图/转码产物同样签名，CDN 缓存仍属 P14；回滚路径 = `set-bucket-policy.ps1 -Policy download` + `PRESIGN_READ=false`（已验证命令）。
+
+## [v2.40] · 2026-09-12 · P12 全量自检与 P15 账号安全基线完成
+
+- **P12 自检确认**：按 HANDOVER 矩阵全量复跑 P12/P12-E1 黑盒 `11/11+11/11`、后端 JUnit `50/50`、前端 Vitest `33/33`、构建、三浏览器 `3/3` 全绿后才开始 P15（影响 `docs/HANDOVER.md` 测试矩阵口径不变）。
+- **P15-01 限流基线**：新增 `common.RateLimitService`（Redis INCR 模式，42001 契约不变），接入注册/发笔记/社交/上传；修正注册限流 IP 归因——nginx 传 `$proxy_add_x_forwarded_for`、后端取 XFF 末段、回环豁免可配；审计文档勘误"注册无限流"结论（实为归因缺陷），追勘误节 §7（影响 `backend/.../common/RateLimitService.java`、`auth/AuthController.java`、`frontend/nginx.conf`、`docker-compose.yml`、`.env.example`、`docs/project-audit-2026-09-11.md`）。
+- **P15-02 安全响应头**：nginx 全局增加 X-Frame-Options/X-Content-Type-Options/Referrer-Policy 与 CSP Report-Only；WebKit console 断言抓出缺 `report-to` 指令缺陷后补齐（`/csp-report` 丢弃收集）；HSTS 留待 TLS 部署形态（影响 `frontend/nginx.conf`）。
+- **P15-03a 密码找回**：新增 `ops/reset-user-password.ps1`（jshell + spring-security-crypto 生成 BCrypt，-Preview/-Reactivate，自定义 Maven 仓库解析）；端到端实测旧密 40000/新密 code=0。03b（email+SMTP）延后，01 §3.1 保留评估行（影响 `ops/reset-user-password.ps1`）。
+- **P15-04 账号注销**：契约 v1.6 新增 `DELETE /users/me`；`AccountDeactivationService` 同事务匿名化+笔记评论软删+头像对象删除，事务提交后吊销令牌；首次实现引入 `UserService→CommentService` 形成 bean 环致启动失败，拆单向编排服务解耦（学习笔记 21）；前端个人中心新增注销危险区（影响 `backend/.../user/`、`frontend/src/views/ProfileView.vue`、`docs/02-API接口规范.md`）。
+- **P15-05/06**：通知保留策略 @Scheduled 分批清理（已读超 90 天，env 可配）；审计探针正规化为 `docs/dev/test-p15-security.mjs`；根 `/test-results/` 入 .gitignore 生效（影响 `notification/`、`docs/dev/test-p15-security.mjs`、`.gitignore`）。
+- **验收闭环**：后端 JUnit `68/68`、前端 Vitest `35/35`、构建 `107 modules`、12 个既有黑盒套件 `147/147` 无回归、P15 黑盒 `13/13`、三浏览器 Playwright `6/6`、Compose 重建健康；证据/学习/Checklist/契约同步（影响 `docs/evidence/2026-09-12-P15账号与安全基线验收.md`、`docs/learning/21-P15限流归因与账号注销的bean环.md`、03 附 10、05 §7/§11、02 v1.6）。
+- **边界**：P15-03b 邮件找回延后（待外部 SMTP 凭据）；CSP 处于 Report-Only 观察期，enforce 化另行小任务；P12-E2/E3/E4 未开工为当前施工队列；P13/P14 维持长期 TODO。
+
+## [v2.39] · 2026-09-11 · 全栈不足盘点审计与 P12-E2/E3/E4、P15 立项
+
+- **实测审计落盘**：Docker 全栈 8 项探针 + 6 项代码核查，确认私密笔记封面匿名可达（隐私漏洞，noteId=188 复现）、桶级匿名存在性探测、注册与社交写接口无限流、密码找回/账号注销缺失（users 无 email 字段）、安全响应头五项全缺、通知无清理策略（影响 `docs/project-audit-2026-09-11.md`）。
+- **既定增强计划补齐**：私有桶短时签名、逆地理编码、地图 UI 此前仅有一句话边界描述，本轮补齐为任务级计划——P12-E2（05 §6.4）、P12-E3（05 §6.5）、P12-E4（05 §6.6）；实测新发现缺口合并立项 P15 账号与安全基线（05 §7）；05 章节重编号（P13/P14 移至 §8/§9，施工顺序 §10、执行状态 §11），路线图总览与推荐顺序同步（影响 `docs/05-后续开发路线图与实施手册.md`）。
+- **Checklist 登记**：03 新增附 7~10 四份未勾选 Checklist（E2/E3/E4/P15），作为后续施工唯一进度真相源（影响 `docs/03-MVP实施与Docker部署.md`）。
+- **依赖评估登记**：01 §3.1 更新"反向地理编码供应商"行并新增"前端地图库（Leaflet）+ 瓦片源"、"spring-boot-starter-mail"两行，均标注"开工前不安装"（影响 `docs/01-技术栈与总体架构.md`）。
+- **仓库卫生**：根目录 `/test-results/` 补入 `.gitignore`（影响 `.gitignore`）。
+- **边界**：本轮仅文档与 gitignore 变更，未改业务代码、API 契约与迁移；四阶段均未开工、无验收状态变化；审计探针在开发库残留 `probe*` 前缀用户 7 个与私密探针笔记 1 条（审计文档 §6 已记录）。
+
 ## [v2.38] · 2026-09-04 · P12-E1 分片上传验收闭环
 
 - **功能落地**：新增 V8 视频上传会话/分片表、8MiB 预签名 PUT、MinIO 服务端 compose/copy、服务端分片实际大小/总大小/魔数校验、owner 隔离、幂等 complete、取消和过期清理；图片代理上传与 P12 视频转码链路保持不变（影响 `backend/src/main/java/com/scenary/media/`、`backend/src/main/resources/db/migration/V8__video_upload_sessions.sql`、`backend/src/main/resources/mapper/VideoUploadSessionMapper.xml`、`docker-compose.yml`）。
