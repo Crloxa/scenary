@@ -1,5 +1,15 @@
 # Changelog · Scenary
 
+## [v2.44] · 2026-09-19 · P16 夹缝任务包 / P17 修图与滤镜 / P18 社区治理完成
+
+- **P16-01 笔记编辑**：`PUT /notes/{id}`（02 §5.11）——owner/软删校验、媒体全量替换（先整体解绑再重绑避开 `uk_media_note_order` 冲突，`order_no` NOT NULL 以 0 作游离标记）、cover/media_count 重算、复用发笔记限流、卡片与 feed 版本缓存失效；前端 `/publish/:noteId` 编辑模式与详情页编辑入口（影响 `note/`、`media/MediaMapper`、`frontend/src/views/PublishView.vue` 等）。
+- **P16-02 关注列表**：`GET /users/{id}/followers` 与 `/following`（02 §3.9/§3.10）——follows.id 倒序游标、status=1 过滤、登录视角 following、头像签名出口；前端 `FollowListView` 与个人页入口（影响 `social/`、`frontend/src/views/FollowListView.vue` 等）。
+- **P16-03 OpenAPI**：springdoc 2.8.9（01 §3.1 登记），api-docs 收敛 `/api/v1/api-docs`，nginx 反代 swagger-ui/webjars，`SCENARY_APIDOC_ENABLED` 生产默认关（影响 `backend/pom.xml`、`config/OpenApiConfig.java`、`frontend/nginx.conf`）。
+- **P17 修图与滤镜**：`utils/imageEditor.js` 纯函数 + `ImageEditorModal.vue` canvas 弹窗（5 比例裁剪/90° 旋转/16 滤镜/JPEG 导出长边 4096），发布页 ✎ 入口产物替换重传；`VITE_ENABLE_EDITOR=false` 构建产物编辑器 chunk=0 实证（影响 `frontend/src/utils/`、`frontend/src/components/`、PublishView）。
+- **P18 举报与屏蔽**：V10（reports/user_blocks/notes.report_count）+ V11（visibility CHECK 放开至 0~3）；`POST /reports` 唯一去重、20/10min 限流、阈值 5 自动隐藏 visibility 1→3（仅作者可见，feed 版本失效）；`PUT/DELETE /users/{id}/block` 双向过滤 feed/搜索/网格/详情；前端举报弹层与屏蔽入口；`ops/list-reports.ps1` 只读报表；契约 02 v1.8（影响 `report/`、`note/`、`social/`、`search/`、`WebConfig`、`docs/02`）。
+- **验收闭环**：P16 黑盒 `20/20`、P18 黑盒 `19/19`；15 个黑盒套件 190 断言全绿；后端 JUnit `81/81`、前端 Vitest `45/45`、构建通过；证据 `docs/evidence/2026-09-19-P16夹缝任务包验收.md`、`2026-09-19-P17修图与滤镜验收.md`、`2026-09-19-P18社区治理验收.md`；学习沉淀 23（媒体重绑与唯一键）、24（CHECK 约束与拦截器白名单）；03 附 11~13 全部勾选并同步 05 §11、HANDOVER、README、AGENTS。
+- **边界**：P17 canvas 真机剧本、举报/屏蔽三浏览器 UI 剧本列边界；搜索屏蔽过滤依赖可选 Authorization 头（匿名不过滤）；评论列表不叠加屏蔽过滤；E3/E4/E5 与 P15-03b 仍为队列；P13/P14 维持长期 TODO。
+
 ## [v2.43] · 2026-09-19 · 06 规划转正立项 P16/P17/P18/E5（契约 v1.7）
 
 - **未提交工作落库**：P15 账号与安全基线（19950c4）、P12-E2 私有桶与短时签名（d7fc27b）经全量复验（JUnit 68/68、Vitest 35/35、构建、P15 黑盒 13/13、E2 黑盒 8/8、Compose 六容器健康）后分批提交；夹具假令牌误报修复（9194a6d）、docs/01 依赖登记补登（9e0ab40）。

@@ -1,7 +1,7 @@
 # Scenary · 极简风景图文社区（MVP 立项）
 
 > 工作代号 **Scenary**，源自 [../思绪.txt](../思绪.txt) 的产品设想第 1 条：以纯风景图片/视频为内容的小红书式分享社区。
-> 本仓库已完成 Phase 7 运维基线、P8 全量验收、P9 社交最小闭环、P10 评论通知（含未覆盖项补充）、P11 搜索与发现、P12 视频与地点（含 E1 分片上传、E2 私有桶短时签名）和 P15 账号与安全基线；P12-E3 逆地理编码与 P12-E4 地图 UI 已立项待施工；P13 内容审核和 P14 规模化运维暂列长期 TODO。
+> 本仓库已完成 Phase 7 运维基线、P8 全量验收、P9 社交最小闭环、P10 评论通知（含未覆盖项补充）、P11 搜索与发现、P12 视频与地点（含 E1 分片上传、E2 私有桶短时签名）、P15 账号与安全基线，以及 2026-09-19 完成的 P16 夹缝任务包（笔记编辑/关注列表/OpenAPI）、P17 修图与滤镜与 P18 社区治理最小闭环（举报/屏蔽）；P12-E3 逆地理编码、P12-E4 地图 UI（及 E5 地图浏览占位）已立项待施工；P13 内容审核和 P14 规模化运维暂列长期 TODO。
 
 ## MVP 范围（用户已确认）
 
@@ -34,6 +34,9 @@
 | [docs/evidence/2026-09-04-P12-E1分片上传验收.md](docs/evidence/2026-09-04-P12-E1分片上传验收.md) | P12-E1 V8 会话、预签名分片、断点恢复、幂等合并和生命周期 | P12-E1 完成证据 |
 | [docs/evidence/2026-09-12-P12-E2私有桶与短时签名验收.md](docs/evidence/2026-09-12-P12-E2私有桶与短时签名验收.md) | P12-E2 私有桶切换、签名 URL 全链路、审计漏洞封死与回滚路径 | P12-E2 完成证据 |
 | [docs/evidence/2026-09-12-P15账号与安全基线验收.md](docs/evidence/2026-09-12-P15账号与安全基线验收.md) | P15 限流/安全头/密码找回脚本/账号注销/通知保留策略与全量回归 | P15 完成证据 |
+| [docs/evidence/2026-09-19-P16夹缝任务包验收.md](docs/evidence/2026-09-19-P16夹缝任务包验收.md) | P16 笔记编辑/关注列表/OpenAPI 的黑盒、回归与边界 | P16 完成证据 |
+| [docs/evidence/2026-09-19-P17修图与滤镜验收.md](docs/evidence/2026-09-19-P17修图与滤镜验收.md) | P17 编辑器纯函数/组件/flag 摘除实证 | P17 完成证据 |
+| [docs/evidence/2026-09-19-P18社区治理验收.md](docs/evidence/2026-09-19-P18社区治理验收.md) | P18 举报阈值隐藏/屏蔽双向过滤/ops 报表与回归 | P18 完成证据 |
 | [docs/project-audit-2026-09-11.md](docs/project-audit-2026-09-11.md) | 全栈不足盘点审计：8 项实测探针 + 代码核查，驱动 P12-E2/E3/E4 与 P15 立项 | 新阶段施工前先读 |
 | [docs/frontend-audit-2026-09-02.md](docs/frontend-audit-2026-09-02.md) | 前端实测审计与复现依据（路由、登出、错误态、上传、响应式、无障碍、测试缺口） | 前端 agent 施工前对照 |
 | [CHANGELOG.md](CHANGELOG.md) | 变更日志：一切产出物落盘/契约变更/决策变更的唯一记录处（追加制） | 每次变更后更新 |
@@ -55,4 +58,4 @@ Java 21 + Spring Boot 3.5 + MyBatis(+PageHelper/Flyway) + MySQL(InnoDB) + Redis 
 
 ## 状态与变更记录
 
-变更的唯一记录处是 [CHANGELOG.md](CHANGELOG.md)（追加制，当前 v2.42）；进度唯一真相源是 [docs/03](docs/03-MVP实施与Docker部署.md) 末尾的交付 Checklist；agent 会话入口固定为 [AGENTS.md](AGENTS.md)。三者分工不重复维护。
+变更的唯一记录处是 [CHANGELOG.md](CHANGELOG.md)（追加制，当前 v2.44）；进度唯一真相源是 [docs/03](docs/03-MVP实施与Docker部署.md) 末尾的交付 Checklist；agent 会话入口固定为 [AGENTS.md](AGENTS.md)。三者分工不重复维护。

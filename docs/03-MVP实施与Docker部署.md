@@ -709,24 +709,24 @@ TOKEN=<上一步accessToken>; curl -s -X POST $BASE/media/images \
 
 > P16 任务定义以 [05 手册 §12](05-后续开发路线图与实施手册.md) 为准，2026-09-19 由 [06 功能拓展与候选立项规划](06-功能拓展与候选立项规划.md) 转正立项。契约 02 v1.7：§5.11 编辑笔记、§3.9/§3.10 关注列表。
 
-- [ ] P16-01 笔记编辑：PUT /notes/{id}（owner 校验、软删 40400、媒体全量替换与重绑、cover/media_count 重算、§1.4 同场景限流、note:card 失效 + feed 版本推进）；前端 /publish/:id 编辑模式与详情页入口
-- [ ] P16-02 关注/粉丝列表：GET /users/{id}/followers 与 /following（40400 边界、游标分页、status=1 过滤、登录视角 following、头像签名出口）；前端列表视图与入口
-- [ ] P16-03 OpenAPI：springdoc 安装（01 §3.1 登记）、/api/v1/api-docs 收敛、nginx /swagger-ui 与 /webjars 反代、SCENARY_APIDOC_ENABLED 生产默认关
-- [ ] P16 出口门禁：黑盒 test-p16-gap.mjs（编辑生效/媒体替换/越权/40400/分页边界）+ 既有套件无回归 + JUnit/Vitest/构建全绿；证据落盘并同步 HANDOVER、CHANGELOG、05 §11
+- [x] P16-01 笔记编辑：PUT /notes/{id}（owner 校验、软删 40400、媒体全量替换与重绑、cover/media_count 重算、§1.4 同场景限流、note:card 失效 + feed 版本推进）；前端 /publish/:id 编辑模式与详情页入口（2026-09-19：order_no 游离标记 0 + 先解绑后重绑避开 uk_media_note_order；黑盒 ①组 12 断言 + JUnit 3 用例）
+- [x] P16-02 关注/粉丝列表：GET /users/{id}/followers 与 /following（40400 边界、游标分页、status=1 过滤、登录视角 following、头像签名出口）；前端 FollowListView 与个人页入口（2026-09-19：黑盒 ②组 7 断言 + JUnit 2 用例）
+- [x] P16-03 OpenAPI：springdoc 2.8.9 安装（01 §3.1 登记）、/api/v1/api-docs 收敛、nginx /swagger-ui 与 /webjars 反代、SCENARY_APIDOC_ENABLED 生产默认关（2026-09-19：黑盒 ③ api-docs 404 断言；dev 默认开）
+- [x] P16 出口门禁：黑盒 test-p16-gap.mjs 20/20 + 14 套件 175 断言无回归 + JUnit 68/68、Vitest 37/37、构建全绿；证据见 `docs/evidence/2026-09-19-P16夹缝任务包验收.md`
 
 ## 附 12 · P17 修图与滤镜 Checklist
 
 > P17 任务定义以 [05 手册 §13](05-后续开发路线图与实施手册.md) 为准（思绪 F7 愿景落差，06 规划转正）。纯前端、零新后端依赖、flag `VITE_ENABLE_EDITOR`。
 
-- [ ] P17-01 编辑器：utils/imageEditor.js（比例/滤镜表/导出参数纯函数）+ components/ImageEditorModal.vue（canvas 裁剪/旋转/滤镜预览）
-- [ ] P17-02 发布页集成：选图后可选编辑，产物替换原图再上传；视频与既有上传管线不受影响
-- [ ] P17 出口门禁：Vitest（纯函数 + 组件挂载）、三浏览器发布主流程回归、flag=false 摘除回归、构建；证据落盘并同步 HANDOVER、CHANGELOG、05 §11
+- [x] P17-01 编辑器：utils/imageEditor.js（比例/滤镜表/导出参数纯函数）+ components/ImageEditorModal.vue（canvas 裁剪/旋转/滤镜预览）（2026-09-19：Vitest 7 用例）
+- [x] P17-02 发布页集成：选图后可选编辑（✎ 入口），产物替换原图重走上传管线；视频与 existing 媒体不可编辑（有意收敛）
+- [x] P17 出口门禁：Vitest 45/45（纯函数+组件挂载）、flag=false 构建产物 ImageEditorModal chunk=0 实证、15 黑盒套件回归全绿、构建通过；canvas 真机剧本列边界。证据见 `docs/evidence/2026-09-19-P17修图与滤镜验收.md`
 
 ## 附 13 · P18 社区治理最小闭环 Checklist（举报与屏蔽）
 
 > P18 任务定义以 [05 手册 §14](05-后续开发路线图与实施手册.md) 为准（06 规划转正）。V10 迁移；契约 02 v1.8。
 
-- [ ] P18-01 V10 迁移（reports/user_blocks/notes.report_count）+ 举报与屏蔽幂等写接口（去重、限流、reason_code 枚举）
-- [ ] P18-02 可见性：report_count≥阈值自动隐藏（visibility=3），屏蔽过滤接入 feed/搜索/详情/网格
-- [ ] P18-03 前端举报入口与屏蔽按钮 + ops/list-reports.ps1 只读报表
-- [ ] P18 出口门禁：黑盒 test-p18-governance.mjs（去重/阈值/屏蔽矩阵/匿名边界）+ 既有套件无回归；证据落盘并同步 HANDOVER、CHANGELOG、05 §11
+- [x] P18-01 V10 迁移（reports/user_blocks/notes.report_count）+ V11 放开 visibility CHECK 至 (0,1,2,3) + 举报与屏蔽幂等写接口（去重、限流、reason_code 枚举）（2026-09-19：黑盒 ①②组）
+- [x] P18-02 可见性：report_count≥阈值 5 自动隐藏（visibility=3 仅作者可见），屏蔽双向过滤接入 feed/搜索/详情/网格（SQL NOT EXISTS + 详情门）（2026-09-19：黑盒 ①③组）
+- [x] P18-03 前端详情页举报弹层（4 类原因+补充说明）与个人页屏蔽入口 + ops/list-reports.ps1 只读报表（实跑输出正常）
+- [x] P18 出口门禁：黑盒 test-p18-governance.mjs 19/19 + 15 套件 190 断言无回归 + JUnit 81/81、Vitest 45/45、构建全绿；证据见 `docs/evidence/2026-09-19-P18社区治理验收.md`
