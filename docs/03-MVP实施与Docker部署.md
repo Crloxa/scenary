@@ -5,7 +5,7 @@
 > 写作日期：2026-08-27 · 环境假设：Windows + Git Bash（命令均为 bash 可执行）
 > 说明：仓库并存 `docker-compose.middleware.yml`（开发期中间件基座）与 `docker-compose.yml`（全栈编排），两份是有意分开的阶段性产物而非冗余，分别见 Phase 2 / Phase 6。
 > 证据门禁：从二期 A 起，每个 Phase/功能环节除通过本节验收并勾选 Checklist 外，还必须按 [evidence/README.md](evidence/README.md) 提交可复现报告；报告缺失或必需命令无法重跑时不得进入完成态。MVP 基线复验见 [2026-09-02-MVP复验.md](evidence/2026-09-02-MVP复验.md)。
-> 改进施工：MVP 复验后发现的产品与工程缺陷统一进入 [04-产品与工程改进总纲](04-产品与工程改进总纲.md) 的 P8，不回写为“已完成 MVP”或在本手册中零散插入补丁；后续能力路线见 [05-后续开发路线图与实施手册](05-后续开发路线图与实施手册.md)。
+> 改进施工：MVP 复验后发现的产品与工程缺陷统一进入 [04-产品与工程改进总纲](archive/04-产品与工程改进总纲.md) 的 P8，不回写为“已完成 MVP”或在本手册中零散插入补丁；后续能力路线见 [05-后续开发路线图与实施手册](05-后续开发路线图与实施手册.md)。
 
 ---
 
@@ -572,7 +572,7 @@ TOKEN=<上一步accessToken>; curl -s -X POST $BASE/media/images \
 
 ## 附 2 · P8 改进阶段 Checklist（当前进度真相源）
 
-> P8 的任务定义、文件边界和验收标准以 [04-产品与工程改进总纲](04-产品与工程改进总纲.md) 为准。完成项均由 [P8 全量验收证据](evidence/2026-09-03-P8改进验收.md) 支撑；P9 完成项由 [P9 社交最小闭环验收证据](evidence/2026-09-04-P9社交最小闭环验收.md) 支撑。
+> P8 的任务定义、文件边界和验收标准以 [04-产品与工程改进总纲](archive/04-产品与工程改进总纲.md) 为准。完成项均由 [P8 全量验收证据](evidence/2026-09-03-P8改进验收.md) 支撑；P9 完成项由 [P9 社交最小闭环验收证据](evidence/2026-09-04-P9社交最小闭环验收.md) 支撑。
 
 - [x] P8-01~P8-07 P0 止血：刷新重放、上传生命周期、媒体失败状态、注册竞态、发布幂等、配置 fail-fast、原图隐私（2026-09-03：前后端测试、黑盒矩阵和 P8 Compose 集成矩阵通过；默认展示缩略图；`ops/migrate-media-urls.ps1 -Preview` 提供历史直链迁移入口）
 - [x] P8-08~P8-13 前端产品重构：视觉 token、错误/加载态、发布工作台、动态路由、响应式、无障碍、图片 fallback、草稿保护、前端测试（2026-09-03：5 个 Vitest 文件 12/12、Playwright 1/1、构建通过；in-app Browser 完成真实图片发布/详情/删除后只读核验）
@@ -658,7 +658,7 @@ TOKEN=<上一步accessToken>; curl -s -X POST $BASE/media/images \
 
 ## 附 7 · P12-E2 私有桶与短时签名 Checklist
 
-> E2 任务定义以 [05 手册 §6.4](05-后续开发路线图与实施手册.md) 为准。实测依据见 [project-audit-2026-09-11](project-audit-2026-09-11.md) 探针 3/4（私密笔记封面匿名可达、桶级匿名存在性探测）。API 契约不变，URL 字段值改为短时签名。
+> E2 任务定义以 [05 手册 §6.4](05-后续开发路线图与实施手册.md) 为准。实测依据见 [project-audit-2026-09-11](archive/project-audit-2026-09-11.md) 探针 3/4（私密笔记封面匿名可达、桶级匿名存在性探测）。API 契约不变，URL 字段值改为短时签名。
 
 - [x] E2-01 签名读能力：`MinioService.presignGet`/`viewUrl` 容错读、`SCENARY_MEDIA_PRESIGN_READ` 开关（false=回滚直链）、`ops/set-bucket-policy.ps1` 双向切换脚本、minio-init 策略经 `MINIO_BUCKET_POLICY`（默认 none=私有）（2026-09-12：minio-init 实测输出 `set to private`，黑盒 ③④⑤ 全 403）
 - [x] E2-02 读路径切 key：媒体/笔记/搜索/社交/feed VO 改"持久化 key、运行时签名"（默认 TTL 300s 可配）；两级缓存改存 key、`FeedService.sign` 组装时签名；02 §1.5 增补"媒体 URL 生命周期"（2026-09-12：JUnit 68/68；黑盒 ②⑥ 签名 URL 全链路 + Range 206）

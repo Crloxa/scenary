@@ -1,5 +1,14 @@
 # Changelog · Scenary
 
+## [v2.45] · 2026-09-19 · 文档结构重整（文档地图 / 缺口评估 / 历史归档）
+
+- **文档地图**：新增 [docs/README.md](docs/README.md) 导航中枢——四层渐进披露（根入口→导航→正文→证据/学习/归档）、全部文档清单（含生命周期标注）、7 个场景阅读路径、里程碑×Checklist×证据×学习沉淀的时间线索引表、目录树注释；文档集合变化或新里程碑验收落盘时更新（影响 `docs/README.md`）。
+- **缺口评估**：新增 [docs/07-功能缺口评估与后续候选.md](docs/07-功能缺口评估与后续候选.md)——沿"地图→时间线→Checklist→契约→证据→代码核查"方法盘点：功能全景（已验收 7 能力域 / 在建队列 E3/E4/E5 与 P15 尾项 / 06 池候选 / 明确不做）与新识别缺口 5+1 项（N1 行为数据埋点、N2 草稿箱、N3 评论点赞、N4 多尺寸缩略图 srcset、N5 robots/sitemap 并入 B6、随 E4 评估坐标模糊化，均附 2026-09-19 代码核查证据），并给出排在 E3/E4/E5 之后的提案序列；全部为提案未立项，转正走 06 §8（影响 `docs/07-功能缺口评估与后续候选.md`）。
+- **历史归档**：`git mv` 三份已完成使命的文档至 `docs/archive/`（04-产品与工程改进总纲、project-audit-2026-09-11、frontend-audit-2026-09-02），内容零改动（仅对归档件内相对链接机械加 `../` 前缀适配新层级）；原路径留跳转桩，保证 evidence/learning/CHANGELOG 历史条目中的相对链接不断链（影响 `docs/archive/` 三份正文、`docs/04-产品与工程改进总纲.md` 等三份桩文件）。
+- **入口同步**：AGENTS.md 阅读顺序插入 docs/README（顺序 2）与规划场景阅读路径、§5 快照更新至 v2.45；README 文档索引重排（新增 docs/README、07、archive、dev 行，14 行证据清单收敛为 evidence 目录行）；HANDOVER 头部/§1 现状/§4 待办同步（影响 `AGENTS.md`、`README.md`、`docs/HANDOVER.md`）。
+- **链接修正**：03（2 处 04 引用、1 处审计引用）、05（3 处审计引用）、06（1 处审计引用）指向归档新路径；06 状态行补 07 指针（影响 `docs/03-MVP实施与Docker部署.md`、`docs/05-后续开发路线图与实施手册.md`、`docs/06-功能拓展与候选立项规划.md`）。
+- **边界**：`docs/evidence/` 与 `docs/learning/` 内容零改动（证据链与学习沉淀不受结构重整影响）；`docs/dev/`、`ops/`、业务代码与契约（02 仍 v1.8）零改动；本条目为纯文档结构变更，不改变任何验收状态，下一步仍是 P12-E3。
+
 ## [v2.44] · 2026-09-19 · P16 夹缝任务包 / P17 修图与滤镜 / P18 社区治理完成
 
 - **P16-01 笔记编辑**：`PUT /notes/{id}`（02 §5.11）——owner/软删校验、媒体全量替换（先整体解绑再重绑避开 `uk_media_note_order` 冲突，`order_no` NOT NULL 以 0 作游离标记）、cover/media_count 重算、复用发笔记限流、卡片与 feed 版本缓存失效；前端 `/publish/:noteId` 编辑模式与详情页编辑入口（影响 `note/`、`media/MediaMapper`、`frontend/src/views/PublishView.vue` 等）。
