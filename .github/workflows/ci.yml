@@ -55,19 +55,14 @@ jobs:
         run: |
           ok=0
           for i in 1 2; do
-            if docker compose up -d --build; then ok=1; break; fi
+            if docker compose up -d --build 2>&1 | tee /tmp/compose-up.log; then ok=1; break; fi
             echo "attempt $i failed; cleaning up before retry"
             docker compose down --remove-orphans || true
           done
           if [ "$ok" != "1" ]; then
-            echo "::error::compose up failed twice; diagnostics below"
-            docker compose ps -a || true
-            docker compose logs --tail 20 2>&1 | tail -60 || true
-            docker compose ps -a --format '{{.Service}} {{.Status}}' 2>/dev/null | while read -r svc rest; do
-              echo "::error::service status: $svc $rest"
-            done
-            docker compose logs backend --tail 12 2>&1 | while IFS= read -r line; do
-              echo "::error::backend: $line"
+            echo "::error::compose up failed twice; build/run output tail below"
+            tail -30 /tmp/compose-up.log | while IFS= read -r line; do
+              echo "::error::compose: $line"
             done
             exit 1
           fi

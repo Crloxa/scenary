@@ -125,7 +125,12 @@ services:
       start_period: 40s
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      # 国内本地构建可在 .env 设 NPM_REGISTRY=https://registry.npmmirror.com；
+      # CI（海外 runner）用默认官方源（docs/CHANGELOG v2.48）
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org}
     restart: unless-stopped
     depends_on:
       backend: {condition: service_healthy}
