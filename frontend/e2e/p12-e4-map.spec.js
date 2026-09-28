@@ -35,7 +35,7 @@ test.beforeEach(async ({ page }) => {
   })
   page.on('pageerror', err => pageErrors.push(String(err)))
 
-  await page.route('**/tile.openstreetmap.org/**', route => route.fulfill({
+  await page.route(/is\.autonavi\.com/, route => route.fulfill({
     status: 200, contentType: 'image/png', body: TILE_PNG,
   }))
   await page.route('**/api/v1/notifications*', route => route.fulfill(envelope({
@@ -134,11 +134,11 @@ test('③ 详情页：无坐标笔记零渲染（无布局抖动）', async ({ p
 })
 
 test('④ 瓦片失败：小地图整体降级为坐标文本', async ({ page }) => {
-  await page.route('**/tile.openstreetmap.org/**', route => route.fulfill({ status: 404, body: '' }))
+  await page.route(/is\.autonavi\.com/, route => route.fulfill({ status: 404, body: '' }))
   mockDetailNote(page)
   await page.goto('/note/901')
   await expect(page.getByTestId('note-title')).toHaveText('E4 地图回归')
-  await expect(page.getByTestId('mini-map-fallback')).toBeVisible({ timeout: 5000 })
+  await expect(page.getByTestId('mini-map-fallback')).toBeVisible({ timeout: 8000 })
   await expect(page.getByTestId('mini-map-canvas')).toHaveCount(0)
   await expect(page.getByTestId('mini-map-coords')).toContainText('30.9785')
 })

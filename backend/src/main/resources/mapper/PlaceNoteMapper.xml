@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.scenary.place.PlaceNoteMapper">
+
+    <!-- E5 地图视野框浏览（docs/02 §10.5）：公开只读，仅 visibility=1 且带坐标；
+         屏蔽双向过滤镜像 SearchMapper 模式；keyset 游标 (created_at,id)。
+         范围查询走 V12 的 idx_notes_latlng 复合索引。 -->
+    <select id="selectNotesInBbox" resultType="com.scenary.place.PlaceNoteRow">
+        SELECT n.id,
+               n.user_id,
+               n.title,
+               n.cover_url,
+               n.latitude,
+               n.longitude,
+               n.place_name,
+               n.created_at,
+               u.nickname AS author_nickname
+        FROM notes n
+        INNER JOIN users u ON u.id = n.user_id AND u.status = 1
+        WHERE n.visibility = 1
+          AND n.latitude IS NOT NULL
+          AND n.longitude IS NOT NULL
+          AND n.latitude BETWEEN #{minLat} AND #{maxLat}
+          AND n.longitude BETWEEN #{minLng} AND #{maxLng}
+        <if test="viewerId != null">
+          /* P18 屏蔽双向过滤 */
+          AND NOT EXISTS (SELECT 1 FROM user_blocks b
+                          WHERE (b.user_id = #{viewerId} AND b.blocked_user_id = n.user_id)
+                             OR (b.user_id = n.user_id AND b.blocked_user_id = #{viewerId}))
+        </if>
+        <if test="cursorId != null">
+          AND (n.created_at &lt; #{cursorCreatedAt}
+               OR (n.created_at = #{cursorCreatedAt} AND n.id &lt; #{cursorId}))
+        </if>
+        ORDER BY n.created_at DESC, n.id DESC
+        LIMIT #{limit}
+    </select>
+</mapper>

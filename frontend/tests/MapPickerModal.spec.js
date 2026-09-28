@@ -35,6 +35,16 @@ vi.mock('leaflet', () => {
   }
 })
 
+// 恒等坐标转换（TILE_IS_GCJ02=false）：选点读数/emit 断言不被 GCJ-02 往返偏移干扰
+vi.mock('@/utils/mapTiles', () => ({
+  TILE_URL: 'https://tile.test/{z}/{x}/{y}.png',
+  TILE_SUBDOMAINS: '1',
+  TILE_ATTRIBUTION: '© test',
+  TILE_IS_GCJ02: false,
+  toTileCoords: (lat, lng) => ({ lat, lng }),
+  fromTileCoords: (lat, lng) => ({ lat, lng }),
+}))
+
 import MapPickerModal from '@/components/MapPickerModal.vue'
 
 // onMounted 内惰性 import leaflet（异步挂载）：首次解析跨宏任务，

@@ -689,6 +689,19 @@ TOKEN=<上一步accessToken>; curl -s -X POST $BASE/media/images \
 - [x] E4-03 详情页展示：带坐标才渲染小地图，无坐标零布局抖动；390px 移动端适配（2026-09-19：`v-if="MAP_ENABLED && hasCoordinates"`；e2e 用例②③分别实证带坐标渲染/无坐标零渲染；②即 390px 视口）
 - [x] E4-04 验收：Vitest、构建（leaflet 独立 chunk）、三浏览器、flag 关闭整体摘除回归、可访问性专项（2026-09-19：Vitest 58/58；p12-e4-map.spec 12/12 三浏览器（瓦片 mock 不出网 + 404 降级实证）；组合矩阵 6 spec × 3 浏览器 = 36 用例连续 5 轮全绿；可访问性见证据 §3.4）
 - [x] E4 出口门禁：证据报告落盘并同步 Checklist、HANDOVER、CHANGELOG（2026-09-19：证据见 [evidence/2026-09-19-P12-E4地图UI验收](evidence/2026-09-19-P12-E4地图UI验收.md)；CSP Report-Only 增补瓦片裸域+通配子域；学习沉淀 25 补强 + 26 新篇）
+---
+
+## 附 14 · E5 地图浏览 Checklist
+
+> E5 任务定义以 [05 手册 §15](05-后续开发路线图与实施手册.md) 为准（2026-09-19 补齐，E4 出口已通过）。国内可访问：默认高德瓦片 + WGS84↔GCJ-02 前端转换；不做路线/导航/附近的人。
+
+- [x] E5-1 后端聚合接口：V12 坐标复合索引 + `GET /places/notes`（公开只读、visibility=1、P18 屏蔽双向过滤、opaque keyset 游标、参数校验）同步 02 v1.10；JUnit + 黑盒（2026-09-28：JUnit 99/99 增 5 例；黑盒 13/13——匿名公开面/私密无坐标排除/边界 40000/游标无重叠/屏蔽双向过滤）
+- [x] E5-2 国内瓦片源：`mapTiles.js`（高德默认 + `VITE_TILE_URL`/`VITE_TILE_GCJ02` 覆盖）+ `geoCoord.js` 双向转换（Vitest 属性断言）；MiniMap/MapPickerModal 接入；CSP 放行瓦片域（2026-09-28：北京样本偏移量级/往返 <1e-5° 断言通过；nginx img-src 增补 autonavi/tianditu）
+- [x] E5-3 `/map` 视图：公开路由 + 视野框防抖查询 + marker/popup 跳详情 + 空视野文案 + `?lat&lng` 定位；MiniMap 键盘可达"在地图中查看"跳转（2026-09-28：MapView + 路由 + Vitest 5 例；e2e ②③实证 marker 跳详情与详情跳转定位）
+- [x] E5-4 验收：JUnit、黑盒（匿名公开/屏蔽/游标/边界码）、三浏览器 e2e（瓦片 mock）、flag 关闭 /map 摘除、组合矩阵无回归（2026-09-28：Vitest 64/64；e5 专项 12/12 三浏览器；组合矩阵 48 用例 5 轮全绿 + 2 轮 47/48（唯一偶发为 p12-e4④ webkit 时序伪影，learning 25 归档）；flag 关闭降级提示页）
+- [x] E5 出口门禁：证据报告落盘并同步 Checklist、HANDOVER、CHANGELOG（2026-09-28：证据见 [evidence/2026-09-28-E5地图浏览验收](evidence/2026-09-28-E5地图浏览验收.md)；日期勘误见 CHANGELOG）
+
+
 
 ---
 

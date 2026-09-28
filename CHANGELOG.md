@@ -1,5 +1,19 @@
 # Changelog · Scenary
 
+## [v2.48] · 2026-09-28 · E5 地图浏览完成（契约 v1.10）+ CI 真栈化 + 日期勘误
+
+- **勘误**：v2.44~v2.47 各条目内的"2026-09-19"日期系会话上下文陈旧所致，实际施工/验收日期为 2026-09-27~09-28（以 GitHub Actions 运行时间戳为准）；对应证据文件名沿用落盘时名称不改写，本条为唯一勘误入口。
+- **契约 v1.10**：02 §7B 扩充 `GET /places/notes` 地图视野框浏览——公开只读（匿名可访问）、仅 visibility=1 且带坐标、登录视角叠加屏蔽双向过滤、`(created_at,id)` opaque keyset 游标、limit 默认 10 上限 20、无新增错误码（影响 `docs/02-API接口规范.md`）。
+- **后端**：V12 迁移 `idx_notes_latlng (latitude, longitude)` 复合索引；`PlaceNoteMapper(+xml)`/`PlaceService.mapNotes`/`PlaceController` 公开端点（不进拦截白名单即匿名可达，viewerId 经 `jwtUtil.peekUserId` 区分视角）；封面 URL 经 `NoteService.viewUrl` 门面短时签名（影响 `backend/src/main/{java/com/scenary/place,resources/db/migration,resources/mapper}`）。
+- **国内瓦片源决策（用户要求：国内可访问即可，暂不考虑国外）**：默认瓦片由 OSM 切换为高德矢量瓦片（GCJ-02，免 key 国内直连）；新增 `utils/geoCoord.js`（WGS84↔GCJ-02 双向，往返 <1e-5°）与 `utils/mapTiles.js`（`VITE_TILE_URL`/`VITE_TILE_GCJ02` 可覆盖）；MiniMap/MapPickerModal 接入（选点回写/查询恒 WGS84）；nginx CSP img-src 增补 `https://*.is.autonavi.com https://*.tianditu.gov.cn`（影响 `frontend/src/utils/`、`frontend/src/components/`、`frontend/nginx.conf`、`docs/01-技术栈与总体架构.md`）。
+- **前端 /map**：`views/MapView.vue` + 公开路由——moveend 防抖视野框查询、divIcon marker 点击跳详情、空视野文案、"加载本视野更多"游标追加、`?lat&lng` 定位；MiniMap 增键盘可达"在地图中查看 →"；`VITE_ENABLE_MAP=false` 降级提示页（影响 `frontend/src/views/MapView.vue`、`frontend/src/router/`）。
+- **测试与证据**：JUnit 增 5 例全量 99/99；Vitest 增 8 例（GeoCoord 3 + MapView 5）全量 64/64；黑盒 `test-e5-map.mjs` 13/13（匿名公开面/私密无坐标排除/边界 40000/游标无重叠/屏蔽双向过滤，随机视野框可重复）；e2e `e5-map.spec.js` 12/12 三浏览器（marker 渲染/跳详情/详情跳转定位/空态/390px）；组合矩阵 48 用例 5 轮全绿 + 2 轮 47/48（p12-e4④ webkit 时序伪影，learning 25 归档）；证据 [evidence/2026-09-28-E5地图浏览验收](docs/evidence/2026-09-28-E5地图浏览验收.md)。
+- **e2e 瓦片夹具修正**：实证 Playwright glob `**/is.autonavi.com/**` 不拦截该域瓦片请求（真实 200 穿透），改用正则 `/is\.autonavi\.com/` 后 404 → tileerror → 降级链路生效；p12-e4/e5 两 spec 统一（learning 26 补条目）。
+- **CI 真栈化（checks 修复第一部分）**：浏览器 e2e 从"无后端 Vite dev server"改为真实 Compose 栈（`docker compose up -d --build` + 健康等待 + chromium e2e + 黑盒冒烟 auth/e2e/places）；compose 失败时输出 `::error::` 诊断注解并重试一次；backend healthcheck 增 `start_period: 40s`、retries 10→20（影响 `.github/workflows/ci.yml`、`docker-compose.yml`）。
+- **CI checks 修复（vitest，Linux）**：leaflet 改为 onMounted 内惰性 import（UMD 加载即做 window 检测，模块作用域静态引入会在 vitest teardown 后崩溃——GitHub annotations 实证 `ReferenceError: window is not defined`）；NoteDetailView/MapPickerModal/MiniMap/MapView 四个 spec 统一 leaflet 模块 mock + `vi.waitFor` 异步挂载等待；`setInputFiles` 夹具路径改 `fileURLToPath` 跨平台写法（影响 `frontend/src/components/`、`frontend/tests/`、`frontend/e2e/p12-video.spec.js`）。
+
+## [v2.47] · 2026-09-19 · P12-E4 地图 UI 完成（发布选点 + 详情小地图）
+
 ## [v2.47] · 2026-09-19 · P12-E4 地图 UI 完成（发布选点 + 详情小地图）
 
 - **地图组件**：`MapPickerModal`（发布选点弹窗：点击/拖 marker、六位小数读数、瓦片失败 ≥3 次提示降级、divIcon 规避 bundler 图标 404）与 `MiniMap`（详情只读小地图：禁交互、坐标文本常驻、瓦片失败整体降级坐标文本、OSM attribution）；均经 `defineAsyncComponent` 动态导入（影响 `frontend/src/components/`）。

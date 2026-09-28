@@ -52,7 +52,21 @@ jobs:
       # 浏览器 e2e 跑在真实 Compose 栈上（与本地验收同构：唯一入口 :8081），
       # 而非无后端的 Vite dev server——夹具均为路由 mock，但 WS/上传链路依赖真栈语义
       - name: Compose stack up
-        run: docker compose up -d --build
+        run: |
+          attempt() { docker compose up -d --build; }
+          if ! attempt && ! attempt; then
+            echo "::error::compose up failed twice; dumping diagnostics"
+            docker compose ps -a || true
+            docker compose logs --tail 20 2>&1 | tail -60
+            docker compose ps -a --format '{{.Service}} {{.Status}}' 2>/dev/null | while read -r svc status; do
+              case "$status" in
+                *running*|*healthy*|*Exited*(0)*) : ;;
+                *) echo "::error::service not healthy: $svc ($status)" ;;
+              esac
+            done
+            docker compose logs backend --tail 12 2>&1 | while IFS= read -r line; do echo "::error::backend: $line"; done
+            exit 1
+          fi
       - name: Wait stack healthy
         run: |
           for i in $(seq 1 60); do

@@ -4,6 +4,7 @@
 // 确认后回传父级写入 latitude/longitude（place_source=MAP）并触发 E3 候选地名。
 // 键盘/无瓦片替代路径：父级的手工坐标输入始终保留；瓦片失败时弹窗内提示并可继续点选。
 import { onMounted, onUnmounted, ref, reactive } from 'vue'
+import { TILE_URL, TILE_SUBDOMAINS, TILE_ATTRIBUTION, toTileCoords, fromTileCoords } from '@/utils/mapTiles'
 
 // P12-E4 发布选点弹窗（docs/05 §6.6）：leaflet 经本组件的动态导入拆包——
 // flag 关闭或未打开弹窗时主包不含地图代码。点击地图/拖动 marker 更新候选坐标，
@@ -37,9 +38,14 @@ let tileErrorCount = 0
 let tileLayer = null
 
 function setPicked(lat, lng) {
-  picked.lat = Number(Number(lat).toFixed(6))
-  picked.lng = Number(Number(lng).toFixed(6))
-  if (marker) marker.setLatLng([picked.lat, picked.lng])
+  // 地图事件坐标在瓦片坐标系（默认 GCJ-02），picked 恒存库内 WGS84
+  const wgs = fromTileCoords(lat, lng)
+  picked.lat = Number(Number(wgs.lat).toFixed(6))
+  picked.lng = Number(Number(wgs.lng).toFixed(6))
+  if (marker) {
+    const tile = toTileCoords(picked.lat, picked.lng)
+    marker.setLatLng([tile.lat, tile.lng])
+  }
 }
 
 onMounted(async () => {
@@ -53,17 +59,19 @@ onMounted(async () => {
     iconAnchor: [9, 18],
   })
 
-  map = L.map(mapEl.value, { center: [picked.lat, picked.lng], zoom: 13 })
-  tileLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  const tile = toTileCoords(picked.lat, picked.lng)
+  map = L.map(mapEl.value, { center: [tile.lat, tile.lng], zoom: 13 })
+  tileLayer = L.tileLayer(TILE_URL, {
     maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    subdomains: TILE_SUBDOMAINS.split(''),
+    attribution: TILE_ATTRIBUTION,
   })
   tileLayer.on('tileerror', () => {
     tileErrorCount += 1
     if (tileErrorCount >= 3) tilesFailed.value = true
   })
   tileLayer.addTo(map)
-  marker = L.marker([picked.lat, picked.lng], { icon: pinIcon, draggable: true })
+  marker = L.marker([tile.lat, tile.lng], { icon: pinIcon, draggable: true })
   marker.addTo(map)
   marker.on('dragend', () => {
     const { lat, lng } = marker.getLatLng()

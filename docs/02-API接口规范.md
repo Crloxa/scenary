@@ -2,7 +2,7 @@
 
 > 本文档是前后端并行开发的**唯一契约**。实现以本文为准；不一致时改代码不改文档，改文档必须记录变更。
 > 配套：架构背景见 [01](01-技术栈与总体架构.md)，施工顺序见 [03](03-MVP实施与Docker部署.md)。
-> 版本 v1.9 · 2026-09-19
+> 版本 v1.10 · 2026-09-19
 
 ---
 
@@ -643,6 +643,25 @@ feed/搜索/公开网格只取 visibility=1；V11 放开 CHECK 约束至 (0,1,2,
 - 限流：30 次/分钟/用户（§1.4，42001/429）。
 - 错误：40100 未登录；40000 参数缺失/非数值/越界；42001 限流。provider 侧任何失败不产生 5xx。
 
+### 10.5 GET /places/notes — 地图视野框浏览公开笔记（v1.10，E5）
+
+查询参数：`minLat`/`maxLat`（-90~90 且 min<max）、`minLng`/`maxLng`（-180~180 且 min<max）、`cursor`（可选，opaque keyset）、`limit`（默认 10，最大 20）。**公开只读**（匿名可访问，不要求登录）。
+
+响应：
+
+```json
+{ "code": 0, "data": { "list": [ { "id": 901, "title": "…", "coverUrl": "…|null",
+    "latitude": 30.9785, "longitude": 102.7591, "placeName": "四姑娘山",
+    "authorId": 7, "authorNickname": "山客" } ], "nextCursor": "…|null", "hasMore": false } }
+```
+
+- 仅返回 `visibility=1` 且带坐标的笔记；登录视角叠加 §7A 屏蔽双向过滤（匿名不过滤）。
+- 排序 `created_at DESC, id DESC`；`cursor` 为该排序键的 opaque base64（`{createdAt}
+{id}`），仅在同一接口语义内复用。
+- `coverUrl` 为运行时短时签名 URL（§1.5），可能为 null（无封面）。
+- 错误：40000 参数缺失/非数值/越界/逆序。无新增错误码。
+- 前端展示注意：默认瓦片源（高德）为 GCJ-02 坐标系，库内坐标为 WGS84——由前端 `utils/geoCoord.js` 转换，接口始终收发 WGS84。
+
 ---
 
 ## 8. 系统
@@ -688,3 +707,4 @@ feed/搜索/公开网格只取 visibility=1；V11 放开 CHECK 约束至 (0,1,2,
 | v1.7 | 2026-09-19 | P16 夹缝任务包：新增 §5.11 PUT /notes/{id} 编辑笔记（媒体全量替换语义，复用发笔记限流场景）；新增 §3.9/§3.10 GET /users/{userId}/followers、/following 关注者与正在关注列表 |
 | v1.8 | 2026-09-19 | P18 治理：新增 §7A 举报（POST /reports，42001 限流、唯一去重、阈值 5 自动隐藏）与屏蔽（PUT/DELETE /users/{id}/block，双向可见性过滤）；visibility 新增 3=举报隐藏，V11 放开 CHECK 约束 |
 | v1.9 | 2026-09-19 | P12-E3：新增 §7B GET /places/reverse-geocode 逆地理编码候选（登录用户；§1.4 增加 30 次/分钟限流行；geohash-5 缓存 30 天；provider 关闭/超时/失败一律空候选，坐标不外发第三方） |
+| v1.10 | 2026-09-19 | E5：§7B 扩充 GET /places/notes 地图视野框浏览（公开只读、visibility=1、屏蔽双向过滤、opaque keyset 游标、V12 坐标复合索引；无新增错误码） |

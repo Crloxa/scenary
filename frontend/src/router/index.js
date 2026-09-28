@@ -39,6 +39,8 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     { path: '/note/:id', name: 'note', component: () => import('@/views/NoteDetailView.vue') },
+    // E5 地图浏览：公开路由（docs/05 §15）
+    { path: '/map', name: 'map', component: () => import('@/views/MapView.vue') },
     {
       path: '/user/:id(\\d+)',
       name: 'user',

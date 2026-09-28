@@ -6,4 +6,10 @@ export const placeApi = {
       params: { latitude, longitude },
     }))
   },
+  async mapNotes({ minLat, maxLat, minLng, maxLng, cursor, limit = 20 } = {}) {
+    const params = { minLat, maxLat, minLng, maxLng, limit }
+    if (cursor != null) params.cursor = cursor
+    return unwrap(await instance.get('/places/notes', { params }))
+  },
 }
+
