@@ -70,6 +70,8 @@ P8 完整证据、环境指纹与验证边界归档在 [2026-09-03-P8改进验�
 2. **P12-E3/E4 已完成（v2.46/v2.47）+ E5 完成（v2.48，2026-09-28）**：契约 02 v1.9 §7B；compose `nominatim` 挂 geo profile——真实启用需 `docker compose --profile geo up -d nominatim` + `.env` 配 `NOMINATIM_PBF_URL`（区域 OSM pbf）与 `SCENARY_PLACE_PROVIDER_ENABLED=true`；证据见 evidence/2026-09-19-P12-E3/E4 两份报告。
 3. **P16/P17/P18 已完成（2026-09-19，v2.44）**：编辑/关注列表/OpenAPI、修图与滤镜（flag `VITE_ENABLE_EDITOR`）、举报与屏蔽（V10/V11，`ops/list-reports.ps1` 处置入口）；证据见 evidence/2026-09-19 三份报告。
 4. **P15 遗留小项**：P15-03b 邮件找回（待外部 SMTP 凭据，03 附 10 未勾）；CSP 从 Report-Only 转 enforce（先盘点 index.html 两处内联脚本）；HSTS 随 TLS 部署形态启用。
+> **检查点（2026-09-28，会话额度用尽前落盘）**：E5 已完成验收并推送（f02e814 + 663e96f/5863300 两个 CI 修复提交）。唯一未闭环项——**CI run 36421457271（663e96f）当时仍在运行**。下一会话第一件事：`curl https://api.github.com/repos/Crloxa/scenary/actions/runs?per_page=1` 查结果。若失败，失败注解（check-runs annotations）已带 compose 构建输出末 30 行（`::error::compose: ...`）；已知最可疑根因为 frontend/Dockerfile 原写死 npmmirror（境外 runner 不可达），v2.48 后已改为 `ARG NPM_REGISTRY` 默认 npmjs（663e96f），若仍失败按注解继续。本地 Windows 全绿（JUnit 99/99、Vitest 64/64、黑盒 13/13、组合 e2e 48 用例 5 轮）。
+
 5. **回滚提示**：E2 私有桶出问题时 `ops/set-bucket-policy.ps1 -Policy download` + `.env` 设 `SCENARY_MEDIA_PRESIGN_READ=false` 重启 backend 即回直链模式（命令已验证，见 E2 证据 §5）；**E3 回滚**：`.env` 摘除 `SCENARY_PLACE_PROVIDER_ENABLED` 重启 backend 即回空候选（已验证 8/8）；**E4 回滚**：`VITE_ENABLE_MAP=false` 重新构建 frontend 即整体摘除（已验证构建产物零 leaflet）。
 5. **历史媒体 URL 迁移**：已由 E2-03 完成 URL→key 回填（`ops/migrate-media-urls.ps1 -ToKeys`）；换域名部署时仍用默认模式按新旧 public host 重建。
 6. **长期 TODO（暂不排期）**：P13 内容审核、P14 规模化运维；两者的设计草案和重新立项出口条件保留在 [05 后续开发路线图](05-后续开发路线图与实施手册.md) 中。
