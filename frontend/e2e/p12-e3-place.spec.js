@@ -90,7 +90,8 @@ test('③ 空候选（placeName=null）静默降级：无候选条、无报错�
   })
   await openPublish(page)
   await fillCoordinates(page, '5', '5')
-  expect(geocodeCalls).toBeGreaterThanOrEqual(1)
+  // 无头页定时器节流会让 600ms 防抖推迟，断言"已发查询"必须轮询等待而非同步判定
+  await expect.poll(() => geocodeCalls, { timeout: 8000 }).toBeGreaterThanOrEqual(1)
   await expect(page.getByTestId('place-suggestion')).toHaveCount(0)
   await page.locator('#publish-place').fill('手工兜底地名')
   await expect(page.locator('#publish-place')).toHaveValue('手工兜底地名')

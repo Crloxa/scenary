@@ -684,11 +684,11 @@ TOKEN=<上一步accessToken>; curl -s -X POST $BASE/media/images \
 
 > E4 任务定义以 [05 手册 §6.6](05-后续开发路线图与实施手册.md) 为准，依赖 E3。不做路线/导航/附近推荐；瓦片源出网需在验收环境声明，未准备瓦片时降级为坐标文本。
 
-- [ ] E4-01 依赖与组件：leaflet 登记 01 §3.1 并 dynamic import 拆包；地图选点组件（点击/拖 marker → lat/lng + place_source=MAP），`VITE_ENABLE_MAP` feature flag
-- [ ] E4-02 发布页集成：选点 → E3 候选地名 → 可编辑确认；手工坐标输入保留为键盘可达替代路径
-- [ ] E4-03 详情页展示：带坐标才渲染小地图，无坐标零布局抖动；390px 移动端适配
-- [ ] E4-04 验收：Vitest、构建（leaflet 独立 chunk）、三浏览器、flag 关闭整体摘除回归、可访问性专项
-- [ ] E4 出口门禁：证据报告落盘并同步 Checklist、HANDOVER、CHANGELOG
+- [x] E4-01 依赖与组件：leaflet 登记 01 §3.1 并 dynamic import 拆包；地图选点组件（点击/拖 marker → lat/lng + place_source=MAP），`VITE_ENABLE_MAP` feature flag（2026-09-19：leaflet ^1.9.4；`MapPickerModal`/`MiniMap` 经 defineAsyncComponent 拆独立 chunk（148.81 kB + css 15.09 kB）；`VITE_ENABLE_MAP=false` 构建产物 grep leaflet=0、116→112 modules）
+- [x] E4-02 发布页集成：选点 → E3 候选地名 → 可编辑确认；手工坐标输入保留为键盘可达替代路径（2026-09-19：选点确认写入坐标+place_source=MAP 后经既有 watch 触发 E3 防抖查询；手工输入框保留；Vitest 集成例覆盖"选点→候选回填"全链）
+- [x] E4-03 详情页展示：带坐标才渲染小地图，无坐标零布局抖动；390px 移动端适配（2026-09-19：`v-if="MAP_ENABLED && hasCoordinates"`；e2e 用例②③分别实证带坐标渲染/无坐标零渲染；②即 390px 视口）
+- [x] E4-04 验收：Vitest、构建（leaflet 独立 chunk）、三浏览器、flag 关闭整体摘除回归、可访问性专项（2026-09-19：Vitest 58/58；p12-e4-map.spec 12/12 三浏览器（瓦片 mock 不出网 + 404 降级实证）；组合矩阵 6 spec × 3 浏览器 = 36 用例连续 5 轮全绿；可访问性见证据 §3.4）
+- [x] E4 出口门禁：证据报告落盘并同步 Checklist、HANDOVER、CHANGELOG（2026-09-19：证据见 [evidence/2026-09-19-P12-E4地图UI验收](evidence/2026-09-19-P12-E4地图UI验收.md)；CSP Report-Only 增补瓦片裸域+通配子域；学习沉淀 25 补强 + 26 新篇）
 
 ---
 

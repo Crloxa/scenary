@@ -1,4 +1,5 @@
 import { mount, flushPromises } from '@vue/test-utils'
+import { defineComponent, h } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
@@ -24,6 +25,32 @@ vi.mock('vue-router', () => ({
 }))
 vi.mock('@/utils/request', () => ({ getErrorText: error => error?.message || '操作失败' }))
 vi.mock('@/utils/toast', () => ({ toast: vi.fn() }))
+// P12-E4：mock leaflet 模块后直接使用真实 MapPickerModal（jsdom 渲染不了真地图）。
+// 不 mock 组件模块本身——vitest 对 mock 命名空间的属性守卫会与 Vue 组件解析的
+// 内部探针（__isTeleport/__v_isVNode/name…）无限互相抬杠
+const mapRegistry = vi.hoisted(() => ({
+  mapHandlers: {}, tileHandlers: {}, markerHandlers: {}, mapObj: null,
+}))
+vi.mock('leaflet', () => {
+  const mapObj = {
+    remove: vi.fn(),
+    on: (type, handler) => { mapRegistry.mapHandlers[type] = handler },
+  }
+  const tileObj = { on: vi.fn(), addTo: vi.fn() }
+  const markerObj = {
+    on: (type, handler) => { mapRegistry.markerHandlers[type] = handler },
+    setLatLng: vi.fn(), getLatLng: () => ({ lat: 1, lng: 2 }), addTo: vi.fn(),
+  }
+  mapRegistry.mapObj = mapObj
+  return {
+    default: {
+      map: vi.fn(() => mapObj),
+      tileLayer: vi.fn(() => tileObj),
+      marker: vi.fn(() => markerObj),
+      divIcon: vi.fn(options => options),
+    },
+  }
+})
 
 import PublishView from '@/views/PublishView.vue'
 
@@ -94,6 +121,25 @@ describe('PublishView × P12-E3 逆地理联动', () => {
     await new Promise(resolve => setTimeout(resolve, 650))
     await flushPromises()
     expect(state.reverseGeocode).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('地图选点确认 → 写入坐标(place_source=MAP) → 触发 E3 候选回填', async () => {
+    state.reverseGeocode.mockResolvedValue({ placeName: '四姑娘山', provider: 'nominatim', cached: false })
+    const wrapper = await mountView()
+    await wrapper.find('[data-testid="btn-open-map-picker"]').trigger('click')
+    // defineAsyncComponent 首次动态导入 + 解析需要多个 tick（vitest 惰性转换模块）
+    await flushPromises()
+    await new Promise(resolve => setTimeout(resolve, 100))
+    await flushPromises()
+    expect(wrapper.find('[data-testid="map-picker-canvas"]').exists()).toBe(true)
+    await wrapper.find('[data-testid="map-picker-confirm"]').trigger('click') // 默认初始坐标
+    await new Promise(resolve => setTimeout(resolve, 650))
+    await flushPromises()
+    expect(wrapper.find('[data-testid="map-picker-canvas"]').exists()).toBe(false) // 选点后弹窗关闭
+    expect(wrapper.find('[data-testid="input-latitude"]').element.value).toBe('31.2304')
+    expect(wrapper.find('[data-testid="input-longitude"]').element.value).toBe('121.4737')
+    expect(wrapper.find('#publish-place').element.value).toBe('四姑娘山')
     wrapper.unmount()
   })
 })

@@ -15,6 +15,13 @@ const ImageEditorModal = EDITOR_ENABLED
   ? defineAsyncComponent(() => import('@/components/ImageEditorModal.vue'))
   : null
 
+// P12-E4 地图 UI：构建期开关 VITE_ENABLE_MAP=false 整体摘除（docs/05 §6.6）；
+// 地图组件经动态导入拆包，leaflet 不进主包；手工坐标输入始终保留为键盘可达替代路径
+const MAP_ENABLED = import.meta.env.VITE_ENABLE_MAP !== 'false'
+const MapPickerModal = MAP_ENABLED
+  ? defineAsyncComponent(() => import('@/components/MapPickerModal.vue'))
+  : null
+
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
@@ -112,6 +119,15 @@ function applyPlaceSuggestion() {
     placeName.value = placeSuggestion.value
     placeSuggestion.value = ''
   }
+}
+
+// 地图选点：确认后写入坐标（place_source=MAP），经既有 watch 自动触发 E3 候选地名
+const mapPickerOpen = ref(false)
+function handleMapPick({ latitude: lat, longitude: lng }) {
+  latitude.value = String(lat)
+  longitude.value = String(lng)
+  placeSource.value = 'MAP'
+  mapPickerOpen.value = false
 }
 
 const hasDraft = computed(() => Boolean(
@@ -612,6 +628,13 @@ onUnmounted(() => {
         </div>
       </div>
       <p v-if="coordinateError" data-testid="location-error" class="text-xs text-red-500" role="alert">{{ coordinateError }}</p>
+      <button
+        v-if="MAP_ENABLED"
+        type="button"
+        data-testid="btn-open-map-picker"
+        class="h-9 px-3 rounded-xl bg-mute text-ink text-xs w-fit"
+        @click="mapPickerOpen = true"
+      >🗺️ 地图选点</button>
       <p v-if="placeSuggestion" data-testid="place-suggestion" class="flex items-center gap-2 text-xs text-ink-soft">
         <span>候选地名：{{ placeSuggestion }}</span>
         <button
@@ -660,6 +683,15 @@ onUnmounted(() => {
       :file="editingItem.file"
       @apply="applyEdited"
       @close="closeEditor"
+    />
+
+    <!-- P12-E4 地图选点弹窗 -->
+    <MapPickerModal
+      v-if="mapPickerOpen"
+      :latitude="latitude"
+      :longitude="longitude"
+      @pick="handleMapPick"
+      @close="mapPickerOpen = false"
     />
   </section>
 </template>

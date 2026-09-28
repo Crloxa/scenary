@@ -1,5 +1,17 @@
 # Changelog · Scenary
 
+## [v2.47] · 2026-09-19 · P12-E4 地图 UI 完成（发布选点 + 详情小地图）
+
+- **地图组件**：`MapPickerModal`（发布选点弹窗：点击/拖 marker、六位小数读数、瓦片失败 ≥3 次提示降级、divIcon 规避 bundler 图标 404）与 `MiniMap`（详情只读小地图：禁交互、坐标文本常驻、瓦片失败整体降级坐标文本、OSM attribution）；均经 `defineAsyncComponent` 动态导入（影响 `frontend/src/components/`）。
+- **依赖登记**：leaflet ^1.9.4（01 §3.1 行更新）；构建拆包实证 leaflet 独立 chunk 148.81 kB + css 15.09 kB，`VITE_ENABLE_MAP=false` 构建产物零 leaflet、116→112 modules——flag 可整体摘除（影响 `frontend/package.json`、`docs/01-技术栈与总体架构.md`）。
+- **发布页集成（E4-02）**：`btn-open-map-picker` → 弹窗确认 → 写入 latitude/longitude + place_source=MAP → 既有 watch 自动触发 E3 候选地名；手工坐标输入保留为键盘可达替代路径；地图弹窗初始坐标空值防 `Number('')→0` 误置 (0,0)（影响 `frontend/src/views/PublishView.vue`）。
+- **详情页集成（E4-03）**：仅带坐标笔记渲染小地图（v-if，无坐标零布局抖动）（影响 `frontend/src/views/NoteDetailView.vue`）。
+- **CSP**：nginx 两处 CSP Report-Only 的 img-src 增补 `https://tile.openstreetmap.org https://*.tile.openstreetmap.org`——Firefox 实证通配符不覆盖裸域，缺裸域即记违规（影响 `frontend/nginx.conf`）。
+- **测试与证据**：Vitest 新增 9 例（MapPickerModal 5 + MiniMap 3 + PublishPlaceFlow 地图集成 1）全量 58/58；e2e 新增 `p12-e4-map.spec.js` 4 用例 × 3 浏览器 12/12（瓦片 mock 不出网；404 触发降级实证）；组合矩阵 6 spec × 3 浏览器 = 36 用例连续 5 轮全绿（默认并行度）；证据 [evidence/2026-09-19-P12-E4地图UI验收](docs/evidence/2026-09-19-P12-E4地图UI验收.md)（影响 `frontend/tests/`、`frontend/e2e/`）。
+- **e2e 媒体夹具重构（p12-video）**：WebKit(Windows) 的 `<video>` 媒体请求由 WMF 进程直发（UA=NSPlayer）绕过路由拦截，/minio 假响应穿透真实私有桶 403 致媒体被标记损坏；Chromium 则因 PNA 拒绝 localhost→127.0.0.1 跨源媒体（headless 权限自动拒绝，响应头/特性开关均无效）；blob:/data: URL 在 WMF 一律 error code=4。最终按浏览器分策略：chromium/firefox 同源 /minio 拦截 mock（与生产一致），webkit 用 spec 内本地真 Range HTTP 服务 + 详情文档剥 CSP Report-Only 头；探针实验与证据链沉淀 learning 26（影响 `frontend/e2e/p12-video.spec.js`）。
+- **e2e 时序补强（p12-e3）**：E3-③"已发查询"的同步计数断言受无头页定时器节流影响偶发踩空，改 `expect.poll` 轮询语义；组合矩阵修复后 5×36/36 连绿（learning 25 补强条目 6）（影响 `frontend/e2e/p12-e3-place.spec.js`）。
+- **文档同步**：03 附 9 全勾；05 §11、HANDOVER、docs/README 时间线、AGENTS §5 快照同步；学习沉淀 25 补强 / 26 新篇。
+
 ## [v2.46] · 2026-09-19 · P12-E3 逆地理编码完成（契约 v1.9）
 
 - **契约 v1.9**：02 新增 §7B 地点模块——`GET /places/reverse-geocode?latitude=&longitude=`（仅登录用户），响应 `{placeName, provider, cached}`；§1.4 限流表新增 30 次/分钟/用户行；错误面 40100/40000/42001，provider 侧任何失败不产生 5xx（影响 `docs/02-API接口规范.md`）。

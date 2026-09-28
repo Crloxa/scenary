@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { noteApi } from '@/api/note'
 import { getErrorText } from '@/utils/request'
@@ -8,6 +8,13 @@ import { socialApi } from '@/api/social'
 import { reportApi } from '@/api/report'
 import { useUserStore } from '@/stores/user'
 import { commentApi } from '@/api/comment'
+
+// P12-E4 详情页小地图：构建期开关 VITE_ENABLE_MAP=false 整体摘除（docs/05 §6.6）；
+// 经动态导入拆包；仅带坐标笔记渲染（v-if），无坐标零布局抖动
+const MAP_ENABLED = import.meta.env.VITE_ENABLE_MAP !== 'false'
+const MiniMap = MAP_ENABLED
+  ? defineAsyncComponent(() => import('@/components/MiniMap.vue'))
+  : null
 
 const route = useRoute()
 const router = useRouter()
@@ -24,6 +31,8 @@ const armDelete = ref(false)
 let disarmTimer = null
 let loadSeq = 0
 const socialPending = ref('')
+// P12-E4：带坐标才渲染小地图（v-if 门控，无坐标零布局抖动）
+const hasCoordinates = computed(() => detail.value?.latitude != null && detail.value?.longitude != null)
 // P18 举报状态（docs/02 §10.1）
 const REPORT_REASONS = [
   { code: 'SPAM', label: '垃圾广告 / 营销内容' },
@@ -291,6 +300,14 @@ function fmt(ts) {
         {{ armDelete ? '再点一次确认删除' : '删除' }}
       </button>
     </div>
+
+    <!-- P12-E4：详情小地图（仅带坐标渲染，无坐标零布局抖动；瓦片失败自动降级坐标文本） -->
+    <MiniMap
+      v-if="MAP_ENABLED && hasCoordinates"
+      :latitude="detail.latitude"
+      :longitude="detail.longitude"
+      :place-name="detail.placeName || ''"
+    />
 
     <div class="mt-4 flex flex-wrap items-center gap-2 border-y border-line py-3">
       <button
