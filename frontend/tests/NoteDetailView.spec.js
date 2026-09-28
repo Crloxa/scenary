@@ -17,6 +17,20 @@ vi.mock('vue-router', () => ({
   useRoute: () => ({ params: { id: '88' }, fullPath: '/note/88' }),
   useRouter: () => ({ push: mocks.push }),
 }))
+// 夹具笔记带坐标 → MiniMap 真实挂载；mock leaflet 保证 jsdom 下确定性（不经真地图）
+const leafletRegistry = vi.hoisted(() => ({ mapObj: null }))
+vi.mock('leaflet', () => {
+  const mapObj = { remove: vi.fn(), on: vi.fn() }
+  leafletRegistry.mapObj = mapObj
+  return {
+    default: {
+      map: vi.fn(() => mapObj),
+      tileLayer: vi.fn(() => ({ on: vi.fn(), addTo: vi.fn() })),
+      marker: vi.fn(() => ({ addTo: vi.fn() })),
+      divIcon: vi.fn(options => options),
+    },
+  }
+})
 
 import NoteDetailView from '@/views/NoteDetailView.vue'
 

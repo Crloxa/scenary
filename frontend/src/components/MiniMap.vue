@@ -3,9 +3,11 @@
 // 只读展示：禁拖拽/缩放，保留 OSM attribution；坐标文本常驻展示（可访问性的文本替代），
 // 瓦片加载失败时降级为纯坐标文本（05 §6.6 未准备瓦片时组件整体降级）。
 import { onMounted, onUnmounted, ref } from 'vue'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
 
+// leaflet 在 onMounted 内动态 import：模块加载零 window 依赖——
+// leaflet UMD 加载即做 Browser 检测，若在模块作用域静态 import，
+// 任何"组件模块被加载但环境已拆（vitest teardown）"的时序都会崩；
+// 惰性加载后 chunk 拆分不变（leaflet 仍为独立 chunk，挂载时才拉取）
 const props = defineProps({
   latitude: { type: [Number, String], required: true },
   longitude: { type: [Number, String], required: true },
@@ -21,7 +23,9 @@ let tileErrorCount = 0
 const lat = () => Number(props.latitude)
 const lng = () => Number(props.longitude)
 
-onMounted(() => {
+onMounted(async () => {
+  const L = (await import('leaflet')).default
+  await import('leaflet/dist/leaflet.css')
   map = L.map(mapEl.value, {
     center: [lat(), lng()],
     zoom: 14,

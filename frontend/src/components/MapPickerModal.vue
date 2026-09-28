@@ -4,9 +4,13 @@
 // 确认后回传父级写入 latitude/longitude（place_source=MAP）并触发 E3 候选地名。
 // 键盘/无瓦片替代路径：父级的手工坐标输入始终保留；瓦片失败时弹窗内提示并可继续点选。
 import { onMounted, onUnmounted, ref, reactive } from 'vue'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
 
+// P12-E4 发布选点弹窗（docs/05 §6.6）：leaflet 经本组件的动态导入拆包——
+// flag 关闭或未打开弹窗时主包不含地图代码。点击地图/拖动 marker 更新候选坐标，
+// 确认后回传父级写入 latitude/longitude（place_source=MAP）并触发 E3 候选地名。
+// 键盘/无瓦片替代路径：父级的手工坐标输入始终保留；瓦片失败时弹窗内提示并可继续点选。
+// leaflet 在 onMounted 内动态 import：UMD 加载即做 window 检测，模块作用域静态
+// 引入会在"模块被加载但宿主环境已拆"的时序下崩溃（vitest teardown，CI 实证）。
 const props = defineProps({
   latitude: { type: [Number, String], default: null },
   longitude: { type: [Number, String], default: null },
@@ -32,21 +36,23 @@ let marker = null
 let tileErrorCount = 0
 let tileLayer = null
 
-// divIcon 避免 bundler 下默认 marker 图片 404（L.Icon.Default 已知问题）
-const pinIcon = L.divIcon({
-  className: '',
-  html: '<div data-testid="map-marker" style="width:18px;height:18px;border-radius:50% 50% 50% 0;background:#1ba473;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>',
-  iconSize: [18, 18],
-  iconAnchor: [9, 18],
-})
-
 function setPicked(lat, lng) {
   picked.lat = Number(Number(lat).toFixed(6))
   picked.lng = Number(Number(lng).toFixed(6))
   if (marker) marker.setLatLng([picked.lat, picked.lng])
 }
 
-onMounted(() => {
+onMounted(async () => {
+  const L = (await import('leaflet')).default
+  await import('leaflet/dist/leaflet.css')
+  // divIcon 避免 bundler 下默认 marker 图片 404（L.Icon.Default 已知问题）
+  const pinIcon = L.divIcon({
+    className: '',
+    html: '<div data-testid="map-marker" style="width:18px;height:18px;border-radius:50% 50% 50% 0;background:#1ba473;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>',
+    iconSize: [18, 18],
+    iconAnchor: [9, 18],
+  })
+
   map = L.map(mapEl.value, { center: [picked.lat, picked.lng], zoom: 13 })
   tileLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,

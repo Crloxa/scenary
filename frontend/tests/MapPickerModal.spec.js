@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 
 // leaflet 全模块 mock：记录 map/tile/marker 的事件注册，供测试直接触发
@@ -37,21 +37,27 @@ vi.mock('leaflet', () => {
 
 import MapPickerModal from '@/components/MapPickerModal.vue'
 
-const mountModal = () => mount(MapPickerModal, {
-  attachTo: document.body,
-  props: { latitude: 31, longitude: 121 },
-})
+// onMounted 内惰性 import leaflet（异步挂载）：首次解析跨宏任务，
+// mount 后必须 flush + 轮询等待地图初始化完成，再操作事件注册表
+const mountModal = async () => {
+  const wrapper = mount(MapPickerModal, { attachTo: document.body })
+  await flushPromises()
+  await vi.waitFor(() => {
+    if (typeof registry.mapHandlers.click !== 'function') throw new Error('map not initialized yet')
+  })
+  return wrapper
+}
 
 describe('MapPickerModal（P12-E4 选点弹窗）', () => {
   it('挂载即初始化地图并展示初始读数', async () => {
-    const wrapper = mountModal()
+    const wrapper = await mountModal()
     expect(wrapper.find('[data-testid="map-picker-canvas"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="map-picker-readout"]').text()).toContain('31')
     wrapper.unmount()
   })
 
   it('点击地图更新读数，确认后 emit pick（六位小数）', async () => {
-    const wrapper = mountModal()
+    const wrapper = await mountModal()
     registry.mapHandlers.click({ latlng: { lat: 30.1234567, lng: 119.9876543 } })
     await wrapper.vm.$nextTick()
     expect(wrapper.find('[data-testid="map-picker-readout"]').text()).toContain('30.123457')
@@ -61,7 +67,7 @@ describe('MapPickerModal（P12-E4 选点弹窗）', () => {
   })
 
   it('marker 拖动结束同步读数', async () => {
-    const wrapper = mountModal()
+    const wrapper = await mountModal()
     registry.markerHandlers.dragend()
     await wrapper.vm.$nextTick()
     expect(wrapper.find('[data-testid="map-picker-readout"]').text()).toContain('12.345678')
@@ -69,7 +75,7 @@ describe('MapPickerModal（P12-E4 选点弹窗）', () => {
   })
 
   it('瓦片连续失败 ≥3 次显示降级提示（点选仍可用）', async () => {
-    const wrapper = mountModal()
+    const wrapper = await mountModal()
     for (let i = 0; i < 3; i += 1) registry.tileHandlers.tileerror()
     await wrapper.vm.$nextTick()
     expect(wrapper.find('[data-testid="map-tiles-fallback"]').exists()).toBe(true)
@@ -80,7 +86,7 @@ describe('MapPickerModal（P12-E4 选点弹窗）', () => {
   })
 
   it('取消与关闭按钮 emit close，卸载时移除地图', async () => {
-    const wrapper = mountModal()
+    const wrapper = await mountModal()
     await wrapper.find('[data-testid="map-picker-cancel"]').trigger('click')
     expect(wrapper.emitted('close')).toBeTruthy()
     wrapper.unmount()

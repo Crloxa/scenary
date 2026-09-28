@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 
 const registry = vi.hoisted(() => ({
@@ -26,10 +26,11 @@ vi.mock('leaflet', () => {
 import MiniMap from '@/components/MiniMap.vue'
 
 describe('MiniMap（P12-E4 详情小地图）', () => {
-  it('渲染地图容器与坐标文本（含地名）', () => {
+  it('渲染地图容器与坐标文本（含地名）', async () => {
     const wrapper = mount(MiniMap, {
       props: { latitude: 30.9785, longitude: 102.7591, placeName: '四姑娘山' },
     })
+    await flushPromises()
     expect(wrapper.find('[data-testid="mini-map-canvas"]').exists()).toBe(true)
     const caption = wrapper.find('[data-testid="mini-map-coords"]').text()
     expect(caption).toContain('四姑娘山')
@@ -42,6 +43,10 @@ describe('MiniMap（P12-E4 详情小地图）', () => {
     const wrapper = mount(MiniMap, {
       props: { latitude: 1.5, longitude: 2.5, placeName: '' },
     })
+    await flushPromises()
+    await vi.waitFor(() => {
+      if (typeof registry.tileHandlers.tileerror !== 'function') throw new Error('map not initialized yet')
+    })
     for (let i = 0; i < 3; i += 1) registry.tileHandlers.tileerror()
     await wrapper.vm.$nextTick()
     expect(wrapper.find('[data-testid="mini-map-canvas"]').exists()).toBe(false)
@@ -50,8 +55,9 @@ describe('MiniMap（P12-E4 详情小地图）', () => {
     wrapper.unmount()
   })
 
-  it('卸载时移除地图实例', () => {
+  it('卸载时移除地图实例', async () => {
     const wrapper = mount(MiniMap, { props: { latitude: 1, longitude: 2 } })
+    await flushPromises()
     wrapper.unmount()
     expect(registry.mapObj.remove).toHaveBeenCalled()
   })

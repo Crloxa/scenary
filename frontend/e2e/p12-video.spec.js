@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import http from 'node:http'
 
 // 夹具假令牌：拼接构造以通过密钥扫描器（字面量凭据模式误报），值不变
@@ -217,7 +218,9 @@ test('P12 发布视频、等待转码并在详情页播放', async ({ page }, te
   await page.getByTestId('input-title').fill('山谷短片')
   await page.getByTestId('input-latitude').fill('30.9785')
   await page.getByTestId('input-longitude').fill('102.7591')
-  await page.locator('input[type="file"]').setInputFiles('..\\docs\\dev\\fixtures\\p12-short.mp4')
+  await page.locator('input[type="file"]').setInputFiles(
+    fileURLToPath(new URL('../../docs/dev/fixtures/p12-short.mp4', import.meta.url)),
+  )
   await expect(page.getByTestId('upload-item')).toBeVisible()
   await expect(page.getByTestId('btn-publish-submit')).toBeEnabled({ timeout: 15000 })
   await page.getByTestId('btn-publish-submit').click()
