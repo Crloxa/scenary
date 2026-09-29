@@ -60,42 +60,26 @@ jobs:
 
       - name: Preflight image pulls
         run: |
-          for img in \
-            mysql:8.4 \
-            redis:7-alpine \
-            rabbitmq:3.13-management \
-            'minio/minio:latest' \
-            'minio/mc:latest' \
-            'bitnamilegacy/minio:latest' \
-            'bitnamilegacy/mc:latest' \
-            'bitnami/minio:latest' \
-            'bitnami/mc:latest' \
-            'seaweedfs/seaweedfs:latest' ; do
-            if docker pull "$img" >/dev/null 2>&1; then
-              echo "PULL OK: $img"
-            else
-              echo "::error::pull FAILED: $img"
-            fi
-          done
-
-      - name: Probe minio sources
-        run: |
-          u1='https://github.com/minio/minio/releases/download/RELEASE.2025-09-07T16-13-09Z/minio.RELEASE.2025-09-07T16-13-09Z'
-          u2='https://dl.min.io/server/minio/release/linux-amd64/minio'
-          code=$(curl -sIL -o /dev/null -w '%{http_code}' --max-time 30 "$u1" || true)
-          echo "gh-release asset: $code"
-          echo "::error::probe gh-release=$code"
-          code2=$(curl -sIL -o /dev/null -w '%{http_code}' --max-time 30 "$u2" || true)
-          echo "dl.min.io latest: $code2"
-          echo "::error::probe dlminio=$code2"
-          for i in 1 2 3; do
-            if docker pull bitnamilegacy/minio:latest >/dev/null 2>&1; then
-              echo "bitnamilegacy/minio pull OK on attempt $i"
-              echo "::error::probe bitnami-minio=OK-attempt$i"
-              break
-            fi
-            if [ "$i" = 3 ]; then echo "::error::probe bitnami-minio=FAIL"; fi
-          done
+          # bitnamilegacy 为 minio 唯一可得源（官方 Hub 镜像/GitHub releases/dl.min.io 均已移除，
+          # 探针实证 CHANGELOG v2.48）；gcr mirror 偶发 cache miss → 重试拉齐后 compose --pull never
+          pull_retry() {
+            img="$1"
+            for i in 1 2 3 4 5; do
+              if docker pull "$img" >/dev/null 2>&1; then
+                echo "PULL OK (attempt $i): $img"
+                return 0
+              fi
+              echo "pull attempt $i failed: $img"
+              sleep 15
+            done
+            echo "::error::pull FAILED after 5 attempts: $img"
+            return 1
+          }
+          pull_retry mysql:8.4
+          pull_retry redis:7-alpine
+          pull_retry rabbitmq:3.13-management
+          pull_retry bitnamilegacy/minio:latest
+          pull_retry bitnamilegacy/mc:latest
 
       - name: Compose stack up
         run: |
@@ -103,7 +87,8 @@ jobs:
           set -o pipefail
           ok=0
           for i in 1 2; do
-            if docker compose up -d --build 2>&1 | tee /tmp/compose-up.log; then ok=1; break; fi
+            # --pull never：镜像已在 preflight 重试拉齐，运行时零拉取（免疫 mirror cache miss 抖动）
+            if docker compose up -d --build --pull never 2>&1 | tee /tmp/compose-up.log; then ok=1; break; fi
             echo "attempt $i failed; cleaning up before retry"
             docker compose down --remove-orphans || true
           done
