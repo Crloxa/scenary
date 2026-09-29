@@ -39,7 +39,10 @@ services:
     volumes: ["scenary-mq-data:/var/lib/rabbitmq"]
 
   minio:
-    build: ./docker/minio-server
+    # bitnamilegacy 日期 tag（2025.7.23 对，preflight 实证可拉）——官方 minio/* 已从 Hub 移除；
+    # root 起动以获得新命名卷写权限（CHANGELOG v2.48）
+    image: bitnamilegacy/minio:2025.7.23-debian-12-r5
+    user: root
     restart: unless-stopped
     command: ["server", "/data"]
     environment:
@@ -48,16 +51,18 @@ services:
     volumes: ["scenary-minio-data:/data"]
 
   minio-init:
-    # mc 客户端镜像自 dl.min.io 官方二进制构建（官方 Hub 镜像已移除，CHANGELOG v2.48）
-    build: ./docker/minio-mc
+    # 建桶用官方 aws-cli 镜像（热门镜像，gcr 缓存稳定）——minio/mc 官方 Hub 镜像已移除且
+    # bitnamilegacy/mc 无版本 tag（CHANGELOG v2.48）。桶默认即私有（=E2 anonymous none 语义）
+    image: amazon/aws-cli:latest
     depends_on: [minio]
-    entrypoint: ["/bin/bash", "-c"]
+    environment:
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      AWS_DEFAULT_REGION: us-east-1
+    entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        MC_BIN="$(command -v mc || echo /opt/bitnami/mc/bin/mc)"
-        until "$$MC_BIN" alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD}; do sleep 2; done
-        "$$MC_BIN" mb -p local/${MINIO_BUCKET} || true
-        "$$MC_BIN" anonymous set ${MINIO_BUCKET_POLICY:-none} local/${MINIO_BUCKET}
+        until aws --endpoint-url http://minio:9000 s3api head-bucket --bucket "${MINIO_BUCKET}" 2>/dev/null                   || aws --endpoint-url http://minio:9000 s3 mb "s3://${MINIO_BUCKET}"; do sleep 2; done
         echo BUCKET_READY
 
   backend:

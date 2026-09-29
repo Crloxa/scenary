@@ -36,7 +36,9 @@ services:
     volumes: ["scenary-mq-data:/var/lib/rabbitmq"]
 
   minio:
-    build: ./docker/minio-server
+    # bitnamilegacy 日期 tag（官方 minio/* 已从 Hub 移除，CHANGELOG v2.48）
+    image: bitnamilegacy/minio:2025.7.23-debian-12-r5
+    user: root
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -44,10 +46,14 @@ services:
     ports: ["9000:9000", "9001:9001"]
     volumes: ["scenary-minio-data:/data"]
 
-  minio-init:                       # 一次性建桶容器（mc 镜像自 dl.min.io 官方二进制构建）
-    build: ./docker/minio-mc
+  minio-init:                       # 一次性建桶容器（aws-cli：mc 官方 Hub 镜像已移除）
+    image: amazon/aws-cli:latest
     depends_on: [minio]
-    entrypoint: ["/bin/bash", "-c"]
+    environment:
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      AWS_DEFAULT_REGION: us-east-1
+    entrypoint: ["/bin/sh", "-c"]
     command:
       - |
         MC_BIN="$(command -v mc || echo /opt/bitnami/mc/bin/mc)"
