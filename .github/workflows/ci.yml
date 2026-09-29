@@ -51,6 +51,13 @@ jobs:
         run: npx playwright install --with-deps chromium
       # 浏览器 e2e 跑在真实 Compose 栈上（与本地验收同构：唯一入口 :8081），
       # 而非无后端的 Vite dev server——夹具均为路由 mock，但 WS/上传链路依赖真栈语义
+      - name: Configure Docker Hub mirror
+        run: |
+          # minio 官方 Docker Hub 镜像已不可拉取（preflight 实证，CHANGELOG v2.48）；
+          # mirror.gcr.io 为 Google 维护的 Docker Hub 缓存代理，GH runner 可达
+          echo '{"registry-mirrors": ["https://mirror.gcr.io"]}' | sudo tee /etc/docker/daemon.json
+          sudo systemctl restart docker
+
       - name: Preflight image pulls
         run: |
           for img in \
