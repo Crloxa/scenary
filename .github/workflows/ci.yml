@@ -78,6 +78,25 @@ jobs:
             fi
           done
 
+      - name: Probe minio sources
+        run: |
+          u1='https://github.com/minio/minio/releases/download/RELEASE.2025-09-07T16-13-09Z/minio.RELEASE.2025-09-07T16-13-09Z'
+          u2='https://dl.min.io/server/minio/release/linux-amd64/minio'
+          code=$(curl -sIL -o /dev/null -w '%{http_code}' --max-time 30 "$u1" || true)
+          echo "gh-release asset: $code"
+          echo "::error::probe gh-release=$code"
+          code2=$(curl -sIL -o /dev/null -w '%{http_code}' --max-time 30 "$u2" || true)
+          echo "dl.min.io latest: $code2"
+          echo "::error::probe dlminio=$code2"
+          for i in 1 2 3; do
+            if docker pull bitnamilegacy/minio:latest >/dev/null 2>&1; then
+              echo "bitnamilegacy/minio pull OK on attempt $i"
+              echo "::error::probe bitnami-minio=OK-attempt$i"
+              break
+            fi
+            if [ "$i" = 3 ]; then echo "::error::probe bitnami-minio=FAIL"; fi
+          done
+
       - name: Compose stack up
         run: |
           # pipefail 必须显式开启：否则 up 失败被 tee 吞掉（exit=tee 恒 0），容器不存在、后续步骤假失败

@@ -39,9 +39,7 @@ services:
     volumes: ["scenary-mq-data:/var/lib/rabbitmq"]
 
   minio:
-    image: bitnamilegacy/minio:latest
-    # bitnami 以 UID 1001 运行，root 起动以获得新命名卷的写权限（entrypoint 自行处理）
-    user: root
+    build: ./docker/minio-server
     restart: unless-stopped
     command: ["server", "/data"]
     environment:
@@ -50,9 +48,8 @@ services:
     volumes: ["scenary-minio-data:/data"]
 
   minio-init:
-    # bitnamilegacy 为 Bitnami 归档镜像（官方 minio/* 已从 Docker Hub 移除，CHANGELOG v2.48）；
-    # bitnami/mc 以自身 entrypoint 运行，此处覆盖为 sh 执行等价命令
-    image: bitnamilegacy/mc:latest
+    # mc 客户端镜像自 dl.min.io 官方二进制构建（官方 Hub 镜像已移除，CHANGELOG v2.48）
+    build: ./docker/minio-mc
     depends_on: [minio]
     entrypoint: ["/bin/bash", "-c"]
     command:

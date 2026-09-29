@@ -36,8 +36,7 @@ services:
     volumes: ["scenary-mq-data:/var/lib/rabbitmq"]
 
   minio:
-    image: bitnamilegacy/minio:latest
-    user: root
+    build: ./docker/minio-server
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -45,8 +44,8 @@ services:
     ports: ["9000:9000", "9001:9001"]
     volumes: ["scenary-minio-data:/data"]
 
-  minio-init:                       # 一次性建桶容器（bitnamilegacy：官方 minio/* 已从 Hub 移除）
-    image: bitnamilegacy/mc:latest
+  minio-init:                       # 一次性建桶容器（mc 镜像自 dl.min.io 官方二进制构建）
+    build: ./docker/minio-mc
     depends_on: [minio]
     entrypoint: ["/bin/bash", "-c"]
     command:
