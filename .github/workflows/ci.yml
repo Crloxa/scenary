@@ -66,12 +66,13 @@ jobs:
             repo="$1"
             tag=$(curl -s --max-time 30 "https://hub.docker.com/v2/repositories/$repo/tags?page_size=25" \
               | grep -o '"name":"[^"]*"' | sed 's/"name":"//;s/"$//' \
-              | grep -v -E '^latest$|amd64|arm64|riscv|ppc|s390|arm$' | head -1)
-            echo "resolved $repo -> $tag"
-            echo "::notice::resolved $repo -> $tag"
+              | grep -v -E '^latest$|^sha256-|amd64|arm64|riscv|ppc|s390|arm$' | head -1)
+            echo "resolved $repo -> $tag" >&2
+            echo "$tag"
           }
           MINIO_TAG=$(resolve bitnamilegacy/minio)
           MC_TAG=$(resolve bitnamilegacy/mc)
+          echo "::notice::resolved minio=$MINIO_TAG mc=$MC_TAG"
           if [ -z "$MINIO_TAG" ] || [ -z "$MC_TAG" ]; then
             echo "::error::tag resolution failed (minio=$MINIO_TAG mc=$MC_TAG)"
             exit 1
