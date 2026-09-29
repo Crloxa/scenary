@@ -65,14 +65,14 @@ jobs:
           resolve() {
             repo="$1"
             tag=$(curl -s --max-time 60 "https://hub.docker.com/v2/repositories/$repo/tags?page_size=100" | python3 -c '
-import json, sys
-d = json.load(sys.stdin)
-names = [t["name"] for t in d.get("results", [])
-         if not t["name"].startswith("sha256-") and t["name"] != "latest"]
-print(names[0] if names else "")
-if not names:
-    print("RAW_TAGS:" + ",".join(t["name"] for t in d.get("results", [])[:20]), file=sys.stderr)
-')
+              import json, sys
+              d = json.load(sys.stdin)
+              names = [t["name"] for t in d.get("results", [])
+                       if not t["name"].startswith("sha256-") and t["name"] != "latest"]
+              print(names[0] if names else "")
+              if not names:
+                  print("RAW_TAGS:" + ",".join(t["name"] for t in d.get("results", [])[:20]), file=sys.stderr)
+            ')
             echo "resolved $repo -> $tag" >&2
             echo "$tag"
           }
