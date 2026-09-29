@@ -94,9 +94,10 @@ jobs:
             docker compose down --remove-orphans || true
           done
           if [ "$ok" != "1" ]; then
-            echo "::error::compose up failed twice; build/run output tail below"
-            tail -30 /tmp/compose-up.log | while IFS= read -r line; do
-              echo "::error::compose: $line"
+            echo "::error::compose up failed twice; error lines below"
+            grep -iE 'error|failed|denied|not found|could not' /tmp/compose-up.log | tail -20               | while IFS= read -r line; do echo "::error::compose-err: $line"; done
+            tail -12 /tmp/compose-up.log | while IFS= read -r line; do
+              echo "::error::compose-tail: $line"
             done
             exit 1
           fi
