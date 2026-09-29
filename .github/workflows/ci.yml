@@ -95,10 +95,11 @@ jobs:
             docker compose down --remove-orphans || true
           done
           if [ "$ok" != "1" ]; then
-            echo "::error::compose up failed twice; diagnostics below"
+            echo "::error::compose up failed twice; encoded diagnostics below (base64+gzip)"
+            # gzip+base64 编码绕开注解条数/换行限制：本地 base64 -d | gunzip 解码
+            docker compose logs backend 2>&1 | tail -c 4000 | gzip | base64 -w0 | fold -w 380 | while IFS= read -r line; do echo "::error::BEL64:$line"; done
+            docker compose ps -a 2>&1 | tail -c 800 | gzip | base64 -w0 | while IFS= read -r line; do echo "::error::PSL64:$line"; done
             echo "::error::healthlog: $(docker inspect scenary-backend-1 --format '{{json .State.Health.Log}}' 2>&1 | head -c 700)"
-            echo "::error::ps: $(docker compose ps -a 2>&1 | tr '\n' '|' | head -c 350)"
-            grep -iE 'error|failed|denied|not found|could not' /tmp/compose-up.log | tail -3 | while IFS= read -r line; do echo "::error::compose-err: $line"; done
             exit 1
           fi
       - name: Wait stack healthy
