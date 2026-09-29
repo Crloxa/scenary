@@ -1,6 +1,9 @@
 services:
+    # 镜像按官方 tag 引用（不带 digest）：此前写死的 digest 来自本地 registry mirror，
+    # 在 Docker Hub 上不可解析导致 CI pull 失败（CHANGELOG v2.48）；如需供应链加固，
+    # 应在可直连 Hub 的环境重新解析官方 digest 后写回
   mysql:
-    image: mysql:8.4@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb
+    image: mysql:8.4
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
@@ -17,7 +20,7 @@ services:
       retries: 15
 
   redis:
-    image: redis:7-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+    image: redis:7-alpine
     restart: unless-stopped
     command: ["sh", "-c", "exec redis-server ${REDIS_ARGS}"]
     volumes: ["scenary-redis-data:/data"]
@@ -28,7 +31,7 @@ services:
       retries: 10
 
   rabbitmq:
-    image: rabbitmq:3.13-management@sha256:e582c0bc7766f3342496d8485efb5a1df782b5ce3886ad017e2eaae442311f69
+    image: rabbitmq:3.13-management
     restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
@@ -36,7 +39,7 @@ services:
     volumes: ["scenary-mq-data:/var/lib/rabbitmq"]
 
   minio:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z-cpuv1@sha256:13582eff79c6605a2d315bdd0e70164142ea7e98fc8411e9e10d089502a6d883
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     restart: unless-stopped
     command: ["server", "/data"]
     environment:
@@ -45,7 +48,7 @@ services:
     volumes: ["scenary-minio-data:/data"]
 
   minio-init:
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z-cpuv1@sha256:95b5f3f7969a5c5a9f3a700ba72d5c84172819e13385aaf916e237cf111ab868
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
     depends_on: [minio]
     entrypoint: >
       /bin/sh -c "
