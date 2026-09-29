@@ -99,8 +99,7 @@ jobs:
             grep -iE 'error|failed|denied|not found|could not' /tmp/compose-up.log | tail -20               | while IFS= read -r line; do echo "::error::compose-err: $line"; done
             docker compose logs backend 2>&1               | grep -aiE 'ERROR|FATAL|Exception|Caused by|APPLICATION FAILED' | tail -6               | while IFS= read -r line; do echo "::error::be: $line"; done
             docker compose logs mysql 2>&1 | grep -aiE 'ERROR|ready for connections' | tail -3               | while IFS= read -r line; do echo "::error::db: $line"; done
-            echo "::error::ps: $(docker compose ps -a 2>&1 | tr '
-' '|' | head -c 400)"
+            echo "::error::ps: $(docker compose ps -a 2>&1 | tr '\n' '|' | head -c 400)"
             echo "::error::healthlog: $(docker inspect scenary-backend-1 --format '{{json .State.Health.Log}}' 2>&1 | head -c 800)"
             exit 1
           fi
