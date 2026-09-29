@@ -96,10 +96,8 @@ jobs:
           done
           if [ "$ok" != "1" ]; then
             echo "::error::compose up failed twice; encoded diagnostics below (base64+gzip)"
-            # gzip+base64 编码绕开注解条数/换行限制：本地 base64 -d | gunzip 解码
-            docker compose logs backend 2>&1 | tail -c 4000 | gzip | base64 -w0 | fold -w 380 | while IFS= read -r line; do echo "::error::BEL64:$line"; done
-            docker compose ps -a 2>&1 | tail -c 800 | gzip | base64 -w0 | while IFS= read -r line; do echo "::error::PSL64:$line"; done
-            echo "::error::healthlog: $(docker inspect scenary-backend-1 --format '{{json .State.Health.Log}}' 2>&1 | head -c 700)"
+            # compose-up.log 本体（构建/启动全量输出）——本地 base64 -d | gunzip 解码
+            gzip -c /tmp/compose-up.log | base64 -w0 | fold -w 380 | while IFS= read -r line; do echo "::error::CLOG64:$line"; done
             exit 1
           fi
       - name: Wait stack healthy
