@@ -58,37 +58,11 @@ jobs:
           echo '{"registry-mirrors": ["https://mirror.gcr.io"]}' | sudo tee /etc/docker/daemon.json
           sudo systemctl restart docker
 
-      - name: Resolve bitnamilegacy tags
-        run: |
-          # bitnamilegacy/mc 仓库没有 latest tag（Bitnami 归档仅日期 tag），经 Hub tag API
-          # 动态解析最新 tag 并注入 compose（${MINIO_IMAGE}/${MC_IMAGE}）
-          resolve() {
-            repo="$1"
-            tag=$(curl -s --max-time 60 "https://hub.docker.com/v2/repositories/$repo/tags?page_size=100" | python3 -c '
-              import json, sys
-              d = json.load(sys.stdin)
-              names = [t["name"] for t in d.get("results", [])
-                       if not t["name"].startswith("sha256-") and t["name"] != "latest"]
-              print(names[0] if names else "")
-              if not names:
-                  print("RAW_TAGS:" + ",".join(t["name"] for t in d.get("results", [])[:20]), file=sys.stderr)
-            ')
-            echo "resolved $repo -> $tag" >&2
-            echo "$tag"
-          }
-          MINIO_TAG=$(resolve bitnamilegacy/minio)
-          MC_TAG=$(resolve bitnamilegacy/mc)
-          if [ -z "$MINIO_TAG" ] || [ -z "$MC_TAG" ]; then
-            echo "::error::tag resolution failed (minio=$MINIO_TAG mc=$MC_TAG)"
-            exit 1
-          fi
-          echo "MINIO_IMAGE=bitnamilegacy/minio:$MINIO_TAG" >> "$GITHUB_ENV"
-          echo "MC_IMAGE=bitnamilegacy/mc:$MC_TAG" >> "$GITHUB_ENV"
-
       - name: Preflight image pulls
         run: |
           # bitnamilegacy 为 minio 唯一可得源（官方 Hub 镜像/GitHub releases/dl.min.io 均已移除，
-          # 探针实证 CHANGELOG v2.48）；gcr mirror 偶发 cache miss → 重试拉齐后 compose --pull never
+          # 探针实证 CHANGELOG v2.48）；gcr mirror 偶发 cache miss → 重试拉齐后 compose --pull never。
+          # 日期 tag 取自 Hub tag API 实测（2025.7.23 对，minio/mc 配对存在）；compose 默认值同源
           pull_retry() {
             img="$1"
             for i in 1 2 3 4 5; do
@@ -105,8 +79,8 @@ jobs:
           pull_retry mysql:8.4
           pull_retry redis:7-alpine
           pull_retry rabbitmq:3.13-management
-          pull_retry "${MINIO_IMAGE:-bitnamilegacy/minio:latest}"
-          pull_retry "${MC_IMAGE:-bitnamilegacy/mc:latest}"
+          pull_retry bitnamilegacy/minio:2025.7.23-debian-12-r5
+          pull_retry bitnamilegacy/mc:2025.7.23-debian-12-r5
 
       - name: Compose stack up
         run: |
