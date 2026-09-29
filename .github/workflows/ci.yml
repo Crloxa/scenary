@@ -53,6 +53,8 @@ jobs:
       # 而非无后端的 Vite dev server——夹具均为路由 mock，但 WS/上传链路依赖真栈语义
       - name: Compose stack up
         run: |
+          # pipefail 必须显式开启：否则 up 失败被 tee 吞掉（exit=tee 恒 0），容器不存在、后续步骤假失败
+          set -o pipefail
           ok=0
           for i in 1 2; do
             if docker compose up -d --build 2>&1 | tee /tmp/compose-up.log; then ok=1; break; fi
