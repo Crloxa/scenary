@@ -97,8 +97,8 @@ jobs:
           if [ "$ok" != "1" ]; then
             echo "::error::compose up failed twice; error lines below"
             grep -iE 'error|failed|denied|not found|could not' /tmp/compose-up.log | tail -20               | while IFS= read -r line; do echo "::error::compose-err: $line"; done
-            tail -12 /tmp/compose-up.log | while IFS= read -r line; do
-              echo "::error::compose-tail: $line"
+            docker compose logs backend --tail 30 2>&1 | while IFS= read -r line; do
+              echo "::error::backend: $line"
             done
             exit 1
           fi
