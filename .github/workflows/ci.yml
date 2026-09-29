@@ -64,10 +64,13 @@ jobs:
             mysql:8.4 \
             redis:7-alpine \
             rabbitmq:3.13-management \
-            'minio/minio:RELEASE.2025-09-07T16-13-09Z' \
-            'minio/minio:RELEASE.2025-09-07T16-13-09Z-cpuv1' \
-            'minio/mc:RELEASE.2025-08-13T08-35-41Z' \
-            'minio/mc:RELEASE.2025-08-13T08-35-41Z-cpuv1' ; do
+            'minio/minio:latest' \
+            'minio/mc:latest' \
+            'bitnamilegacy/minio:latest' \
+            'bitnamilegacy/mc:latest' \
+            'bitnami/minio:latest' \
+            'bitnami/mc:latest' \
+            'seaweedfs/seaweedfs:latest' ; do
             if docker pull "$img" >/dev/null 2>&1; then
               echo "PULL OK: $img"
             else
