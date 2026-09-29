@@ -112,9 +112,11 @@ jobs:
         run: SCENARY_FRONTEND_URL=http://localhost:8081 npx playwright test --project=chromium
       - name: Black-box smoke (auth/e2e/places)
         run: |
+          export SCENARY_API_BASE_URL=http://localhost:8081/api/v1
           node docs/dev/test-auth34.mjs
           node docs/dev/test-e2e38.mjs
           node docs/dev/test-p12-e3-places.mjs
+          node docs/dev/test-e5-map.mjs
       - name: Compose config
         run: docker compose config --quiet
       - name: Compose middleware config

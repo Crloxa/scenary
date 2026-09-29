@@ -36,7 +36,8 @@ services:
     volumes: ["scenary-mq-data:/var/lib/rabbitmq"]
 
   minio:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    image: bitnamilegacy/minio:latest
+    user: root
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -44,15 +45,17 @@ services:
     ports: ["9000:9000", "9001:9001"]
     volumes: ["scenary-minio-data:/data"]
 
-  minio-init:                       # 一次性建桶容器
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+  minio-init:                       # 一次性建桶容器（bitnamilegacy：官方 minio/* 已从 Hub 移除）
+    image: bitnamilegacy/mc:latest
     depends_on: [minio]
-    entrypoint: >
-      /bin/sh -c "
-      until mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD}; do sleep 2; done;
-      mc mb -p local/${MINIO_BUCKET} || true;
-      mc anonymous set download local/${MINIO_BUCKET};
-      echo BUCKET_READY"
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        MC_BIN="$(command -v mc || echo /opt/bitnami/mc/bin/mc)"
+        until "$$MC_BIN" alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD}; do sleep 2; done
+        "$$MC_BIN" mb -p local/${MINIO_BUCKET} || true
+        "$$MC_BIN" anonymous set download local/${MINIO_BUCKET}
+        echo BUCKET_READY
 
 volumes:
   scenary-mysql-data:
