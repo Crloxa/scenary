@@ -72,8 +72,11 @@ jobs:
             if curl -sf http://localhost:8081/api/v1/ping >/dev/null; then echo READY; exit 0; fi
             sleep 5
           done
-          docker compose ps
-          docker compose logs backend --tail 50
+          echo "::error::stack not healthy after 300s; diagnostics below"
+          docker compose ps -a 2>&1 | while IFS= read -r line; do echo "::error::ps: $line"; done
+          docker compose logs backend --tail 40 2>&1 | while IFS= read -r line; do
+            echo "::error::be: $line"
+          done
           exit 1
       - name: Frontend browser test (chromium, real stack)
         working-directory: frontend
