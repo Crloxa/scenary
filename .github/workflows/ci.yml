@@ -58,6 +58,27 @@ jobs:
           echo '{"registry-mirrors": ["https://mirror.gcr.io"]}' | sudo tee /etc/docker/daemon.json
           sudo systemctl restart docker
 
+      - name: Resolve bitnamilegacy tags
+        run: |
+          # bitnamilegacy/mc 仓库没有 latest tag（Bitnami 归档仅日期 tag），经 Hub tag API
+          # 动态解析最新 tag 并注入 compose（${MINIO_IMAGE}/${MC_IMAGE}）
+          resolve() {
+            repo="$1"
+            tag=$(curl -s --max-time 30 "https://hub.docker.com/v2/repositories/$repo/tags?page_size=25" \
+              | grep -o '"name":"[^"]*"' | sed 's/"name":"//;s/"$//' \
+              | grep -v -E '^latest$|amd64|arm64|riscv|ppc|s390|arm$' | head -1)
+            echo "resolved $repo -> $tag"
+            echo "::notice::resolved $repo -> $tag"
+          }
+          MINIO_TAG=$(resolve bitnamilegacy/minio)
+          MC_TAG=$(resolve bitnamilegacy/mc)
+          if [ -z "$MINIO_TAG" ] || [ -z "$MC_TAG" ]; then
+            echo "::error::tag resolution failed (minio=$MINIO_TAG mc=$MC_TAG)"
+            exit 1
+          fi
+          echo "MINIO_IMAGE=bitnamilegacy/minio:$MINIO_TAG" >> "$GITHUB_ENV"
+          echo "MC_IMAGE=bitnamilegacy/mc:$MC_TAG" >> "$GITHUB_ENV"
+
       - name: Preflight image pulls
         run: |
           # bitnamilegacy 为 minio 唯一可得源（官方 Hub 镜像/GitHub releases/dl.min.io 均已移除，
@@ -78,8 +99,8 @@ jobs:
           pull_retry mysql:8.4
           pull_retry redis:7-alpine
           pull_retry rabbitmq:3.13-management
-          pull_retry bitnamilegacy/minio:latest
-          pull_retry bitnamilegacy/mc:latest
+          pull_retry "${MINIO_IMAGE:-bitnamilegacy/minio:latest}"
+          pull_retry "${MC_IMAGE:-bitnamilegacy/mc:latest}"
 
       - name: Compose stack up
         run: |
