@@ -20,7 +20,9 @@ jobs:
       MINIO_ROOT_USER: scenary
       MINIO_ROOT_PASSWORD: minio-pass
       MINIO_BUCKET: scenary-media
-      JWT_SECRET: 01234567890123456789012345678901
+      # 必须带引号：无引号的整串数字会被 YAML 解析为科学计数法（实测 1.23456789012346E+30），
+      # 30 字符 < JwtProperties 的 32 位下限 → backend 启动即崩（learning 27）
+      JWT_SECRET: '01234567890123456789012345678901'
       JWT_ACCESS_TTL_SECONDS: 7200
       JWT_REFRESH_TTL_SECONDS: 2592000
       PUBLIC_HOST: localhost
