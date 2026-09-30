@@ -33,3 +33,4 @@ ops/backups/
 
 # ---- 测试输出（根目录 Playwright 输出）----
 /test-results/
+.tmp-*.py
