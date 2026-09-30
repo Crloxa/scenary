@@ -96,8 +96,14 @@ jobs:
           done
           if [ "$ok" != "1" ]; then
             echo "::error::compose up failed twice; encoded diagnostics below (base64+gzip)"
-            # compose-up.log 本体（构建/启动全量输出）——本地 base64 -d | gunzip 解码
-            gzip -c /tmp/compose-up.log | base64 -w0 | fold -w 380 | while IFS= read -r line; do echo "::error::CLOG64:$line"; done
+            # 只取日志末 6000 字节（错误必在尾部）；块带序号（注解可能乱序）——本地按序拼接后 base64 -d | gunzip
+            tail -c 6000 /tmp/compose-up.log | gzip | base64 -w0 | fold -w 300 > /tmp/clog.b64
+            n=0
+            total=$(wc -l < /tmp/clog.b64)
+            while IFS= read -r line; do
+              n=$((n + 1))
+              echo "::error::CLOG:$n/$total:$line"
+            done < /tmp/clog.b64
             exit 1
           fi
       - name: Wait stack healthy
