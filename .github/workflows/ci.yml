@@ -155,7 +155,7 @@ jobs:
               echo "$t: PASS"
             else
               echo "::error::smoke failed: $t"
-              grep -E "^FAIL" "/tmp/$t.out" | tail -8 | while IFS= read -r line; do echo "::error::$t: $line"; done
+              grep -E "^FAIL|⑧" "/tmp/$t.out" | tail -8 | while IFS= read -r line; do echo "::error::$t: $line"; done
               fail=1
             fi
           done
