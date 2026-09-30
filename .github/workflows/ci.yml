@@ -90,6 +90,9 @@ jobs:
         run: |
           # pipefail 必须显式开启：否则 up 失败被 tee 吞掉（exit=tee 恒 0），容器不存在、后续步骤假失败
           set -o pipefail
+          # 后台轮询器：持续快照 backend 日志——compose 在依赖失败时会移除容器，事后取证为空
+          ( for k in $(seq 1 60); do docker compose logs backend > /tmp/backend-live.log 2>&1; sleep 10; done ) &
+          LOGPOLLER=$!
           ok=0
           for i in 1 2; do
             # --pull never：镜像已在 preflight 重试拉齐，运行时零拉取（免疫 mirror cache miss 抖动）
@@ -114,7 +117,9 @@ jobs:
               done < "$f"
             }
             emit /tmp/clog.b64 CLOG
+            tail -c 3500 /tmp/backend-live.log | gzip | base64 -w0 | fold -w 300 > /tmp/be.b64
             emit /tmp/be.b64 BE
+            kill $LOGPOLLER 2>/dev/null || true
             exit 1
       - name: Post stack diagnostics to commit comment
         if: failure()
