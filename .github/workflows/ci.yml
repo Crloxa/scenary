@@ -112,12 +112,19 @@ jobs:
             if curl -sf http://localhost:8081/api/v1/ping >/dev/null; then echo READY; exit 0; fi
             sleep 5
           done
-          echo "::error::stack not healthy after 300s; diagnostics below"
-          docker compose ps -a 2>&1 | while IFS= read -r line; do echo "::error::ps: $line"; done
-          docker compose logs backend --tail 40 2>&1 | while IFS= read -r line; do
-            echo "::error::be: $line"
-          done
+          echo "::error::stack not healthy after 300s"
+          docker compose logs backend > /tmp/backend.log 2>&1 || true
+          docker compose ps -a > /tmp/ps.txt 2>&1 || true
           exit 1
+      - name: Upload stack diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stack-diagnostics
+          path: |
+            /tmp/compose-up.log
+            /tmp/backend.log
+            /tmp/ps.txt
       - name: Frontend browser test (chromium, real stack)
         working-directory: frontend
         run: SCENARY_FRONTEND_URL=http://localhost:8081 npx playwright test --project=chromium
