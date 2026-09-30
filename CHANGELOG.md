@@ -1,5 +1,13 @@
 # Changelog · Scenary
 
+## [v2.48.1] · 2026-09-28 · CI 真栈转绿（checks 修复闭环）
+
+- **根因与修复**（排障全程见 [learning/27](docs/learning/27-CI真栈排障的三层陷阱.md)）：① job env `JWT_SECRET` 无引号被 YAML 解析为科学计数法（30 字符 < 32 位下限）致 backend 启动即崩——加引号修复；② minio/minio、minio/mc 官方 Docker Hub 镜像已下架（含 GitHub releases 与 dl.min.io 渠道，探针实证）——compose 切 `bitnamilegacy/minio:2025.7.23-debian-12-r5` + mirror.gcr.io + preflight 重试拉齐 + `up --pull never`；③ 建桶容器 mc 镜像无可得 tag——改 `amazon/aws-cli`（s3 mb，桶默认私有=E2 语义）；④ e2e38 ⑧/⑧b 翻页断言对既有数据的隐式依赖——第二公开笔记自种且前移至 feed 缓存预热之前（影响 `.github/workflows/ci.yml`、`docker-compose*.yml`、`docs/dev/test-e2e38.mjs`）。
+- **诊断通道**：失败现场经内置 GITHUB_TOKEN 写 commit comment（base64+gzip，匿名 API 可读）；workflow 曾临时声明 `permissions: contents: write`，排障完成后已回收；失败 artifact（stack-diagnostics）保留。诊断注入曾两次破坏 workflow 语法（extglob / 块内缩进）——workflow 改动现在本地 yaml+bash 双校验后再推。
+- **结果**：run 36666790653 全绿——mvn test / vitest 66 / build / 真栈 Compose + chromium e2e / 黑盒 4 套件（auth 18、e2e 31、e3 8、e5 13）/ compose config / 密钥扫描。
+
+# Changelog · Scenary
+
 ## [v2.48] · 2026-09-28 · E5 地图浏览完成（契约 v1.10）+ CI 真栈化 + 日期勘误
 
 - **勘误**：v2.44~v2.47 各条目内的"2026-09-19"日期系会话上下文陈旧所致，实际施工/验收日期为 2026-09-27~09-28（以 GitHub Actions 运行时间戳为准）；对应证据文件名沿用落盘时名称不改写，本条为唯一勘误入口。
