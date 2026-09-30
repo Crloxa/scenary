@@ -137,7 +137,7 @@ PUBLIC_HOST=localhost        # 浏览器访问地址（冒烟脚本与图片反�
 ```yaml
 services:
   mysql:
-    image: mysql:8.4@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb
+    image: mysql:8.4
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
@@ -154,7 +154,7 @@ services:
       retries: 10
 
   redis:
-    image: redis:7-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+    image: redis:7-alpine
     ports: ["6379:6379"]
     volumes: ["scenary-redis-data:/data"]
     healthcheck:
@@ -164,7 +164,7 @@ services:
       retries: 10
 
   rabbitmq:
-    image: rabbitmq:3.13-management@sha256:e582c0bc7766f3342496d8485efb5a1df782b5ce3886ad017e2eaae442311f69
+    image: rabbitmq:3.13-management
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
@@ -172,7 +172,10 @@ services:
     volumes: ["scenary-mq-data:/var/lib/rabbitmq"]
 
   minio:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z-cpuv1@sha256:13582eff79c6605a2d315bdd0e70164142ea7e98fc8411e9e10d089502a6d883
+    # bitnamilegacy 日期 tag：官方 minio/minio 已从 Docker Hub 移除（CHANGELOG v2.48），
+    # 旧 digest 为本地 mirror 私有、Hub 不可解析——镜像引用一律按官方 tag
+    image: bitnamilegacy/minio:2025.7.23-debian-12-r5
+    user: root
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -180,15 +183,19 @@ services:
     ports: ["9000:9000", "9001:9001"]
     volumes: ["scenary-minio-data:/data"]
 
-  minio-init:                       # 一次性建桶容器
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z-cpuv1@sha256:95b5b3f7969a5c5a9f3a700ba72d5c84172819e13385aaf916e237cf111ab868
+  minio-init:                       # 一次性建桶容器（aws-cli：mc 官方 Hub 镜像已移除）
+    image: amazon/aws-cli:latest
     depends_on: [minio]
-    entrypoint: >
-      /bin/sh -c "
-      until mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD}; do sleep 2; done;
-      mc mb -p local/${MINIO_BUCKET} || true;
-      mc anonymous set download local/${MINIO_BUCKET};
-      echo BUCKET_READY"
+    environment:
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      AWS_DEFAULT_REGION: us-east-1
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        until aws --endpoint-url http://minio:9000 s3api head-bucket --bucket "${MINIO_BUCKET}" 2>/dev/null || aws --endpoint-url http://minio:9000 s3 mb "s3://${MINIO_BUCKET}"; do sleep 2; done
+        aws --endpoint-url http://minio:9000 s3api put-bucket-policy --bucket "${MINIO_BUCKET}" --policy '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":["*"]},"Action":["s3:GetObject"],"Resource":["arn:aws:s3:::'"${MINIO_BUCKET}"'/*"]}]}'
+        echo BUCKET_READY
 
 volumes:
   scenary-mysql-data:
@@ -379,7 +386,7 @@ server {
 ```yaml
 services:
   mysql:
-    image: mysql:8.4@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb
+    image: mysql:8.4
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
@@ -397,7 +404,7 @@ services:
       retries: 15
 
   redis:
-    image: redis:7-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+    image: redis:7-alpine
     restart: unless-stopped
     command: ["sh", "-c", "exec redis-server ${REDIS_ARGS}"]
     volumes: ["scenary-redis-data:/data"]
@@ -408,7 +415,7 @@ services:
       retries: 10
 
   rabbitmq:
-    image: rabbitmq:3.13-management@sha256:e582c0bc7766f3342496d8485efb5a1df782b5ce3886ad017e2eaae442311f69
+    image: rabbitmq:3.13-management
     restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
@@ -416,7 +423,9 @@ services:
     volumes: ["scenary-mq-data:/var/lib/rabbitmq"]
 
   minio:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z-cpuv1@sha256:13582eff79c6605a2d315bdd0e70164142ea7e98fc8411e9e10d089502a6d883
+    # bitnamilegacy 日期 tag：官方 minio/minio 已从 Docker Hub 移除（CHANGELOG v2.48）
+    image: bitnamilegacy/minio:2025.7.23-debian-12-r5
+    user: root
     restart: unless-stopped
     command: ["server", "/data"]
     environment:
@@ -425,14 +434,18 @@ services:
     volumes: ["scenary-minio-data:/data"]
 
   minio-init:
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z-cpuv1@sha256:95b5b3f7969a5c5a9f3a700ba72d5c84172819e13385aaf916e237cf111ab868
+    # 建桶用官方 aws-cli 镜像（mc 官方 Hub 镜像已移除，CHANGELOG v2.48）；桶默认即私有（E2 语义）
+    image: amazon/aws-cli:latest
     depends_on: [minio]
-    entrypoint: >
-      /bin/sh -c "
-      until mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD}; do sleep 2; done;
-      mc mb -p local/${MINIO_BUCKET} || true;
-      mc anonymous set download local/${MINIO_BUCKET};
-      echo BUCKET_READY"
+    environment:
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      AWS_DEFAULT_REGION: us-east-1
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        until aws --endpoint-url http://minio:9000 s3api head-bucket --bucket "${MINIO_BUCKET}" 2>/dev/null || aws --endpoint-url http://minio:9000 s3 mb "s3://${MINIO_BUCKET}"; do sleep 2; done
+        echo BUCKET_READY
 
   backend:
     build: ./backend

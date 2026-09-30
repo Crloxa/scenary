@@ -1,7 +1,7 @@
 # Scenary · 交接文档（HANDOVER）
 
 > 新会话/新协作者快速接管用。治理规则入口仍是 [../AGENTS.md](../AGENTS.md)，本文只回答"现状怎么跑、测什么、下一步做什么"。
-> 更新时间：2026-09-28 · 对应版本 v2.48 · 进度真相源 [03 手册末尾 Checklist](03-MVP实施与Docker部署.md) · 最新验收证据 [E5](evidence/2026-09-28-E5地图浏览验收.md) / [E4](evidence/2026-09-19-P12-E4地图UI验收.md) / [E3](evidence/2026-09-19-P12-E3逆地理编码验收.md) / [P16](evidence/2026-09-19-P16夹缝任务包验收.md) / [P17](evidence/2026-09-19-P17修图与滤镜验收.md) / [P18](evidence/2026-09-19-P18社区治理验收.md) · 当前改进入口：已立项队列清空，下一步候选评估见 [07 缺口评估](07-功能缺口评估与后续候选.md)（提案）· 之后的候选评估 [07 缺口评估](07-功能缺口评估与后续候选.md)（提案）· 文档导航 [docs/README](README.md) · 最新学习笔记 [26](learning/26-E2E视频媒体夹具的三重坑.md)（E5 期补强 glob 陷阱） / [25](learning/25-WebKit路由拦截与E2E时序.md) / [24](learning/24-P18治理CHECK约束与拦截器白名单.md)
+> 更新时间：2026-09-30 · 对应版本 v2.48.2 · 进度真相源 [03 手册末尾 Checklist](03-MVP实施与Docker部署.md) · 最新验收证据 [E5](evidence/2026-09-28-E5地图浏览验收.md) / [E4](evidence/2026-09-19-P12-E4地图UI验收.md) / [E3](evidence/2026-09-19-P12-E3逆地理编码验收.md) / [P16](evidence/2026-09-19-P16夹缝任务包验收.md) / [P17](evidence/2026-09-19-P17修图与滤镜验收.md) / [P18](evidence/2026-09-19-P18社区治理验收.md) · 当前改进入口：已立项队列清空，下一步候选评估见 [07 缺口评估](07-功能缺口评估与后续候选.md)（提案）· 文档导航 [docs/README](README.md) · 最新学习笔记 [27](learning/27-CI真栈排障的三层陷阱.md)（CI 真栈排障三层陷阱） / [26](learning/26-E2E视频媒体夹具的三重坑.md) / [25](learning/25-WebKit路由拦截与E2E时序.md)
 
 ## 1. 一句话现状
 
@@ -64,15 +64,12 @@ P8 完整证据、环境指纹与验证边界归档在 [2026-09-03-P8改进验�
 
 ## 4. 待办清单（按优先级）
 
-> 当前工作边界：Phase 7、P8、P9、P10、P11、P12（含 E1、E2）和 P15 均已通过全量出口验收（P15 仅邮件找回 03b 延后）；P12-E3/E4 已立项待施工，Checklist 见 03 附 8~9。
+> 当前工作边界：Phase 7、P8~P12（含 E1~E5 全部增强包）、P15、P16~P18 均已通过全量出口验收（P15 仅邮件找回 03b 延后）；已立项队列清空，候选评估见 07。
 
-1. **已立项队列已清空（E3/E4/E5 全部完成，2026-09-28）**：后续候选（N2 草稿箱/N3 评论点赞/N1 行为数据+B5 标签/N4 缩略图多尺寸+B6 等）均为提案未立项，评估见 [07 缺口评估](07-功能缺口评估与后续候选.md)；转正走 [06 §8](06-功能拓展与候选立项规划.md)。
-2. **P12-E3/E4 已完成（v2.46/v2.47）+ E5 完成（v2.48，2026-09-28）**：契约 02 v1.9 §7B；compose `nominatim` 挂 geo profile——真实启用需 `docker compose --profile geo up -d nominatim` + `.env` 配 `NOMINATIM_PBF_URL`（区域 OSM pbf）与 `SCENARY_PLACE_PROVIDER_ENABLED=true`；证据见 evidence/2026-09-19-P12-E3/E4 两份报告。
-3. **P16/P17/P18 已完成（2026-09-19，v2.44）**：编辑/关注列表/OpenAPI、修图与滤镜（flag `VITE_ENABLE_EDITOR`）、举报与屏蔽（V10/V11，`ops/list-reports.ps1` 处置入口）；证据见 evidence/2026-09-19 三份报告。
-4. **P15 遗留小项**：P15-03b 邮件找回（待外部 SMTP 凭据，03 附 10 未勾）；CSP 从 Report-Only 转 enforce（先盘点 index.html 两处内联脚本）；HSTS 随 TLS 部署形态启用。
-
-5. **CI 已转绿（2026-09-28，run 36666790653）**：真栈流水线全通过。根因链与修复沉淀于 learning 27；失败现场诊断走 artifact（stack-diagnostics，含 compose-up/backend 日志与 ps）。
-6. **回滚提示**：E2 私有桶出问题时 `ops/set-bucket-policy.ps1 -Policy download` + `.env` 设 `SCENARY_MEDIA_PRESIGN_READ=false` 重启 backend 即回直链模式（命令已验证，见 E2 证据 §5）；**E3 回滚**：`.env` 摘除 `SCENARY_PLACE_PROVIDER_ENABLED` 重启 backend 即回空候选（已验证 8/8）；**E4 回滚**：`VITE_ENABLE_MAP=false` 重新构建 frontend 即整体摘除（已验证构建产物零 leaflet）。
+1. **已立项队列已清空（E3/E4/E5 全部完成，2026-09-28）**：后续候选（N2 草稿箱/N3 评论点赞/N1 行为数据+B5 标签/N4 缩略图多尺寸+B6 等）均为提案未立项，评估见 [07 缺口评估](07-功能缺口评估与后续候选.md)；转正走 [06 §8](06-功能拓展与候选立项规划.md)。E3 逆地理真实启用需 `docker compose --profile geo up -d nominatim` + `.env` 配 `NOMINATIM_PBF_URL`（区域 OSM pbf）与 `SCENARY_PLACE_PROVIDER_ENABLED=true`（证据见 evidence/2026-09-19-P12-E3 报告）。
+2. **CI 已转绿（2026-09-30，run 36666790653）**：真栈流水线全通过（mvn test / vitest / build / Compose+chromium e2e / 黑盒 4 套件 / 密钥扫描）。根因链与修复沉淀于 learning 27；失败现场诊断走 artifact（stack-diagnostics，含 compose-up/backend 日志与 ps）；排障期临时权限与诊断脚手架已全部回收。
+3. **P15 遗留小项**：P15-03b 邮件找回（待外部 SMTP 凭据，03 附 10 未勾）；CSP 从 Report-Only 转 enforce（先盘点 index.html 两处内联脚本）；HSTS 随 TLS 部署形态启用。
+4. **回滚提示**：E2 私有桶出问题时 `pwsh -File ops/set-bucket-policy.ps1 -Policy download` + `.env` 设 `SCENARY_MEDIA_PRESIGN_READ=false` 重启 backend 即回直链模式（v2.48.2 已按 aws-cli 工具链修复并双向实证）；**E3 回滚**：`.env` 摘除 `SCENARY_PLACE_PROVIDER_ENABLED` 重启 backend 即回空候选（已验证 8/8）；**E4 回滚**：`VITE_ENABLE_MAP=false` 重新构建 frontend 即整体摘除（已验证构建产物零 leaflet）。
 5. **历史媒体 URL 迁移**：已由 E2-03 完成 URL→key 回填（`ops/migrate-media-urls.ps1 -ToKeys`）；换域名部署时仍用默认模式按新旧 public host 重建。
 6. **长期 TODO（暂不排期）**：P13 内容审核、P14 规模化运维；两者的设计草案和重新立项出口条件保留在 [05 后续开发路线图](05-后续开发路线图与实施手册.md) 中。
 7. **下一批候选（提案，未立项）**：夹缝包（草稿箱/评论点赞）、行为数据+标签（B5 合并）、多尺寸缩略图+OG/SEO（B6 合并）——缺口评估与建议档位见 [07](07-功能缺口评估与后续候选.md) §3~§4；转正流程走 [06 §8](06-功能拓展与候选立项规划.md)。
@@ -94,6 +91,7 @@ P8 完整证据、环境指纹与验证边界归档在 [2026-09-03-P8改进验�
 | 后端健康检查依赖 `wget` | backend/Dockerfile、docker-compose.yml |
 | production profile 配置与 `SCENARY_JWT_*` / `MYBATIS_*` 映射 | learning/11、CHANGELOG v2.11/v2.12 |
 | `/minio` 必须用 `^~` 优先于静态图片正则 | frontend/nginx.conf、CHANGELOG v2.13 |
+| MinIO 官方 Hub 镜像已下架（bitnamilegacy 日期 tag + aws-cli 建桶/策略切换）；compose env"看似数字"的值必须加引号 | learning/27、CHANGELOG v2.48/v2.48.2 |
 
 ## 6. 配置与安全速记
 

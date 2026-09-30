@@ -1,12 +1,18 @@
 # Changelog · Scenary
 
+## [v2.48.2] · 2026-09-30 · CI 排障遗留收口（middleware 建桶修复 + E2 回滚链路修复 + 规范补丁）
+
+- **勘误**：v2.48.1 落盘日期应为 2026-09-30（条目标题沿用 2026-09-28 系收尾脚本生成时上下文陈旧，遵循 v2.48 勘误先例不改写历史条目）；本文档头部因收尾临时脚本拼接曾出现重复文件头、v2.47 曾出现空标题副本，本次结构修复删除重复块，正文内容零改动。
+- **修复（middleware 建桶死循环）**：v2.48 建桶镜像切 `amazon/aws-cli` 时 `docker-compose.middleware.yml` 的 minio-init 命令仍调用 `mc`——镜像内无 mc（`command -v mc` 回退路径不存在）→ until 死循环，开发基座建桶功能全坏（CI 仅 compose config 校验未暴露）——改 `aws s3api` 复刻原语义（建桶 + 匿名 GetObject 策略 = 原 `mc anonymous set download`）；隔离 MinIO 容器实证建桶/幂等重跑/匿名读三断言（影响 `docker-compose.middleware.yml`）。
+- **修复（E2 应急回滚链路失效）**：`ops/set-bucket-policy.ps1` 经 minio-init 容器执行 `mc anonymous set`——原实现依赖容器内 `MINIO_*` 变量与 mc 二进制，v2.48 换 aws-cli 镜像后两者均不成立；改 `aws s3api put/delete-bucket-policy`，桶名从 .env 直读（minio-init 服务 environment 不含 MINIO_BUCKET，--entrypoint 覆盖后原 command 内插值失效）；隔离环境实证 none↔download 双向切换 + 运行栈恢复私有断言（影响 `ops/set-bucket-policy.ps1`）。
+- **语义澄清**：`MINIO_BUCKET_POLICY` 自 v2.48 起不被任何 compose 消费（桶匿名策略持久于数据卷，由 set-bucket-policy.ps1 直接管理）——.env.example 删除该死配置并改写回滚说明；全栈 compose 建桶脚本压掉诊断期残留的异常空格（影响 `.env.example`、`docker-compose.yml`、`docs/03-MVP实施与Docker部署.md`）。
+- **文档同步**：03 手册 Phase 2/§6.4 两段 compose 示例与实况对齐（bitnamilegacy/minio + aws-cli 建桶 + 去 mirror 私有 digest——新环境按手册拉镜像不再失败）；HANDOVER 头部（版本/病句/最新 learning）/待办编号/坑位表收口；AGENTS §3 增守则 8（CI/运维排障纪律）、§5 快照更新（影响 `docs/03-MVP实施与Docker部署.md`、`docs/HANDOVER.md`、`AGENTS.md`）。
+
 ## [v2.48.1] · 2026-09-28 · CI 真栈转绿（checks 修复闭环）
 
 - **根因与修复**（排障全程见 [learning/27](docs/learning/27-CI真栈排障的三层陷阱.md)）：① job env `JWT_SECRET` 无引号被 YAML 解析为科学计数法（30 字符 < 32 位下限）致 backend 启动即崩——加引号修复；② minio/minio、minio/mc 官方 Docker Hub 镜像已下架（含 GitHub releases 与 dl.min.io 渠道，探针实证）——compose 切 `bitnamilegacy/minio:2025.7.23-debian-12-r5` + mirror.gcr.io + preflight 重试拉齐 + `up --pull never`；③ 建桶容器 mc 镜像无可得 tag——改 `amazon/aws-cli`（s3 mb，桶默认私有=E2 语义）；④ e2e38 ⑧/⑧b 翻页断言对既有数据的隐式依赖——第二公开笔记自种且前移至 feed 缓存预热之前（影响 `.github/workflows/ci.yml`、`docker-compose*.yml`、`docs/dev/test-e2e38.mjs`）。
 - **诊断通道**：失败现场经内置 GITHUB_TOKEN 写 commit comment（base64+gzip，匿名 API 可读）；workflow 曾临时声明 `permissions: contents: write`，排障完成后已回收；失败 artifact（stack-diagnostics）保留。诊断注入曾两次破坏 workflow 语法（extglob / 块内缩进）——workflow 改动现在本地 yaml+bash 双校验后再推。
 - **结果**：run 36666790653 全绿——mvn test / vitest 66 / build / 真栈 Compose + chromium e2e / 黑盒 4 套件（auth 18、e2e 31、e3 8、e5 13）/ compose config / 密钥扫描。
-
-# Changelog · Scenary
 
 ## [v2.48] · 2026-09-28 · E5 地图浏览完成（契约 v1.10）+ CI 真栈化 + 日期勘误
 
@@ -19,8 +25,6 @@
 - **e2e 瓦片夹具修正**：实证 Playwright glob `**/is.autonavi.com/**` 不拦截该域瓦片请求（真实 200 穿透），改用正则 `/is\.autonavi\.com/` 后 404 → tileerror → 降级链路生效；p12-e4/e5 两 spec 统一（learning 26 补条目）。
 - **CI 真栈化（checks 修复第一部分）**：浏览器 e2e 从"无后端 Vite dev server"改为真实 Compose 栈（`docker compose up -d --build` + 健康等待 + chromium e2e + 黑盒冒烟 auth/e2e/places）；compose 失败时输出 `::error::` 诊断注解并重试一次；backend healthcheck 增 `start_period: 40s`、retries 10→20（影响 `.github/workflows/ci.yml`、`docker-compose.yml`）。
 - **CI checks 修复（vitest，Linux）**：leaflet 改为 onMounted 内惰性 import（UMD 加载即做 window 检测，模块作用域静态引入会在 vitest teardown 后崩溃——GitHub annotations 实证 `ReferenceError: window is not defined`）；NoteDetailView/MapPickerModal/MiniMap/MapView 四个 spec 统一 leaflet 模块 mock + `vi.waitFor` 异步挂载等待；`setInputFiles` 夹具路径改 `fileURLToPath` 跨平台写法（影响 `frontend/src/components/`、`frontend/tests/`、`frontend/e2e/p12-video.spec.js`）。
-
-## [v2.47] · 2026-09-19 · P12-E4 地图 UI 完成（发布选点 + 详情小地图）
 
 ## [v2.47] · 2026-09-19 · P12-E4 地图 UI 完成（发布选点 + 详情小地图）
 
