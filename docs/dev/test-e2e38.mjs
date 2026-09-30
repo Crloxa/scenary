@@ -86,12 +86,18 @@ const uploadWaitDone = async (at, w=900, h=700) => {
   const third = again===feedText ? null : await (await fetch(B+'/feed')).text();
   ok('⑦ L1 首页缓存命中（至多一次重建后稳定）', again===feedText || third===again);
 
-  // 游标翻页
+  // 游标翻页。前置：新库上 feed 需 ≥2 条公开笔记才能断言 hasMore（CI 每次全新 DB，
+  // 此前仅 1 条公开笔记导致 ⑧ 偶发失败——对既有数据的隐式依赖，CHANGELOG v2.48）
+  const extraM = await uploadWaitDone(A.accessToken);
+  const extra = await j(await fetch(B+'/notes',{method:'POST',headers:{...AT,'content-type':'application/json'},body:JSON.stringify({title:'翻页链第二公开笔记',content:'',placeName:'',mediaIds:[extraM.mediaId],visibility:1})}));
+  if (extra.code!==0) throw new Error('extra publish failed code='+extra.code);
   const fL1 = await j(await fetch(B+'/feed?limit=1'));
   const visibleCount = f1.data.list.length + (f1.data.hasMore?9:0);
-  ok('⑧ limit=1 翻页链', fL1.data.list.length===1 && typeof fL1.data.nextCursor==='number' && fL1.data.hasMore===true);
+  ok('⑧ limit=1 翻页链', fL1.data.list.length===1 && typeof fL1.data.nextCursor==='number' && fL1.data.hasMore===true,
+     `fL1=${JSON.stringify(fL1.data.list.map(c=>c.id))} total=${f1.data.list.length} hasMore=${f1.data.hasMore}`);
   const fL2 = await j(await fetch(B+'/feed?limit=20&cursor='+fL1.data.nextCursor));
-  ok('⑧b 第二页不含首页项/最终 hasMore=false', !fL2.data.list.some(c=>c.id===fL1.data.list[0].id));
+  ok('⑧b 第二页不含首页项/最终 hasMore=false', !fL2.data.list.some(c=>c.id===fL1.data.list[0].id),
+     `fL2=${JSON.stringify(fL2.data.list.map(c=>c.id))} hasMore=${fL2.data.hasMore}`);
 
   // ---- 详情与可见性 ----
   {
