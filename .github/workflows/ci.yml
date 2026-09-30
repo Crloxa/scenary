@@ -96,14 +96,22 @@ jobs:
           done
           if [ "$ok" != "1" ]; then
             echo "::error::compose up failed twice; encoded diagnostics below (base64+gzip)"
-            # 只取日志末 6000 字节（错误必在尾部）；块带序号（注解可能乱序）——本地按序拼接后 base64 -d | gunzip
-            tail -c 6000 /tmp/compose-up.log | gzip | base64 -w0 | fold -w 300 > /tmp/clog.b64
-            n=0
-            total=$(wc -l < /tmp/clog.b64)
-            while IFS= read -r line; do
-              n=$((n + 1))
-              echo "::error::CLOG:$n/$total:$line"
-            done < /tmp/clog.b64
+            docker compose logs backend > /tmp/backend.log 2>&1 || true
+            docker compose ps -a > /tmp/ps.txt 2>&1 || true
+            # 分块编码回传：CLOG=compose输出尾部，BE=backend日志尾部（本地按序拼接 base64 -d | gunzip）
+            tail -c 3500 /tmp/compose-up.log | gzip | base64 -w0 | fold -w 300 > /tmp/clog.b64
+            tail -c 2500 /tmp/backend.log | gzip | base64 -w0 | fold -w 300 > /tmp/be.b64
+            emit() {
+              f="$1"; tag="$2"
+              total=$(wc -l < "$f")
+              n=0
+              while IFS= read -r line; do
+                n=$((n + 1))
+                echo "::error::$tag:$n/$total:$line"
+              done < "$f"
+            }
+            emit /tmp/clog.b64 CLOG
+            emit /tmp/be.b64 BE
             exit 1
           fi
       - name: Wait stack healthy
