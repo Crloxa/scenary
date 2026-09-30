@@ -86,65 +86,42 @@ jobs:
           pull_retry amazon/aws-cli:latest
           # mc 已不再使用（建桶改 aws-cli，CHANGELOG v2.48）
 
+      - name: Compose backend boot (capture boot logs)
+        run: |
+          set -o pipefail
+          docker compose up -d --build --pull never backend 2>&1 | tee /tmp/compose-backend.log
+          sleep 90
+          docker compose logs backend > /tmp/backend-boot.log 2>&1 || true
+          # 立即注解回传启动日志尾部（若 backend 冷启动失败，此处即现场）
+          tail -c 2500 /tmp/backend-boot.log | gzip | base64 -w0 | fold -w 300 > /tmp/be.b64
+          total=$(wc -l < /tmp/be.b64)
+          n=0
+          while IFS= read -r line; do
+            n=$((n + 1))
+            echo "::error::BEBOOT:$n/$total:$line"
+          done < /tmp/be.b64
       - name: Compose stack up
         run: |
-          # pipefail 必须显式开启：否则 up 失败被 tee 吞掉（exit=tee 恒 0），容器不存在、后续步骤假失败
+          # pipefail 必须显式开启：否则 up 失败被 tee 吞掉（exit=tee 恒 0）
           set -o pipefail
-          # 后台轮询器：持续快照 backend 日志——compose 在依赖失败时会移除容器，事后取证为空
-          ( for k in $(seq 1 60); do docker compose logs backend > /tmp/backend-live.log 2>&1; sleep 10; done ) &
-          LOGPOLLER=$!
           ok=0
           for i in 1 2; do
-            # --pull never：镜像已在 preflight 重试拉齐，运行时零拉取（免疫 mirror cache miss 抖动）
+            # --pull never：镜像已在 preflight 拉齐，运行时零拉取
             if docker compose up -d --build --pull never 2>&1 | tee /tmp/compose-up.log; then ok=1; break; fi
             echo "attempt $i failed; cleaning up before retry"
             docker compose down --remove-orphans || true
           done
           if [ "$ok" != "1" ]; then
             echo "::error::compose up failed twice; encoded diagnostics below (base64+gzip)"
-            docker compose logs backend > /tmp/backend.log 2>&1 || true
-            docker compose ps -a > /tmp/ps.txt 2>&1 || true
-            # 分块编码回传：CLOG=compose输出尾部，BE=backend日志尾部（本地按序拼接 base64 -d | gunzip）
             tail -c 3500 /tmp/compose-up.log | gzip | base64 -w0 | fold -w 300 > /tmp/clog.b64
-            tail -c 2500 /tmp/backend.log | gzip | base64 -w0 | fold -w 300 > /tmp/be.b64
-            emit() {
-              f="$1"; tag="$2"
-              total=$(wc -l < "$f")
-              n=0
-              while IFS= read -r line; do
-                n=$((n + 1))
-                echo "::error::$tag:$n/$total:$line"
-              done < "$f"
-            }
-            emit /tmp/clog.b64 CLOG
-            tail -c 3500 /tmp/backend-live.log | gzip | base64 -w0 | fold -w 300 > /tmp/be.b64
-            emit /tmp/be.b64 BE
-            kill $LOGPOLLER 2>/dev/null || true
+            total=$(wc -l < /tmp/clog.b64)
+            n=0
+            while IFS= read -r line; do
+              n=$((n + 1))
+              echo "::error::CLOG:$n/$total:$line"
+            done < /tmp/clog.b64
             exit 1
-      - name: Post stack diagnostics to commit comment
-        if: failure()
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          # 失败现场经 commit comment 回传（匿名 API 可读）；base64+gzip 免转义
-          {
-            echo '### compose-up.log tail (base64+gzip)'
-            tail -c 6000 /tmp/compose-up.log 2>/dev/null | gzip | base64 -w0
-            echo
-            echo '### backend.log (base64+gzip)'
-            docker compose logs backend 2>&1 | gzip | base64 -w0
-            echo
-            echo '### ps -a'
-            docker compose ps -a 2>&1
-          } > /tmp/diag.md 2>&1 || true
-          sha="${{ github.sha }}"
-          gzip -c /tmp/diag.md | base64 -w0 > /tmp/diag.b64
-          jq -n --rawfile b /tmp/diag.b64 '{"body": ("CI-DIAG-B64:" + $b)}' > /tmp/comment.json
-          curl -sf -X POST \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/commits/$sha/comments" \
-            -d @/tmp/comment.json >/dev/null || echo "::error::post diag comment failed"
+          fi
       - name: Wait stack healthy
         run: |
           for i in $(seq 1 60); do
