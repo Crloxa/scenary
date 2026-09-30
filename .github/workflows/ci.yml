@@ -4,9 +4,6 @@ on:
   push:
   pull_request:
 
-permissions:
-  contents: write
-
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -88,20 +85,6 @@ jobs:
           pull_retry amazon/aws-cli:latest
           # mc 已不再使用（建桶改 aws-cli，CHANGELOG v2.48）
 
-      - name: Compose backend boot (capture boot logs)
-        run: |
-          set -o pipefail
-          docker compose up -d --build --pull never backend 2>&1 | tee /tmp/compose-backend.log
-          sleep 90
-          docker compose logs backend > /tmp/backend-boot.log 2>&1 || true
-          # 立即注解回传启动日志尾部（若 backend 冷启动失败，此处即现场）
-          tail -c 2500 /tmp/backend-boot.log | gzip | base64 -w0 | fold -w 300 > /tmp/be.b64
-          total=$(wc -l < /tmp/be.b64)
-          n=0
-          while IFS= read -r line; do
-            n=$((n + 1))
-            echo "::error::BEBOOT:$n/$total:$line"
-          done < /tmp/be.b64
       - name: Compose stack up
         run: |
           # pipefail 必须显式开启：否则 up 失败被 tee 吞掉（exit=tee 恒 0）
@@ -114,14 +97,9 @@ jobs:
             docker compose down --remove-orphans || true
           done
           if [ "$ok" != "1" ]; then
-            echo "::error::compose up failed twice; encoded diagnostics below (base64+gzip)"
-            tail -c 3500 /tmp/compose-up.log | gzip | base64 -w0 | fold -w 300 > /tmp/clog.b64
-            total=$(wc -l < /tmp/clog.b64)
-            n=0
-            while IFS= read -r line; do
-              n=$((n + 1))
-              echo "::error::CLOG:$n/$total:$line"
-            done < /tmp/clog.b64
+            docker compose logs backend > /tmp/backend.log 2>&1 || true
+            docker compose ps -a > /tmp/ps.txt 2>&1 || true
+            echo "::error::compose up failed twice (diagnostics in artifact)"
             exit 1
           fi
       - name: Wait stack healthy
@@ -130,9 +108,9 @@ jobs:
             if curl -sf http://localhost:8081/api/v1/ping >/dev/null; then echo READY; exit 0; fi
             sleep 5
           done
-          echo "::error::stack not healthy after 300s"
           docker compose logs backend > /tmp/backend.log 2>&1 || true
           docker compose ps -a > /tmp/ps.txt 2>&1 || true
+          echo "::error::stack not healthy after 300s (diagnostics in artifact)"
           exit 1
       - name: Upload stack diagnostics on failure
         if: failure()
@@ -141,6 +119,7 @@ jobs:
           name: stack-diagnostics
           path: |
             /tmp/compose-up.log
+            /tmp/compose-backend.log
             /tmp/backend.log
             /tmp/ps.txt
       - name: Frontend browser test (chromium, real stack)
