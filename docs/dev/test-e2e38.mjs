@@ -94,10 +94,10 @@ const uploadWaitDone = async (at, w=900, h=700) => {
   const fL1 = await j(await fetch(B+'/feed?limit=1'));
   const visibleCount = f1.data.list.length + (f1.data.hasMore?9:0);
   ok('⑧ limit=1 翻页链', fL1.data.list.length===1 && typeof fL1.data.nextCursor==='number' && fL1.data.hasMore===true,
-     `fL1=${JSON.stringify(fL1.data.list.map(c=>c.id))} total=${f1.data.list.length} hasMore=${f1.data.hasMore}`);
+     `fL1=${JSON.stringify(fL1.data.list.map(c=>c.id+':'+c.title))} total=${JSON.stringify(f1.data.list.map(c=>c.id+':'+c.title))} hasMore=${f1.data.hasMore}`);
   const fL2 = await j(await fetch(B+'/feed?limit=20&cursor='+fL1.data.nextCursor));
   ok('⑧b 第二页不含首页项/最终 hasMore=false', !fL2.data.list.some(c=>c.id===fL1.data.list[0].id),
-     `fL2=${JSON.stringify(fL2.data.list.map(c=>c.id))} hasMore=${fL2.data.hasMore}`);
+     `fL2=${JSON.stringify(fL2.data.list.map(c=>c.id+':'+c.title))} hasMore=${fL2.data.hasMore}`);
 
   // ---- 详情与可见性 ----
   {
