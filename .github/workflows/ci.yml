@@ -151,10 +151,11 @@ jobs:
           export SCENARY_API_BASE_URL=http://localhost:8081/api/v1
           fail=0
           for t in test-auth34 test-e2e38 test-p12-e3-places test-e5-map; do
-            if node "docs/dev/$t.mjs"; then
+            if node "docs/dev/$t.mjs" > "/tmp/$t.out" 2>&1; then
               echo "$t: PASS"
             else
               echo "::error::smoke failed: $t"
+              grep -E "^FAIL" "/tmp/$t.out" | tail -8 | while IFS= read -r line; do echo "::error::$t: $line"; done
               fail=1
             fi
           done
