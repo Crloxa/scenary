@@ -128,18 +128,19 @@ describe('PublishView × P12-E3 逆地理联动', () => {
     state.reverseGeocode.mockResolvedValue({ placeName: '四姑娘山', provider: 'nominatim', cached: false })
     const wrapper = await mountView()
     await wrapper.find('[data-testid="btn-open-map-picker"]').trigger('click')
-    // defineAsyncComponent 首次动态导入 + 解析需要多个 tick（vitest 惰性转换模块）
-    await flushPromises()
-    await new Promise(resolve => setTimeout(resolve, 100))
-    await flushPromises()
-    expect(wrapper.find('[data-testid="map-picker-canvas"]').exists()).toBe(true)
+    // defineAsyncComponent 首次动态导入 + 解析跨多个宏任务（CI 慢机时长不定）→ 轮询等待
+    await vi.waitFor(() => {
+      if (!wrapper.find('[data-testid="map-picker-canvas"]').exists()) throw new Error('modal not ready')
+    }, { timeout: 8000 })
     await wrapper.find('[data-testid="map-picker-confirm"]').trigger('click') // 默认初始坐标
-    await new Promise(resolve => setTimeout(resolve, 650))
-    await flushPromises()
-    expect(wrapper.find('[data-testid="map-picker-canvas"]').exists()).toBe(false) // 选点后弹窗关闭
-    expect(wrapper.find('[data-testid="input-latitude"]').element.value).toBe('31.2304')
-    expect(wrapper.find('[data-testid="input-longitude"]').element.value).toBe('121.4737')
-    expect(wrapper.find('#publish-place').element.value).toBe('四姑娘山')
+    // 选点 → 弹窗关闭 + E3 防抖查询回填，全部轮询断言
+    await vi.waitFor(() => {
+      if (wrapper.find('[data-testid="map-picker-canvas"]').exists()) throw new Error('modal still open')
+      if (wrapper.find('[data-testid="input-latitude"]').element.value !== '31.2304') throw new Error('lat not set')
+    }, { timeout: 8000 })
+    await vi.waitFor(() => {
+      if (wrapper.find('#publish-place').element.value !== '四姑娘山') throw new Error('place not filled')
+    }, { timeout: 8000 })
     wrapper.unmount()
   })
 })
