@@ -1,9 +1,10 @@
 <#
 .SYNOPSIS
-    P12-E2 桶匿名策略双向切换（docs/05 §6.4）：private（默认，短时签名访问）↔ public-read（回滚模式）。
+    P12-E2 桶匿名策略双向切换（docs/05 §6.4）：none（默认，短时签名访问）↔ download（匿名可读，回滚模式）。
 .DESCRIPTION
-    经 docker compose run 一次性 mc 容器对运行中的 MinIO 执行 anonymous set，
-    并同步把 MINIO_BUCKET_POLICY 写回 .env（若存在），使下次 up -d 的 minio-init 保持一致。
+    经 docker compose run 一次性 aws-cli 容器对运行中的 MinIO 执行桶策略切换。
+    mc 官方镜像已从 Hub 移除，工具链自 v2.48 起收敛到 amazon/aws-cli（CHANGELOG v2.48/v2.48.2）。
+    桶策略持久化于 scenary-minio-data 数据卷，切换后 up -d 幂等生效，无需重跑 minio-init。
 .PARAMETER Policy
     none（私有，默认）或 download（匿名可读，即 public-read 回滚模式）。
 .PARAMETER Preview
@@ -21,15 +22,36 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$mcCommand = "mc anonymous set $Policy local/`$MINIO_BUCKET"
+# MINIO_BUCKET 只在 minio-init 的 command 文本里做 compose 插值，--entrypoint 覆盖后拿不到，
+# 因此从 .env 直接读桶名，凭据仍由 minio-init 服务的 AWS_* 环境注入
+$envFile = Join-Path (Split-Path $ComposeFile -Parent) '.env'
+if (-not (Test-Path $envFile)) {
+    throw "未找到 $envFile：请先按 Phase 0 生成 .env。"
+}
+$bucket = (Get-Content $envFile | Where-Object { $_ -match '^\s*MINIO_BUCKET\s*=' } |
+    Select-Object -First 1) -replace '^\s*MINIO_BUCKET\s*=\s*', ''
+if ([string]::IsNullOrWhiteSpace($bucket)) {
+    throw '.env 中未配置 MINIO_BUCKET。'
+}
+
+$endpoint = 'http://minio:9000'
+$shCommand = switch ($Policy) {
+    'none' {
+        "aws --endpoint-url $endpoint s3api delete-bucket-policy --bucket '$bucket'"
+    }
+    'download' {
+        $downloadPolicy = '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":["*"]},"Action":["s3:GetObject"],"Resource":["arn:aws:s3:::' + $bucket + '/*"]}]}'
+        "aws --endpoint-url $endpoint s3api put-bucket-policy --bucket '$bucket' --policy '$downloadPolicy'"
+    }
+}
 
 if ($Preview) {
-    Write-Host "Preview（未执行）：docker compose run --rm --entrypoint sh minio-init -c `"mc alias set local http://minio:9000 ...; $mcCommand`""
+    Write-Host "Preview（未执行）：docker compose run --rm minio-init `"$shCommand`"（entrypoint=/bin/sh -c）"
     return
 }
 
-# 依赖 compose 注入的 MINIO_ROOT_USER/MINIO_ROOT_PASSWORD/MINIO_BUCKET 环境变量
-& docker compose -f $ComposeFile run --rm --entrypoint /bin/sh minio-init -c "until mc alias set local http://minio:9000 `$MINIO_ROOT_USER `$MINIO_ROOT_PASSWORD; do sleep 2; done; mc mb -p local/`$MINIO_BUCKET 2>/dev/null; $mcCommand"
+# minio-init 的 entrypoint 已是 ["/bin/sh","-c"]，run 参数整体替换 command 即为脚本本体
+& docker compose -f $ComposeFile run --rm minio-init $shCommand
 if ($LASTEXITCODE -ne 0) {
     throw "bucket policy 切换失败（exit=$LASTEXITCODE）。"
 }

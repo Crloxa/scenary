@@ -46,7 +46,7 @@ services:
     ports: ["9000:9000", "9001:9001"]
     volumes: ["scenary-minio-data:/data"]
 
-  minio-init:                       # 一次性建桶容器（aws-cli：mc 官方 Hub 镜像已移除）
+  minio-init:                       # 一次性建桶容器（aws-cli：mc 官方 Hub 镜像已移除，CHANGELOG v2.48）
     image: amazon/aws-cli:latest
     depends_on: [minio]
     environment:
@@ -56,10 +56,9 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        MC_BIN="$(command -v mc || echo /opt/bitnami/mc/bin/mc)"
-        until "$$MC_BIN" alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD}; do sleep 2; done
-        "$$MC_BIN" mb -p local/${MINIO_BUCKET} || true
-        "$$MC_BIN" anonymous set download local/${MINIO_BUCKET}
+        # 等待 minio 就绪（不存在则建桶）→ 匿名 GetObject 策略（=原 mc anonymous set download 开发语义）
+        until aws --endpoint-url http://minio:9000 s3api head-bucket --bucket "${MINIO_BUCKET}" 2>/dev/null || aws --endpoint-url http://minio:9000 s3 mb "s3://${MINIO_BUCKET}"; do sleep 2; done
+        aws --endpoint-url http://minio:9000 s3api put-bucket-policy --bucket "${MINIO_BUCKET}" --policy '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":["*"]},"Action":["s3:GetObject"],"Resource":["arn:aws:s3:::'"${MINIO_BUCKET}"'/*"]}]}'
         echo BUCKET_READY
 
 volumes:
