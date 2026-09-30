@@ -113,7 +113,30 @@ jobs:
             emit /tmp/clog.b64 CLOG
             emit /tmp/be.b64 BE
             exit 1
-          fi
+      - name: Post stack diagnostics to commit comment
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # 失败现场经 commit comment 回传（匿名 API 可读）；base64+gzip 免转义
+          {
+            echo '### compose-up.log tail (base64+gzip)'
+            tail -c 6000 /tmp/compose-up.log 2>/dev/null | gzip | base64 -w0
+            echo
+            echo '### backend.log (base64+gzip)'
+            docker compose logs backend 2>&1 | gzip | base64 -w0
+            echo
+            echo '### ps -a'
+            docker compose ps -a 2>&1
+          } > /tmp/diag.md 2>&1 || true
+          sha="${{ github.sha }}"
+          gzip -c /tmp/diag.md | base64 -w0 > /tmp/diag.b64
+          jq -n --rawfile b /tmp/diag.b64 '{"body": ("CI-DIAG-B64:" + $b)}' > /tmp/comment.json
+          curl -sf -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/commits/$sha/comments" \
+            -d @/tmp/comment.json >/dev/null || echo "::error::post diag comment failed"
       - name: Wait stack healthy
         run: |
           for i in $(seq 1 60); do
