@@ -149,10 +149,16 @@ jobs:
       - name: Black-box smoke (auth/e2e/places)
         run: |
           export SCENARY_API_BASE_URL=http://localhost:8081/api/v1
-          node docs/dev/test-auth34.mjs
-          node docs/dev/test-e2e38.mjs
-          node docs/dev/test-p12-e3-places.mjs
-          node docs/dev/test-e5-map.mjs
+          fail=0
+          for t in test-auth34 test-e2e38 test-p12-e3-places test-e5-map; do
+            if node "docs/dev/$t.mjs"; then
+              echo "$t: PASS"
+            else
+              echo "::error::smoke failed: $t"
+              fail=1
+            fi
+          done
+          exit $fail
       - name: Compose config
         run: docker compose config --quiet
       - name: Compose middleware config
